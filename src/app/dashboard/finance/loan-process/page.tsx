@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Search, Download, Trash2, FileText, Printer, Edit, Grid, List } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { isSuperUser } from "@/lib/auth-utils";
+import { hasLoanAccess as checkLoanAccess } from "@/lib/loan-access-utils";
+import SectionAccessDenied from "@/components/SectionAccessDenied";
 
 type LoanData = {
 	Intervention_ID?: number;
@@ -35,8 +38,67 @@ export default function LoanProcessPage() {
 	const [deletingId, setDeletingId] = useState<number | null>(null);
 	const [showAccessIssue, setShowAccessIssue] = useState(false);
 
-	const { userProfile } = useAuth();
+	const { userProfile, loading: authLoading } = useAuth();
 	const [isSuperFinanceOfficer, setIsSuperFinanceOfficer] = useState(false);
+	const [hasAccess, setHasAccess] = useState<boolean | null>(null);
+
+	// Check loan access permission
+	useEffect(() => {
+		if (authLoading) return;
+
+		// Check multiple sources for access_loans value
+		let accessLoansValue = userProfile?.access_loans;
+		
+		// Fallback to localStorage if userProfile doesn't have it
+		if ((accessLoansValue === null || accessLoansValue === undefined) && typeof window !== "undefined") {
+			const storedValue = localStorage.getItem('access_loans');
+			if (storedValue) {
+				accessLoansValue = storedValue;
+			}
+			
+			// Also check userData object in localStorage
+			const userData = localStorage.getItem('userData');
+			if (userData) {
+				try {
+					const parsedData = JSON.parse(userData);
+					if (parsedData.access_loans !== undefined && parsedData.access_loans !== null) {
+						accessLoansValue = parsedData.access_loans;
+					}
+				} catch (e) {
+					console.error('Error parsing userData:', e);
+				}
+			}
+		}
+
+		// Check if user has loan access (access_loans = 1 or "Yes")
+		const userHasLoanAccess = checkLoanAccess(accessLoansValue);
+
+		// Also check if user is super user (has full access)
+		const supperUserValue = userProfile?.supper_user;
+		const userIsSuperUser = isSuperUser(supperUserValue);
+
+		// Debug logging
+		if (typeof window !== "undefined") {
+			console.log("===========================================");
+			console.log("=== LOAN PROCESS ACCESS CHECK ===");
+			console.log("Full userProfile:", userProfile);
+			console.log("access_loans from userProfile:", userProfile?.access_loans);
+			console.log("access_loans final value:", accessLoansValue);
+			console.log("access_loans type:", typeof accessLoansValue);
+			console.log("checkLoanAccess result:", userHasLoanAccess);
+			console.log("supper_user value:", supperUserValue);
+			console.log("isSuperUser result:", userIsSuperUser);
+			console.log("Final access decision:", userHasLoanAccess || userIsSuperUser);
+			console.log("===========================================");
+		}
+
+		if (!userHasLoanAccess && !userIsSuperUser) {
+			setHasAccess(false);
+			// DO NOT redirect - user requested to stay on access denied page
+		} else {
+			setHasAccess(true);
+		}
+	}, [userProfile, authLoading]);
 
 	// Determine if current user has Finance_Officer = 'All'
 	useEffect(() => {
@@ -369,6 +431,23 @@ export default function LoanProcessPage() {
 					>
 						Try Again
 					</button>
+				</div>
+			</div>
+		);
+	}
+
+	// Show access denied if user doesn't have permission
+	if (hasAccess === false) {
+		return <SectionAccessDenied sectionName="Loan Process" requiredPermission="access_loans" />;
+	}
+
+	// Show loading while checking access
+	if (hasAccess === null || authLoading) {
+		return (
+			<div className="space-y-6">
+				<div className="flex items-center justify-center py-12">
+					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
+					<span className="ml-3 text-gray-600">Loading...</span>
 				</div>
 			</div>
 		);

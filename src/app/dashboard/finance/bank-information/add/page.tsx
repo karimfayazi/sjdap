@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Save, Building2, Eye, EyeOff } from "lucide-react";
 import AccessDenied from "@/components/AccessDenied";
+import { useAuth } from "@/hooks/useAuth";
+import { isSuperUser } from "@/lib/auth-utils";
+import { hasBankAccess } from "@/lib/bank-access-utils";
+import SectionAccessDenied from "@/components/SectionAccessDenied";
 
 type BankData = {
 	familyId: string;
@@ -94,6 +98,8 @@ export default function AddBankDetailsPage() {
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [success, setSuccess] = useState(false);
+	const { userProfile, loading: authLoading } = useAuth();
+	const [hasAccess, setHasAccess] = useState<boolean | null>(null);
 	const [checkingPermission, setCheckingPermission] = useState(true);
 	const [hasBankAccountPermission, setHasBankAccountPermission] = useState(false);
 	const [familyInfo, setFamilyInfo] = useState<FamilyInfo | null>(null);
@@ -104,34 +110,37 @@ export default function AddBankDetailsPage() {
 
 	// Check user's bank_account permission
 	useEffect(() => {
-		const checkBankAccountPermission = async () => {
-			try {
-				const response = await fetch('/api/user/profile');
-				const data = await response.json();
-				
-				if (data.success && data.user) {
-					// Check if bank_account is "Yes" (case-insensitive)
-					const bankAccount = data.user.bank_account;
-					const hasPermission = 
-						bankAccount === "Yes" || 
-						bankAccount === "yes" || 
-						bankAccount === 1 || 
-						bankAccount === "1";
-					
-					setHasBankAccountPermission(hasPermission);
-				} else {
-					setHasBankAccountPermission(false);
-				}
-			} catch (err) {
-				console.error("Error checking bank account permission:", err);
-				setHasBankAccountPermission(false);
-			} finally {
-				setCheckingPermission(false);
-			}
-		};
+		if (authLoading) return;
 
-		checkBankAccountPermission();
-	}, []);
+		// Check if user has bank account access (bank_account = 1 or "Yes")
+		const bankAccountValue = userProfile?.bank_account;
+		const userHasBankAccess = hasBankAccess(bankAccountValue);
+
+		// Also check if user is super user (has full access)
+		const supperUserValue = userProfile?.supper_user;
+		const userIsSuperUser = isSuperUser(supperUserValue);
+
+		// Debug logging
+		if (typeof window !== "undefined") {
+			console.log("=== ADD BANK DETAILS ACCESS CHECK ===", {
+				username: userProfile?.username,
+				bank_account: bankAccountValue,
+				hasBankAccess: userHasBankAccess,
+				isSuperUser: userIsSuperUser,
+				willGrantAccess: userHasBankAccess || userIsSuperUser
+			});
+		}
+
+		if (!userHasBankAccess && !userIsSuperUser) {
+			setHasAccess(false);
+			setHasBankAccountPermission(false);
+			// DO NOT redirect - user requested to stay on access denied page
+		} else {
+			setHasAccess(true);
+			setHasBankAccountPermission(true);
+		}
+		setCheckingPermission(false);
+	}, [userProfile, authLoading]);
 
 	const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
 		const { name, value } = e.target;
@@ -259,16 +268,15 @@ export default function AddBankDetailsPage() {
 		}
 	};
 
-	// Show loading state while checking permission
-	if (checkingPermission) {
+	// Show access denied if user doesn't have permission
+	if (hasAccess === false) {
+		return <SectionAccessDenied sectionName="Add Bank Details" requiredPermission="bank_account" />;
+	}
+
+	// Show loading while checking access
+	if (hasAccess === null || authLoading || checkingPermission) {
 		return (
 			<div className="space-y-6">
-				<div className="flex items-center justify-between">
-					<div>
-						<h1 className="text-3xl font-bold text-gray-900">Add Bank Details</h1>
-						<p className="text-gray-600 mt-2">Checking permissions...</p>
-					</div>
-				</div>
 				<div className="flex items-center justify-center py-12">
 					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
 					<span className="ml-3 text-gray-600">Loading...</span>

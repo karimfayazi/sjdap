@@ -3,6 +3,10 @@
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Save } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { isSuperUser } from "@/lib/auth-utils";
+import { hasLoanAccess as checkLoanAccess } from "@/lib/loan-access-utils";
+import SectionAccessDenied from "@/components/SectionAccessDenied";
 
 type LoanData = {
 	Intervention_ID?: number;
@@ -21,11 +25,66 @@ function EditLoanFlagsContent() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const interventionId = searchParams.get("interventionId");
+	const { userProfile, loading: authLoading } = useAuth();
 
 	const [loan, setLoan] = useState<LoanData | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const [hasAccess, setHasAccess] = useState<boolean | null>(null);
+
+	// Check loan access permission
+	useEffect(() => {
+		if (authLoading) return;
+
+		// Check multiple sources for access_loans value
+		let accessLoansValue = userProfile?.access_loans;
+		
+		// Fallback to localStorage if userProfile doesn't have it
+		if ((accessLoansValue === null || accessLoansValue === undefined) && typeof window !== "undefined") {
+			const storedValue = localStorage.getItem('access_loans');
+			if (storedValue) {
+				accessLoansValue = storedValue;
+			}
+			
+			const userData = localStorage.getItem('userData');
+			if (userData) {
+				try {
+					const parsedData = JSON.parse(userData);
+					if (parsedData.access_loans !== undefined && parsedData.access_loans !== null) {
+						accessLoansValue = parsedData.access_loans;
+					}
+				} catch (e) {
+					console.error('Error parsing userData:', e);
+				}
+			}
+		}
+
+		// Check if user has loan access (access_loans = 1 or "Yes")
+		const userHasLoanAccess = checkLoanAccess(accessLoansValue);
+
+		// Also check if user is super user (has full access)
+		const supperUserValue = userProfile?.supper_user;
+		const userIsSuperUser = isSuperUser(supperUserValue);
+
+		// Debug logging
+		if (typeof window !== "undefined") {
+			console.log("=== EDIT LOAN RECORD ACCESS CHECK ===", {
+				username: userProfile?.username,
+				access_loans: accessLoansValue,
+				hasLoanAccess: userHasLoanAccess,
+				isSuperUser: userIsSuperUser,
+				willGrantAccess: userHasLoanAccess || userIsSuperUser
+			});
+		}
+
+		if (!userHasLoanAccess && !userIsSuperUser) {
+			setHasAccess(false);
+			// DO NOT redirect - user requested to stay on access denied page
+		} else {
+			setHasAccess(true);
+		}
+	}, [userProfile, authLoading]);
 
 	useEffect(() => {
 		const fetchLoan = async () => {
@@ -138,6 +197,23 @@ function EditLoanFlagsContent() {
 			setSaving(false);
 		}
 	};
+
+	// Show access denied if user doesn't have permission
+	if (hasAccess === false) {
+		return <SectionAccessDenied sectionName="Edit Loan Record" requiredPermission="access_loans" />;
+	}
+
+	// Show loading while checking access
+	if (hasAccess === null || authLoading) {
+		return (
+			<div className="space-y-6">
+				<div className="flex items-center justify-center py-12">
+					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
+					<span className="ml-3 text-gray-600">Checking permissions...</span>
+				</div>
+			</div>
+		);
+	}
 
 	if (loading) {
 		return (

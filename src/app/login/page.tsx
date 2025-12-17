@@ -34,6 +34,21 @@ export default function LoginPage() {
 			// Store user data in localStorage for fallback
 			if (data.user) {
 				localStorage.setItem('userData', JSON.stringify(data.user));
+				// Store individual permission flags for easy access
+				localStorage.setItem('super_user', String(data.user.super_user || ''));
+				localStorage.setItem('baseline_qol', String(data.user.baseline_qol || ''));
+				localStorage.setItem('dashboard', String(data.user.dashboard || ''));
+				localStorage.setItem('power_bi', String(data.user.power_bi || ''));
+				localStorage.setItem('family_development_plan', String(data.user.family_development_plan || ''));
+				localStorage.setItem('family_approval_crc', String(data.user.family_approval_crc || ''));
+				localStorage.setItem('family_income', String(data.user.family_income || ''));
+				localStorage.setItem('rop', String(data.user.rop || ''));
+				localStorage.setItem('setting', String(data.user.setting || ''));
+				localStorage.setItem('other', String(data.user.other || ''));
+				localStorage.setItem('swb_families', String(data.user.swb_families || ''));
+				localStorage.setItem('access_loans', String(data.user.access_loans || ''));
+				localStorage.setItem('baseline_access', String(data.user.baseline_access || ''));
+				localStorage.setItem('bank_account', String(data.user.bank_account || ''));
 			}
 			
 			// Redirect based on designation (EDO -> EDO dashboard, others -> main dashboard)

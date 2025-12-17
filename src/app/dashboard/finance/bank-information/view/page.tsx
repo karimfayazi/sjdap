@@ -4,6 +4,10 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, Building2, Search, Download, Edit, Trash2, Eye } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { isSuperUser } from "@/lib/auth-utils";
+import { hasBankAccess } from "@/lib/bank-access-utils";
+import SectionAccessDenied from "@/components/SectionAccessDenied";
 
 type BankData = {
 	FAMILY_ID: string;
@@ -21,12 +25,45 @@ type BankData = {
 
 export default function ViewBankDetailsPage() {
 	const router = useRouter();
+	const { userProfile, loading: authLoading } = useAuth();
 	const [banks, setBanks] = useState<BankData[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [searchTerm, setSearchTerm] = useState("");
 	const [deletingId, setDeletingId] = useState<string | null>(null);
 	const [viewBank, setViewBank] = useState<BankData | null>(null);
+	const [hasAccess, setHasAccess] = useState<boolean | null>(null);
+
+	// Check bank account access permission
+	useEffect(() => {
+		if (authLoading) return;
+
+		// Check if user has bank account access (bank_account = 1 or "Yes")
+		const bankAccountValue = userProfile?.bank_account;
+		const userHasBankAccess = hasBankAccess(bankAccountValue);
+
+		// Also check if user is super user (has full access)
+		const supperUserValue = userProfile?.supper_user;
+		const userIsSuperUser = isSuperUser(supperUserValue);
+
+		// Debug logging
+		if (typeof window !== "undefined") {
+			console.log("=== VIEW BANK DETAILS ACCESS CHECK ===", {
+				username: userProfile?.username,
+				bank_account: bankAccountValue,
+				hasBankAccess: userHasBankAccess,
+				isSuperUser: userIsSuperUser,
+				willGrantAccess: userHasBankAccess || userIsSuperUser
+			});
+		}
+
+		if (!userHasBankAccess && !userIsSuperUser) {
+			setHasAccess(false);
+			// DO NOT redirect - user requested to stay on access denied page
+		} else {
+			setHasAccess(true);
+		}
+	}, [userProfile, authLoading]);
 	const [filters, setFilters] = useState({
 		familyId: "",
 		program: "",
@@ -204,6 +241,23 @@ export default function ViewBankDetailsPage() {
 			(bank.ACCOUNT_TYPE || "").toLowerCase().includes(searchLower)
 		);
 	});
+
+	// Show access denied if user doesn't have permission
+	if (hasAccess === false) {
+		return <SectionAccessDenied sectionName="View Bank Details" requiredPermission="bank_account" />;
+	}
+
+	// Show loading while checking access
+	if (hasAccess === null || authLoading) {
+		return (
+			<div className="space-y-6">
+				<div className="flex items-center justify-center py-12">
+					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
+					<span className="ml-3 text-gray-600">Loading...</span>
+				</div>
+			</div>
+		);
+	}
 
 	return (
 		<div className="space-y-6">

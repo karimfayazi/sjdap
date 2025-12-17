@@ -26,7 +26,8 @@
     "react": "^19.2.3",
     "react-chartjs-2": "^5.3.0",
     "react-dom": "^19.2.3",
-    "shapefile": "^0.6.6"
+    "shapefile": "^0.6.6",
+    "twilio": "^5.10.7"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

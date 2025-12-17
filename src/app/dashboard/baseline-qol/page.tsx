@@ -4,24 +4,31 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Download, Search, RefreshCw, Plus, X, Eye, Trash2, Edit2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useSectionAccess } from "@/hooks/useSectionAccess";
+import SectionAccessDenied from "@/components/SectionAccessDenied";
 
 type BaselineApplication = {
-	ApplicationId: number;
-	FormNo: string;
-	TotalFamilyMembers: string | number;
-	Remarks: string | null;
+	FormNo: string | null;
 	PersonRole: string | null;
 	CNICNo: string | null;
+	MotherTongue: string | null;
+	ResidentialAddress: string | null;
+	PrimaryContactNo: string | null;
 	CurrentJK: string | null;
 	LocalCouncil: string | null;
+	PrimaryLocationSettlement: string | null;
+	AreaOfOrigin: string | null;
 	FullName: string | null;
 	RegionalCouncil: string | null;
 	HouseStatusName: string | null;
+	TotalFamilyMembers: string | number | null;
+	Remarks: string | null;
 };
 
 export default function BaselineQOLPage() {
 	const router = useRouter();
 	const { userProfile } = useAuth();
+	const { hasAccess, loading: accessLoading, sectionName } = useSectionAccess("BaselineQOL");
 	const [applications, setApplications] = useState<BaselineApplication[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -29,18 +36,19 @@ export default function BaselineQOLPage() {
 	const [totalRecords, setTotalRecords] = useState(0);
 	const [searchTerm, setSearchTerm] = useState("");
 	const [filters, setFilters] = useState({
-		regionalCouncil: "",
-		localCouncil: "",
+		formNo: "",
 		cnicNo: "",
+		primaryContactNo: "",
+		currentJK: "",
+		localCouncil: "",
 		fullName: "",
+		regionalCouncil: "",
 	});
 	const [deleteConfirm, setDeleteConfirm] = useState<{
 		show: boolean;
-		applicationId: number | null;
 		formNo: string | null;
 	}>({
 		show: false,
-		applicationId: null,
 		formNo: null,
 	});
 	const [deleting, setDeleting] = useState(false);
@@ -96,10 +104,13 @@ export default function BaselineQOLPage() {
 			});
 
 			// Add filter parameters
-			if (filters.regionalCouncil) params.append("regionalCouncil", filters.regionalCouncil);
-			if (filters.localCouncil) params.append("localCouncil", filters.localCouncil);
+			if (filters.formNo) params.append("formNo", filters.formNo);
 			if (filters.cnicNo) params.append("cnicNo", filters.cnicNo);
+			if (filters.primaryContactNo) params.append("primaryContactNo", filters.primaryContactNo);
+			if (filters.currentJK) params.append("currentJK", filters.currentJK);
+			if (filters.localCouncil) params.append("localCouncil", filters.localCouncil);
 			if (filters.fullName) params.append("fullName", filters.fullName);
+			if (filters.regionalCouncil) params.append("regionalCouncil", filters.regionalCouncil);
 
 			const response = await fetch(`/api/baseline-applications?${params.toString()}`);
 			const data = await response.json();
@@ -129,37 +140,37 @@ export default function BaselineQOLPage() {
 
 	const clearFilters = () => {
 		setFilters({
-			regionalCouncil: "",
-			localCouncil: "",
+			formNo: "",
 			cnicNo: "",
+			primaryContactNo: "",
+			currentJK: "",
+			localCouncil: "",
 			fullName: "",
+			regionalCouncil: "",
 		});
 		setCurrentPage(1);
 	};
 
-	const handleDeleteClick = (applicationId: number, formNo: string) => {
+	const handleDeleteClick = (formNo: string) => {
 		setDeleteConfirm({
 			show: true,
-			applicationId,
 			formNo,
 		});
 	};
 
 	const handleDeleteConfirm = async () => {
-		if (!deleteConfirm.applicationId) return;
+		if (!deleteConfirm.formNo) return;
 
 		try {
 			setDeleting(true);
-			const response = await fetch(`/api/baseline-applications/${deleteConfirm.applicationId}`, {
+			// Delete using FormNo directly
+			const response = await fetch(`/api/baseline-applications?formNo=${encodeURIComponent(deleteConfirm.formNo)}`, {
 				method: "DELETE",
 			});
-
 			const data = await response.json();
-
 			if (data.success) {
-				// Refresh the list
 				await fetchApplications();
-				setDeleteConfirm({ show: false, applicationId: null, formNo: null });
+				setDeleteConfirm({ show: false, formNo: null });
 			} else {
 				alert(data.message || "Failed to delete application");
 			}
@@ -172,7 +183,7 @@ export default function BaselineQOLPage() {
 	};
 
 	const handleDeleteCancel = () => {
-		setDeleteConfirm({ show: false, applicationId: null, formNo: null });
+		setDeleteConfirm({ show: false, formNo: null });
 	};
 
 	const exportToCSV = () => {
@@ -183,17 +194,21 @@ export default function BaselineQOLPage() {
 			}
 
 			const headers = [
-				"ApplicationId",
 				"FormNo",
-				"TotalFamilyMembers",
-				"Remarks",
 				"PersonRole",
 				"CNICNo",
+				"MotherTongue",
+				"ResidentialAddress",
+				"PrimaryContactNo",
 				"CurrentJK",
 				"LocalCouncil",
+				"PrimaryLocationSettlement",
+				"AreaOfOrigin",
 				"FullName",
 				"RegionalCouncil",
 				"HouseStatusName",
+				"TotalFamilyMembers",
+				"Remarks",
 			];
 			const csvRows = [];
 			csvRows.push(headers.join(","));
@@ -240,18 +255,41 @@ export default function BaselineQOLPage() {
 		const search = searchTerm.toLowerCase();
 		return (
 			(app.FormNo && String(app.FormNo).toLowerCase().includes(search)) ||
-			(app.FullName && String(app.FullName).toLowerCase().includes(search)) ||
-			(app.CNICNo && String(app.CNICNo).toLowerCase().includes(search)) ||
-			(app.RegionalCouncil && String(app.RegionalCouncil).toLowerCase().includes(search)) ||
-			(app.LocalCouncil && String(app.LocalCouncil).toLowerCase().includes(search)) ||
-			(app.CurrentJK && String(app.CurrentJK).toLowerCase().includes(search)) ||
 			(app.PersonRole && String(app.PersonRole).toLowerCase().includes(search)) ||
+			(app.CNICNo && String(app.CNICNo).toLowerCase().includes(search)) ||
+			(app.MotherTongue && String(app.MotherTongue).toLowerCase().includes(search)) ||
+			(app.ResidentialAddress && String(app.ResidentialAddress).toLowerCase().includes(search)) ||
+			(app.PrimaryContactNo && String(app.PrimaryContactNo).toLowerCase().includes(search)) ||
+			(app.CurrentJK && String(app.CurrentJK).toLowerCase().includes(search)) ||
+			(app.LocalCouncil && String(app.LocalCouncil).toLowerCase().includes(search)) ||
+			(app.PrimaryLocationSettlement && String(app.PrimaryLocationSettlement).toLowerCase().includes(search)) ||
+			(app.AreaOfOrigin && String(app.AreaOfOrigin).toLowerCase().includes(search)) ||
+			(app.FullName && String(app.FullName).toLowerCase().includes(search)) ||
+			(app.RegionalCouncil && String(app.RegionalCouncil).toLowerCase().includes(search)) ||
 			(app.HouseStatusName && String(app.HouseStatusName).toLowerCase().includes(search)) ||
+			(app.TotalFamilyMembers && String(app.TotalFamilyMembers).toLowerCase().includes(search)) ||
 			(app.Remarks && String(app.Remarks).toLowerCase().includes(search))
 		);
 	});
 
 	const totalPages = Math.ceil(totalRecords / itemsPerPage);
+
+	// Show loading while checking access
+	if (accessLoading) {
+		return (
+			<div className="space-y-6">
+				<div className="flex items-center justify-center py-12">
+					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
+					<span className="ml-3 text-gray-600">Checking permissions...</span>
+				</div>
+			</div>
+		);
+	}
+
+	// Show access denied if user doesn't have permission
+	if (hasAccess === false) {
+		return <SectionAccessDenied sectionName={sectionName} requiredPermission="BaselineQOL" />;
+	}
 
 	if (loading) {
 		return (
@@ -369,26 +407,14 @@ export default function BaselineQOLPage() {
 				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
 					<div>
 						<label className="block text-sm font-medium text-gray-700 mb-2">
-							Regional Council
+							Form No
 						</label>
 						<input
 							type="text"
-							value={filters.regionalCouncil}
-							onChange={(e) => handleFilterChange("regionalCouncil", e.target.value)}
+							value={filters.formNo}
+							onChange={(e) => handleFilterChange("formNo", e.target.value)}
 							className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-							placeholder="Filter by RC"
-						/>
-					</div>
-					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-2">
-							Local Council
-						</label>
-						<input
-							type="text"
-							value={filters.localCouncil}
-							onChange={(e) => handleFilterChange("localCouncil", e.target.value)}
-							className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-							placeholder="Filter by LC"
+							placeholder="Filter by Form No"
 						/>
 					</div>
 					<div>
@@ -405,6 +431,42 @@ export default function BaselineQOLPage() {
 					</div>
 					<div>
 						<label className="block text-sm font-medium text-gray-700 mb-2">
+							Primary Contact No
+						</label>
+						<input
+							type="text"
+							value={filters.primaryContactNo}
+							onChange={(e) => handleFilterChange("primaryContactNo", e.target.value)}
+							className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+							placeholder="Filter by Contact"
+						/>
+					</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-2">
+							Current JK
+						</label>
+						<input
+							type="text"
+							value={filters.currentJK}
+							onChange={(e) => handleFilterChange("currentJK", e.target.value)}
+							className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+							placeholder="Filter by Current JK"
+						/>
+					</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-2">
+							Local Council
+						</label>
+						<input
+							type="text"
+							value={filters.localCouncil}
+							onChange={(e) => handleFilterChange("localCouncil", e.target.value)}
+							className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+							placeholder="Filter by LC"
+						/>
+					</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-2">
 							Full Name
 						</label>
 						<input
@@ -413,6 +475,18 @@ export default function BaselineQOLPage() {
 							onChange={(e) => handleFilterChange("fullName", e.target.value)}
 							className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
 							placeholder="Filter by Name"
+						/>
+					</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-2">
+							Regional Council
+						</label>
+						<input
+							type="text"
+							value={filters.regionalCouncil}
+							onChange={(e) => handleFilterChange("regionalCouncil", e.target.value)}
+							className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+							placeholder="Filter by RC"
 						/>
 					</div>
 				</div>
@@ -434,19 +508,7 @@ export default function BaselineQOLPage() {
 						<thead className="bg-gray-50">
 							<tr>
 								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									Application ID
-								</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
 									Form No
-								</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									Total Family Members
-								</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									Remarks
-								</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									Full Name
 								</th>
 								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
 									Person Role
@@ -455,16 +517,40 @@ export default function BaselineQOLPage() {
 									CNIC No
 								</th>
 								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									Regional Council
+									Mother Tongue
 								</th>
 								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									Local Council
+									Residential Address
+								</th>
+								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+									Primary Contact No
 								</th>
 								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
 									Current JK
 								</th>
 								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									House Status
+									Local Council
+								</th>
+								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+									Primary Location Settlement
+								</th>
+								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+									Area Of Origin
+								</th>
+								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+									Full Name
+								</th>
+								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+									Regional Council
+								</th>
+								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+									House Status Name
+								</th>
+								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+									Total Family Members
+								</th>
+								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+									Remarks
 								</th>
 								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
 									Actions
@@ -474,27 +560,15 @@ export default function BaselineQOLPage() {
 						<tbody className="bg-white divide-y divide-gray-200">
 							{filteredApplications.length === 0 ? (
 								<tr>
-									<td colSpan={14} className="px-4 py-8 text-center text-gray-500">
+									<td colSpan={16} className="px-4 py-8 text-center text-gray-500">
 										No records found
 									</td>
 								</tr>
 							) : (
 								filteredApplications.map((app, index) => (
-									<tr key={`${app.ApplicationId}-${index}`} className="hover:bg-gray-50">
+									<tr key={`${app.FormNo}-${index}`} className="hover:bg-gray-50">
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 font-medium">
-											{app.ApplicationId ?? "N/A"}
-										</td>
-										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
 											{app.FormNo ?? "N/A"}
-										</td>
-										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-											{app.TotalFamilyMembers ?? "N/A"}
-										</td>
-										<td className="px-4 py-3 text-sm text-gray-900 max-w-xs truncate">
-											{app.Remarks ?? "N/A"}
-										</td>
-										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-											{app.FullName ?? "N/A"}
 										</td>
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
 											{app.PersonRole ?? "N/A"}
@@ -503,42 +577,64 @@ export default function BaselineQOLPage() {
 											{app.CNICNo ?? "N/A"}
 										</td>
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-											{app.RegionalCouncil ?? "N/A"}
+											{app.MotherTongue ?? "N/A"}
+										</td>
+										<td className="px-4 py-3 text-sm text-gray-900 max-w-xs truncate">
+											{app.ResidentialAddress ?? "N/A"}
 										</td>
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-											{app.LocalCouncil ?? "N/A"}
+											{app.PrimaryContactNo ?? "N/A"}
 										</td>
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
 											{app.CurrentJK ?? "N/A"}
 										</td>
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+											{app.LocalCouncil ?? "N/A"}
+										</td>
+										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+											{app.PrimaryLocationSettlement ?? "N/A"}
+										</td>
+										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+											{app.AreaOfOrigin ?? "N/A"}
+										</td>
+										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+											{app.FullName ?? "N/A"}
+										</td>
+										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+											{app.RegionalCouncil ?? "N/A"}
+										</td>
+										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
 											{app.HouseStatusName ?? "N/A"}
+										</td>
+										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+											{app.TotalFamilyMembers ?? "N/A"}
+										</td>
+										<td className="px-4 py-3 text-sm text-gray-900 max-w-xs truncate">
+											{app.Remarks ?? "N/A"}
 										</td>
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
 											<div className="flex items-center gap-2">
 												<button
-													onClick={() => router.push(`/dashboard/baseline-qol/${app.ApplicationId}`)}
+													onClick={() => router.push(`/dashboard/baseline-qol/view?formNo=${encodeURIComponent(app.FormNo || "")}`)}
 													className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-xs"
 												>
 													<Eye className="h-3 w-3" />
 													View
 												</button>
 												<button
-													onClick={() => router.push(`/dashboard/baseline-qol/add?applicationId=${app.ApplicationId}`)}
+													onClick={() => router.push(`/dashboard/baseline-qol/add?formNo=${encodeURIComponent(app.FormNo || "")}`)}
 													className="inline-flex items-center gap-2 px-3 py-1.5 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 transition-colors text-xs"
 												>
 													<Edit2 className="h-3 w-3" />
 													Edit
 												</button>
-												{isSuperUser && (
-													<button
-														onClick={() => handleDeleteClick(app.ApplicationId, app.FormNo || "")}
-														className="inline-flex items-center gap-2 px-3 py-1.5 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors text-xs"
-													>
-														<Trash2 className="h-3 w-3" />
-														Delete
-													</button>
-												)}
+												<button
+													onClick={() => handleDeleteClick(app.FormNo || "")}
+													className="inline-flex items-center gap-2 px-3 py-1.5 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors text-xs"
+												>
+													<Trash2 className="h-3 w-3" />
+													Delete
+												</button>
 											</div>
 										</td>
 									</tr>
@@ -644,10 +740,10 @@ export default function BaselineQOLPage() {
 						<div className="px-6 py-4">
 							<div className="mb-4">
 								<p className="text-gray-700 mb-2">
-									<strong>Form No:</strong> {deleteConfirm.formNo || "N/A"}
+									<strong>Form No:</strong> <span className="font-mono text-lg text-red-600">{deleteConfirm.formNo || "N/A"}</span>
 								</p>
 								<p className="text-gray-800 text-base leading-relaxed">
-									Do you want to delete this family? If yes, then delete all records of that family.
+									Do you want to delete this application? This will permanently delete all records associated with this Form No.
 								</p>
 							</div>
 							<div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 mb-4">

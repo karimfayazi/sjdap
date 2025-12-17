@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Search, Grid, List } from "lucide-react";
+import { useSectionAccess } from "@/hooks/useSectionAccess";
+import SectionAccessDenied from "@/components/SectionAccessDenied";
 
 type ROPData = {
 	FAMILY_ID?: string;
@@ -26,6 +28,7 @@ type ROPData = {
 };
 
 export default function ROPsPage() {
+	const { hasAccess, loading: accessLoading, sectionName } = useSectionAccess("ROP");
 	const [rops, setRops] = useState<ROPData[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -247,6 +250,23 @@ export default function ROPsPage() {
 					>
 						Try Again
 					</button>
+				</div>
+			</div>
+		);
+	}
+
+	// Show access denied if user doesn't have permission
+	if (hasAccess === false) {
+		return <SectionAccessDenied sectionName={sectionName} requiredPermission="ROP" />;
+	}
+
+	// Show loading while checking access
+	if (accessLoading || loading) {
+		return (
+			<div className="space-y-6">
+				<div className="flex items-center justify-center py-12">
+					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
+					<span className="ml-3 text-gray-600">Loading...</span>
 				</div>
 			</div>
 		);

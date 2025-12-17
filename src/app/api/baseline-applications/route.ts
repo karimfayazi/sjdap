@@ -201,54 +201,109 @@ export async function GET(request: NextRequest) {
 			});
 		}
 
-		// Get data from PE_Application joined with PE_ApplicationPerson
+		// Get data from PE_ApplicationPerson
 		const pool = await getPeDb();
 		
 		// Get filter parameters
 		const page = parseInt(searchParams.get("page") || "1");
 		const limit = parseInt(searchParams.get("limit") || "50");
 		const offset = (page - 1) * limit;
-		const regionalCouncilFilter = (searchParams.get("regionalCouncil") || "").trim();
-		const localCouncilFilter = (searchParams.get("localCouncil") || "").trim();
+		const formNoFilter = (searchParams.get("formNo") || "").trim();
+		const personRoleFilter = (searchParams.get("personRole") || "").trim();
+		const dobMonthFilter = (searchParams.get("dobMonth") || "").trim();
+		const dobYearFilter = (searchParams.get("dobYear") || "").trim();
 		const cnicNoFilter = (searchParams.get("cnicNo") || "").trim();
+		const motherTongueFilter = (searchParams.get("motherTongue") || "").trim();
+		const residentialAddressFilter = (searchParams.get("residentialAddress") || "").trim();
+		const primaryContactNoFilter = (searchParams.get("primaryContactNo") || "").trim();
+		const currentJKFilter = (searchParams.get("currentJK") || "").trim();
+		const localCouncilFilter = (searchParams.get("localCouncil") || "").trim();
+		const primaryLocationSettlementFilter = (searchParams.get("primaryLocationSettlement") || "").trim();
+		const areaOfOriginFilter = (searchParams.get("areaOfOrigin") || "").trim();
 		const fullNameFilter = (searchParams.get("fullName") || "").trim();
+		const regionalCouncilFilter = (searchParams.get("regionalCouncil") || "").trim();
+		const houseStatusNameFilter = (searchParams.get("houseStatusName") || "").trim();
+		const totalFamilyMembersFilter = (searchParams.get("totalFamilyMembers") || "").trim();
+		const remarksFilter = (searchParams.get("remarks") || "").trim();
 
 		// Build WHERE clause for filters
 		const whereConditions: string[] = [];
 		
-		if (regionalCouncilFilter) {
-			whereConditions.push(`ap.[RegionalCouncil] LIKE '%${regionalCouncilFilter.replace(/'/g, "''")}%'`);
+		if (formNoFilter) {
+			whereConditions.push(`[FormNo] LIKE '%${formNoFilter.replace(/'/g, "''")}%'`);
 		}
-		if (localCouncilFilter) {
-			whereConditions.push(`ap.[LocalCouncil] LIKE '%${localCouncilFilter.replace(/'/g, "''")}%'`);
+		if (personRoleFilter) {
+			whereConditions.push(`[PersonRole] LIKE '%${personRoleFilter.replace(/'/g, "''")}%'`);
+		}
+		if (dobMonthFilter) {
+			whereConditions.push(`[DOBMonth] LIKE '%${dobMonthFilter.replace(/'/g, "''")}%'`);
+		}
+		if (dobYearFilter) {
+			whereConditions.push(`[DOBYear] LIKE '%${dobYearFilter.replace(/'/g, "''")}%'`);
 		}
 		if (cnicNoFilter) {
-			whereConditions.push(`ap.[CNICNo] LIKE '%${cnicNoFilter.replace(/'/g, "''")}%'`);
+			whereConditions.push(`[CNICNo] LIKE '%${cnicNoFilter.replace(/'/g, "''")}%'`);
+		}
+		if (motherTongueFilter) {
+			whereConditions.push(`[MotherTongue] LIKE '%${motherTongueFilter.replace(/'/g, "''")}%'`);
+		}
+		if (residentialAddressFilter) {
+			whereConditions.push(`[ResidentialAddress] LIKE '%${residentialAddressFilter.replace(/'/g, "''")}%'`);
+		}
+		if (primaryContactNoFilter) {
+			whereConditions.push(`[PrimaryContactNo] LIKE '%${primaryContactNoFilter.replace(/'/g, "''")}%'`);
+		}
+		if (currentJKFilter) {
+			whereConditions.push(`[CurrentJK] LIKE '%${currentJKFilter.replace(/'/g, "''")}%'`);
+		}
+		if (localCouncilFilter) {
+			whereConditions.push(`[LocalCouncil] LIKE '%${localCouncilFilter.replace(/'/g, "''")}%'`);
+		}
+		if (primaryLocationSettlementFilter) {
+			whereConditions.push(`[PrimaryLocationSettlement] LIKE '%${primaryLocationSettlementFilter.replace(/'/g, "''")}%'`);
+		}
+		if (areaOfOriginFilter) {
+			whereConditions.push(`[AreaOfOrigin] LIKE '%${areaOfOriginFilter.replace(/'/g, "''")}%'`);
 		}
 		if (fullNameFilter) {
-			whereConditions.push(`ap.[FullName] LIKE '%${fullNameFilter.replace(/'/g, "''")}%'`);
+			whereConditions.push(`[FullName] LIKE '%${fullNameFilter.replace(/'/g, "''")}%'`);
+		}
+		if (regionalCouncilFilter) {
+			whereConditions.push(`[RegionalCouncil] LIKE '%${regionalCouncilFilter.replace(/'/g, "''")}%'`);
+		}
+		if (houseStatusNameFilter) {
+			whereConditions.push(`[HouseStatusName] LIKE '%${houseStatusNameFilter.replace(/'/g, "''")}%'`);
+		}
+		if (totalFamilyMembersFilter) {
+			whereConditions.push(`[TotalFamilyMembers] LIKE '%${totalFamilyMembersFilter.replace(/'/g, "''")}%'`);
+		}
+		if (remarksFilter) {
+			whereConditions.push(`[Remarks] LIKE '%${remarksFilter.replace(/'/g, "''")}%'`);
 		}
 		
 		const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(" AND ")}` : "";
 
-		// Query to join PE_Application with PE_ApplicationPerson - match on FormNo
+		// Query to get data from PE_ApplicationPerson
 		const query = `
 			SELECT 
-				a.[ApplicationId],
-				a.[FormNo],
-				a.[TotalFamilyMembers],
-				a.[Remarks],
-				ap.[PersonRole],
-				ap.[CNICNo],
-				ap.[CurrentJK],
-				ap.[LocalCouncil],
-				ap.[FullName],
-				ap.[RegionalCouncil],
-				ap.[HouseStatusName]
-			FROM [SJDA_Users].[dbo].[PE_Application] a
-			LEFT JOIN [SJDA_Users].[dbo].[PE_ApplicationPerson] ap ON a.[FormNo] = ap.[FormNo]
+				[FormNo],
+				[PersonRole],
+				[CNICNo],
+				[MotherTongue],
+				[ResidentialAddress],
+				[PrimaryContactNo],
+				[CurrentJK],
+				[LocalCouncil],
+				[PrimaryLocationSettlement],
+				[AreaOfOrigin],
+				[FullName],
+				[RegionalCouncil],
+				[HouseStatusName],
+				[TotalFamilyMembers],
+				[Remarks]
+			FROM [SJDA_Users].[dbo].[PE_ApplicationPerson]
 			${whereClause}
-			ORDER BY a.[ApplicationId] DESC
+			ORDER BY [FormNo] DESC
 			OFFSET ${offset} ROWS
 			FETCH NEXT ${limit} ROWS ONLY
 		`;
@@ -260,9 +315,8 @@ export async function GET(request: NextRequest) {
 		
 		// Get total count with same filters
 		const countQuery = `
-			SELECT COUNT(DISTINCT a.[ApplicationId]) as total 
-			FROM [SJDA_Users].[dbo].[PE_Application] a
-			LEFT JOIN [SJDA_Users].[dbo].[PE_ApplicationPerson] ap ON a.[FormNo] = ap.[FormNo]
+			SELECT COUNT(*) as total 
+			FROM [SJDA_Users].[dbo].[PE_ApplicationPerson]
 			${whereClause}
 		`;
 		const countResult = await pool.request().query(countQuery);
@@ -377,8 +431,6 @@ export async function POST(request: NextRequest) {
 					headRequest.input("ApplicationId", applicationId);
 					headRequest.input("PersonRole", head.PersonRole || null);
 					headRequest.input("FullName", head.FullName || null);
-					headRequest.input("DOBMonth", head.DOBMonth || null);
-					headRequest.input("DOBYear", head.DOBYear || null);
 					headRequest.input("CNICNo", head.CNICNo || null);
 					headRequest.input("MotherTongue", head.MotherTongue || null);
 					headRequest.input("ResidentialAddress", head.ResidentialAddress || null);
@@ -393,11 +445,11 @@ export async function POST(request: NextRequest) {
 
 					await headRequest.query(`
 						INSERT INTO [SJDA_Users].[dbo].[PE_ApplicationPerson]
-						([ApplicationId], [FormNo], [PersonRole], [FullName], [DOBMonth], [DOBYear], [CNICNo],
+						([ApplicationId], [FormNo], [PersonRole], [FullName], [CNICNo],
 						 [MotherTongue], [ResidentialAddress], [PrimaryContactNo],
 						 [RegionalCouncil], [LocalCouncil], [CurrentJK], [PrimaryLocationSettlement], [AreaOfOrigin], [HouseStatusName])
 						VALUES 
-						(@ApplicationId, @FormNo, @PersonRole, @FullName, @DOBMonth, @DOBYear, @CNICNo,
+						(@ApplicationId, @FormNo, @PersonRole, @FullName, @CNICNo,
 						 @MotherTongue, @ResidentialAddress, @PrimaryContactNo,
 						 @RegionalCouncil, @LocalCouncil, @CurrentJK, @PrimaryLocationSettlement, @AreaOfOrigin, @HouseStatusName)
 					`);
@@ -519,9 +571,9 @@ export async function PUT(request: NextRequest) {
 		const body = await request.json();
 		const { application, familyHeads, familyMembers } = body;
 
-		if (!application || !application.ApplicationId) {
+		if (!application || !application.FormNo) {
 			return NextResponse.json(
-				{ success: false, message: "Application ID is required for update" },
+				{ success: false, message: "FormNo is required for update" },
 				{ status: 400 }
 			);
 		}
@@ -532,41 +584,18 @@ export async function PUT(request: NextRequest) {
 		try {
 			await transaction.begin();
 
-			const appRequest = new sql.Request(transaction);
-			appRequest.input("ApplicationId", application.ApplicationId);
-			const providedFormNo = (application.FormNo || "").trim();
-			let formNoValue = providedFormNo;
-			if (!formNoValue) {
-				const fetchFormRequest = new sql.Request(transaction);
-				fetchFormRequest.input("ApplicationId", application.ApplicationId);
-				const formResult = await fetchFormRequest.query(`
-					SELECT [FormNo]
-					FROM [SJDA_Users].[dbo].[PE_Application]
-					WHERE [ApplicationId] = @ApplicationId
-				`);
-				formNoValue = formResult.recordset?.[0]?.FormNo || "";
-			}
+			const formNoValue = application.FormNo.trim();
 
-			if (!formNoValue) {
-				await transaction.rollback();
-				return NextResponse.json(
-					{ success: false, message: "FormNo is required for the application" },
-					{ status: 400 }
-				);
-			}
-
-			appRequest.input("FormNo", formNoValue);
-			appRequest.input("TotalFamilyMembers", application.TotalFamilyMembers || null);
-			appRequest.input("Remarks", application.Remarks || null);
-
-			const safeSchema = "SJDA_Users";
-			const updateResult = await appRequest.query(`
-				UPDATE [${safeSchema}].[dbo].[PE_Application]
-				SET [FormNo] = @FormNo, [TotalFamilyMembers] = @TotalFamilyMembers, [Remarks] = @Remarks
-				WHERE [ApplicationId] = @ApplicationId
+			// Check if application exists in PE_ApplicationPerson
+			const checkRequest = new sql.Request(transaction);
+			checkRequest.input("FormNo", formNoValue);
+			const checkResult = await checkRequest.query(`
+				SELECT TOP 1 [FormNo]
+				FROM [SJDA_Users].[dbo].[PE_ApplicationPerson]
+				WHERE [FormNo] = @FormNo
 			`);
 
-			if (updateResult.rowsAffected[0] === 0) {
+			if (checkResult.recordset.length === 0) {
 				await transaction.rollback();
 				return NextResponse.json(
 					{ success: false, message: "Application not found" },
@@ -574,37 +603,55 @@ export async function PUT(request: NextRequest) {
 				);
 			}
 
+			// Get all MemberNos for this FormNo to clean up related data
+			const getMemberNosRequest = new sql.Request(transaction);
+			getMemberNosRequest.input("FormNo", formNoValue);
+			const memberNosQuery = `SELECT [MemberNo] FROM [SJDA_Users].[dbo].[PE_FamilyMember] WHERE [FormNo] = @FormNo`;
+			const memberNosResult = await getMemberNosRequest.query(memberNosQuery);
+			const memberNos = memberNosResult.recordset.map((r: any) => r.MemberNo);
+
+			// Delete related records by MemberNo
+			if (memberNos.length > 0) {
+				for (const memberNo of memberNos) {
+					const deleteLivelihoodRequest = new sql.Request(transaction);
+					deleteLivelihoodRequest.input("MemberNo", memberNo);
+					await deleteLivelihoodRequest.query(`
+						DELETE FROM [SJDA_Users].[dbo].[PE_Livelihood]
+						WHERE [MemberNo] = @MemberNo
+					`);
+
+					const deleteEducationRequest = new sql.Request(transaction);
+					deleteEducationRequest.input("MemberNo", memberNo);
+					await deleteEducationRequest.query(`
+						DELETE FROM [SJDA_Users].[dbo].[PE_Education]
+						WHERE [MemberNo] = @MemberNo
+					`);
+				}
+			}
+
+			// Delete family members by FormNo
 			const cleanupRequest = new sql.Request(transaction);
-			cleanupRequest.input("ApplicationId", application.ApplicationId);
-			await cleanupRequest.query(`
-				DELETE FROM [SJDA_Users].[dbo].[PE_Livelihood]
-				WHERE [FamilyID] = @ApplicationId
-			`);
-			cleanupRequest.input("ApplicationId", application.ApplicationId);
-			await cleanupRequest.query(`
-				DELETE FROM [SJDA_Users].[dbo].[PE_Education]
-				WHERE [FamilyID] = @ApplicationId
-			`);
-			cleanupRequest.input("ApplicationId", application.ApplicationId);
+			cleanupRequest.input("FormNo", formNoValue);
 			await cleanupRequest.query(`
 				DELETE FROM [SJDA_Users].[dbo].[PE_FamilyMember]
-				WHERE [ApplicationId] = @ApplicationId
-			`);
-			cleanupRequest.input("ApplicationId", application.ApplicationId);
-			await cleanupRequest.query(`
-				DELETE FROM [SJDA_Users].[dbo].[PE_ApplicationPerson]
-				WHERE [ApplicationId] = @ApplicationId
+				WHERE [FormNo] = @FormNo
 			`);
 
-			// Insert family heads
+			// Delete existing family heads
+			const deleteHeadsRequest = new sql.Request(transaction);
+			deleteHeadsRequest.input("FormNo", formNoValue);
+			await deleteHeadsRequest.query(`
+				DELETE FROM [SJDA_Users].[dbo].[PE_ApplicationPerson]
+				WHERE [FormNo] = @FormNo
+			`);
+
+			// Insert updated family heads
 			if (Array.isArray(familyHeads)) {
 				for (const head of familyHeads) {
 					const headRequest = new sql.Request(transaction);
-					headRequest.input("ApplicationId", application.ApplicationId);
+					headRequest.input("FormNo", formNoValue);
 					headRequest.input("PersonRole", head.PersonRole || null);
 					headRequest.input("FullName", head.FullName || null);
-					headRequest.input("DOBMonth", head.DOBMonth || null);
-					headRequest.input("DOBYear", head.DOBYear || null);
 					headRequest.input("CNICNo", head.CNICNo || null);
 					headRequest.input("MotherTongue", head.MotherTongue || null);
 					headRequest.input("ResidentialAddress", head.ResidentialAddress || null);
@@ -615,26 +662,29 @@ export async function PUT(request: NextRequest) {
 					headRequest.input("PrimaryLocationSettlement", head.PrimaryLocationSettlement || null);
 					headRequest.input("AreaOfOrigin", head.AreaOfOrigin || null);
 					headRequest.input("HouseStatusName", head.HouseStatusName || null);
-					headRequest.input("FormNo", formNoValue);
+					headRequest.input("TotalFamilyMembers", application.TotalFamilyMembers || null);
+					headRequest.input("Remarks", application.Remarks || null);
 
 					await headRequest.query(`
 						INSERT INTO [SJDA_Users].[dbo].[PE_ApplicationPerson]
-						([ApplicationId], [FormNo], [PersonRole], [FullName], [DOBMonth], [DOBYear], [CNICNo],
+						([FormNo], [PersonRole], [FullName], [CNICNo],
 						 [MotherTongue], [ResidentialAddress], [PrimaryContactNo], [RegionalCouncil],
-						 [LocalCouncil], [CurrentJK], [PrimaryLocationSettlement], [AreaOfOrigin], [HouseStatusName])
+						 [LocalCouncil], [CurrentJK], [PrimaryLocationSettlement], [AreaOfOrigin], [HouseStatusName],
+						 [TotalFamilyMembers], [Remarks])
 						VALUES 
-						(@ApplicationId, @FormNo, @PersonRole, @FullName, @DOBMonth, @DOBYear, @CNICNo,
+						(@FormNo, @PersonRole, @FullName, @CNICNo,
 						 @MotherTongue, @ResidentialAddress, @PrimaryContactNo, @RegionalCouncil,
-						 @LocalCouncil, @CurrentJK, @PrimaryLocationSettlement, @AreaOfOrigin, @HouseStatusName)
+						 @LocalCouncil, @CurrentJK, @PrimaryLocationSettlement, @AreaOfOrigin, @HouseStatusName,
+						 @TotalFamilyMembers, @Remarks)
 					`);
 				}
 			}
 
-			// Insert family members and related data
-			if (Array.isArray(familyMembers)) {
+			// Insert family members and related data (if any)
+			if (Array.isArray(familyMembers) && familyMembers.length > 0) {
 				for (const member of familyMembers) {
 					const memberRequest = new sql.Request(transaction);
-					memberRequest.input("ApplicationId", application.ApplicationId);
+					memberRequest.input("FormNo", formNoValue);
 					memberRequest.input("MemberNo", member.MemberNo || null);
 					memberRequest.input("FullName", member.FullName || null);
 					memberRequest.input("BFormOrCNIC", member.BFormOrCNIC || null);
@@ -646,16 +696,15 @@ export async function PUT(request: NextRequest) {
 
 					await memberRequest.query(`
 						INSERT INTO [SJDA_Users].[dbo].[PE_FamilyMember]
-						([ApplicationId], [MemberNo], [FullName], [BFormOrCNIC], [RelationshipId],
+						([FormNo], [MemberNo], [FullName], [BFormOrCNIC], [RelationshipId],
 						 [GenderId], [MaritalStatusId], [DOBMonth], [DOBYear])
 						VALUES 
-						(@ApplicationId, @MemberNo, @FullName, @BFormOrCNIC, @RelationshipId,
+						(@FormNo, @MemberNo, @FullName, @BFormOrCNIC, @RelationshipId,
 						 @GenderId, @MaritalStatusId, @DOBMonth, @DOBYear)
 					`);
 
 					if (member.MemberNo && member.education) {
 						const eduRequest = new sql.Request(transaction);
-						eduRequest.input("FamilyID", application.ApplicationId);
 						eduRequest.input("MemberNo", member.MemberNo);
 						eduRequest.input("IsCurrentlyStudying", member.education.IsCurrentlyStudying || null);
 						eduRequest.input("InstitutionType", member.education.InstitutionType || null);
@@ -669,11 +718,11 @@ export async function PUT(request: NextRequest) {
 
 						await eduRequest.query(`
 							INSERT INTO [SJDA_Users].[dbo].[PE_Education]
-							([FamilyID], [MemberNo], [IsCurrentlyStudying], [InstitutionType], [InstitutionTypeOther],
+							([MemberNo], [IsCurrentlyStudying], [InstitutionType], [InstitutionTypeOther],
 							 [CurrentClass], [CurrentClassOther], [LastFormalQualification], [LastFormalQualificationOther],
 							 [HighestQualification], [HighestQualificationOther])
 							VALUES
-							(@FamilyID, @MemberNo, @IsCurrentlyStudying, @InstitutionType, @InstitutionTypeOther,
+							(@MemberNo, @IsCurrentlyStudying, @InstitutionType, @InstitutionTypeOther,
 							 @CurrentClass, @CurrentClassOther, @LastFormalQualification, @LastFormalQualificationOther,
 							 @HighestQualification, @HighestQualificationOther)
 						`);
@@ -681,7 +730,6 @@ export async function PUT(request: NextRequest) {
 
 					if (member.MemberNo && member.livelihood) {
 						const livelihoodRequest = new sql.Request(transaction);
-						livelihoodRequest.input("FamilyID", application.ApplicationId);
 						livelihoodRequest.input("MemberNo", member.MemberNo);
 						livelihoodRequest.input("IsCurrentlyEarning", member.livelihood.IsCurrentlyEarning || null);
 						livelihoodRequest.input("EarningSource", member.livelihood.EarningSource || null);
@@ -697,11 +745,11 @@ export async function PUT(request: NextRequest) {
 
 						await livelihoodRequest.query(`
 							INSERT INTO [SJDA_Users].[dbo].[PE_Livelihood]
-							([FamilyID], [MemberNo], [IsCurrentlyEarning], [EarningSource], [EarningSourceOther],
+							([MemberNo], [IsCurrentlyEarning], [EarningSource], [EarningSourceOther],
 							 [SalariedWorkSector], [SalariedWorkSectorOther], [WorkField], [WorkFieldOther],
 							 [MonthlyIncome], [JoblessDuration], [ReasonNotEarning], [ReasonNotEarningOther])
 							VALUES
-							(@FamilyID, @MemberNo, @IsCurrentlyEarning, @EarningSource, @EarningSourceOther,
+							(@MemberNo, @IsCurrentlyEarning, @EarningSource, @EarningSourceOther,
 							 @SalariedWorkSector, @SalariedWorkSectorOther, @WorkField, @WorkFieldOther,
 							 @MonthlyIncome, @JoblessDuration, @ReasonNotEarning, @ReasonNotEarningOther)
 						`);
@@ -724,6 +772,106 @@ export async function PUT(request: NextRequest) {
 			{
 				success: false,
 				message: error.message || "Failed to update application",
+			},
+			{ status: 500 }
+		);
+	}
+}
+
+export async function DELETE(request: NextRequest) {
+	try {
+		// Check authentication
+		const authCookie = request.cookies.get("auth");
+		
+		if (!authCookie || !authCookie.value) {
+			return NextResponse.json(
+				{ success: false, message: "Unauthorized" },
+				{ status: 401 }
+			);
+		}
+
+		const { searchParams } = new URL(request.url);
+		const formNo = searchParams.get("formNo");
+
+		if (!formNo) {
+			return NextResponse.json(
+				{ success: false, message: "FormNo is required" },
+				{ status: 400 }
+			);
+		}
+
+		const pool = await getPeDb();
+		
+		// Get all MemberNos for this FormNo to ensure complete deletion
+		const getMemberNosRequest = pool.request();
+		getMemberNosRequest.input("formNo", formNo);
+		const memberNosQuery = `SELECT [MemberNo] FROM [SJDA_Users].[dbo].[PE_FamilyMember] WHERE [FormNo] = @formNo`;
+		const memberNosResult = await getMemberNosRequest.query(memberNosQuery);
+		const memberNos = memberNosResult.recordset.map((r: any) => r.MemberNo);
+
+		const dbRequest = pool.request();
+		(dbRequest as any).timeout = 120000;
+		dbRequest.input("formNo", formNo);
+
+		// Delete PE_Livelihood records by MemberNo
+		if (memberNos.length > 0) {
+			for (const memberNo of memberNos) {
+				const deleteLivelihoodByMember = pool.request();
+				deleteLivelihoodByMember.input("memberNo", memberNo);
+				await deleteLivelihoodByMember.query(`
+					DELETE FROM [SJDA_Users].[dbo].[PE_Livelihood]
+					WHERE [MemberNo] = @memberNo
+				`);
+			}
+		}
+
+		// Delete PE_Education records by MemberNo
+		if (memberNos.length > 0) {
+			for (const memberNo of memberNos) {
+				const deleteEducationByMember = pool.request();
+				deleteEducationByMember.input("memberNo", memberNo);
+				await deleteEducationByMember.query(`
+					DELETE FROM [SJDA_Users].[dbo].[PE_Education]
+					WHERE [MemberNo] = @memberNo
+				`);
+			}
+		}
+
+		// Delete PE_FamilyMember records by FormNo
+		await dbRequest.query(`
+			DELETE FROM [SJDA_Users].[dbo].[PE_FamilyMember]
+			WHERE [FormNo] = @formNo
+		`);
+
+		// Delete PE_ApplicationPerson records by FormNo
+		const deletePersonResult = await dbRequest.query(`
+			DELETE FROM [SJDA_Users].[dbo].[PE_ApplicationPerson]
+			WHERE [FormNo] = @formNo
+		`);
+
+		// Delete PE_Application record by FormNo (if exists)
+		await dbRequest.query(`
+			DELETE FROM [SJDA_Users].[dbo].[PE_Application]
+			WHERE [FormNo] = @formNo
+		`);
+
+		if (deletePersonResult.rowsAffected[0] === 0) {
+			return NextResponse.json(
+				{ success: false, message: "Application not found" },
+				{ status: 404 }
+			);
+		}
+
+		return NextResponse.json({
+			success: true,
+			message: "Family and all related records deleted successfully",
+		});
+	} catch (error: any) {
+		console.error("Error deleting application:", error);
+		return NextResponse.json(
+			{
+				success: false,
+				message: error.message || "Failed to delete application",
 			},
 			{ status: 500 }
 		);

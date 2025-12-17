@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Search, Edit2, Trash2, X, Save, FileBarChart, DollarSign, Users, Calendar } from "lucide-react";
+import { useSectionAccess } from "@/hooks/useSectionAccess";
+import SectionAccessDenied from "@/components/SectionAccessDenied";
 
 type ROPUpdateData = {
 	INTERVENTION_ID: string | null;
@@ -15,6 +17,7 @@ type ROPUpdateData = {
 };
 
 export default function ROPUpdatePage() {
+	const { hasAccess, loading: accessLoading, sectionName } = useSectionAccess("Other");
 	const [rops, setRops] = useState<ROPUpdateData[]>([]);
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -285,6 +288,23 @@ export default function ROPUpdatePage() {
 	const startIndex = (currentPage - 1) * itemsPerPage;
 	const endIndex = startIndex + itemsPerPage;
 	const paginatedRops = rops.slice(startIndex, endIndex);
+
+	// Show access denied if user doesn't have permission
+	if (hasAccess === false) {
+		return <SectionAccessDenied sectionName={sectionName} requiredPermission="ROP Update" />;
+	}
+
+	// Show loading while checking access
+	if (accessLoading) {
+		return (
+			<div className="space-y-6">
+				<div className="flex items-center justify-center py-12">
+					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
+					<span className="ml-3 text-gray-600">Loading...</span>
+				</div>
+			</div>
+		);
+	}
 
 	return (
 		<div className="space-y-6">

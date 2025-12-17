@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
+import { sendLoginNotification } from "@/lib/notification-service";
 
 // Increase timeout for this route to 120 seconds
 export const maxDuration = 120;
@@ -52,6 +53,16 @@ export async function POST(request: NextRequest) {
 			);
 		}
 
+		// Send login notification (don't await - run in background)
+		sendLoginNotification(
+			user.USER_FULL_NAME || user.USER_ID,
+			user.USER_ID,
+			new Date()
+		).catch(error => {
+			// Log error but don't fail the login
+			console.error('Failed to send login notification:', error);
+		});
+
 		const response = NextResponse.json({ 
 			success: true, 
 			user: { 
@@ -62,7 +73,7 @@ export async function POST(request: NextRequest) {
 				designation: user.DESIGNATION,
 				region: user.REGION,
 				program: user.PROGRAM,
-				area_code: user.AREA_CODE,
+				area: user.AREA,
 				section: user.SECTION,
 				finance_officer: user.Finance_Officer ?? null,
 				can_add: user.CAN_ADD,
@@ -80,7 +91,17 @@ export async function POST(request: NextRequest) {
 				access_loans: user.access_loans,
 				baseline_access: user.baseline_access,
 				bank_account: user.bank_account,
-				super_user: user.Supper_User
+				super_user: user.Supper_User,
+				baseline_qol: user.BaselineQOL,
+				dashboard: user.Dashboard,
+				power_bi: user.PowerBI,
+				family_development_plan: user.Family_Development_Plan,
+				family_approval_crc: user.Family_Approval_CRC,
+				family_income: user.Family_Income,
+				rop: user.ROP,
+				setting: user.Setting,
+				other: user.Other,
+				swb_families: user.SWB_Families
 			},
 			full_name: user.USER_FULL_NAME
 		});

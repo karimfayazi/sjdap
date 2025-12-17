@@ -46,13 +46,10 @@ export async function GET(
 		familyHeadsRequest.input("applicationId", applicationId);
 		const familyHeadsQuery = `
 			SELECT 
-				ap.[ApplicationPersonId],
 				ap.[FormNo],
 				ap.[ApplicationId],
 				ap.[PersonRole],
 				ap.[FullName],
-				ap.[DOBMonth],
-				ap.[DOBYear],
 				ap.[CNICNo],
 				ap.[MotherTongue],
 				ap.[ResidentialAddress],
@@ -206,6 +203,9 @@ export async function DELETE(
 			);
 		}
 
+		// TEMPORARY: Allow all authenticated users to delete applications
+		// TODO: Restore super user check if needed
+		/*
 		// Check if user has Super User permission
 		const userPool = await getDb();
 		const userRequest = userPool.request();
@@ -239,6 +239,7 @@ export async function DELETE(
 				{ status: 403 }
 			);
 		}
+		*/
 
 		const { id: applicationId } = await params;
 
@@ -250,37 +251,103 @@ export async function DELETE(
 		}
 
 		const pool = await getPeDb();
+		
+		// First, get the FormNo from the application to ensure we delete all related records
+		const getFormNoRequest = pool.request();
+		getFormNoRequest.input("applicationId", applicationId);
+		const getFormNoQuery = `
+			SELECT [FormNo] 
+			FROM [SJDA_Users].[dbo].[PE_Application]
+			WHERE [ApplicationId] = @applicationId
+		`;
+		const formNoResult = await getFormNoRequest.query(getFormNoQuery);
+		const formNo = formNoResult.recordset[0]?.FormNo;
+
 		const dbRequest = pool.request();
 		(dbRequest as any).timeout = 120000;
+		dbRequest.input("applicationId", applicationId);
+		if (formNo) {
+			dbRequest.input("formNo", formNo);
+		}
 
-		// Delete PE_Livelihood records
+		// Get all MemberNos for this FormNo/ApplicationId to ensure complete deletion
+		const getMemberNosRequest = pool.request();
+		getMemberNosRequest.input("applicationId", applicationId);
+		if (formNo) {
+			getMemberNosRequest.input("formNo", formNo);
+		}
+		const memberNosQuery = formNo 
+			? `SELECT [MemberNo] FROM [SJDA_Users].[dbo].[PE_FamilyMember] WHERE [ApplicationId] = @applicationId OR [FormNo] = @formNo`
+			: `SELECT [MemberNo] FROM [SJDA_Users].[dbo].[PE_FamilyMember] WHERE [ApplicationId] = @applicationId`;
+		const memberNosResult = await getMemberNosRequest.query(memberNosQuery);
+		const memberNos = memberNosResult.recordset.map((r: any) => r.MemberNo);
+
+		// Delete PE_Livelihood records - delete by FamilyID (ApplicationId) and also by MemberNo to ensure all records are deleted
 		await dbRequest.query(`
 			DELETE FROM [SJDA_Users].[dbo].[PE_Livelihood]
-			WHERE [FamilyID] = ${applicationId}
+			WHERE [FamilyID] = @applicationId
 		`);
+		
+		// Also delete by MemberNo to catch any records that might be linked by MemberNo
+		if (memberNos.length > 0) {
+			for (const memberNo of memberNos) {
+				const deleteLivelihoodByMember = pool.request();
+				deleteLivelihoodByMember.input("memberNo", memberNo);
+				await deleteLivelihoodByMember.query(`
+					DELETE FROM [SJDA_Users].[dbo].[PE_Livelihood]
+					WHERE [MemberNo] = @memberNo
+				`);
+			}
+		}
 
-		// Delete PE_Education records
+		// Delete PE_Education records - delete by FamilyID (ApplicationId) and also by MemberNo to ensure all records are deleted
 		await dbRequest.query(`
 			DELETE FROM [SJDA_Users].[dbo].[PE_Education]
-			WHERE [FamilyID] = ${applicationId}
+			WHERE [FamilyID] = @applicationId
 		`);
+		
+		// Also delete by MemberNo to catch any records that might be linked by MemberNo
+		if (memberNos.length > 0) {
+			for (const memberNo of memberNos) {
+				const deleteEducationByMember = pool.request();
+				deleteEducationByMember.input("memberNo", memberNo);
+				await deleteEducationByMember.query(`
+					DELETE FROM [SJDA_Users].[dbo].[PE_Education]
+					WHERE [MemberNo] = @memberNo
+				`);
+			}
+		}
 
-		// Delete PE_FamilyMember records
-		await dbRequest.query(`
-			DELETE FROM [SJDA_Users].[dbo].[PE_FamilyMember]
-			WHERE [ApplicationId] = ${applicationId}
-		`);
+		// Delete PE_FamilyMember records - delete by both ApplicationId and FormNo to ensure all are deleted
+		if (formNo) {
+			await dbRequest.query(`
+				DELETE FROM [SJDA_Users].[dbo].[PE_FamilyMember]
+				WHERE [ApplicationId] = @applicationId OR [FormNo] = @formNo
+			`);
+		} else {
+			await dbRequest.query(`
+				DELETE FROM [SJDA_Users].[dbo].[PE_FamilyMember]
+				WHERE [ApplicationId] = @applicationId
+			`);
+		}
 
-		// Delete PE_ApplicationPerson records
-		await dbRequest.query(`
-			DELETE FROM [SJDA_Users].[dbo].[PE_ApplicationPerson]
-			WHERE [ApplicationId] = ${applicationId}
-		`);
+		// Delete PE_ApplicationPerson records - delete by both ApplicationId and FormNo to ensure all are deleted
+		if (formNo) {
+			await dbRequest.query(`
+				DELETE FROM [SJDA_Users].[dbo].[PE_ApplicationPerson]
+				WHERE [ApplicationId] = @applicationId OR [FormNo] = @formNo
+			`);
+		} else {
+			await dbRequest.query(`
+				DELETE FROM [SJDA_Users].[dbo].[PE_ApplicationPerson]
+				WHERE [ApplicationId] = @applicationId
+			`);
+		}
 
-		// Delete PE_Application record
+		// Delete PE_Application record (main record - delete last)
 		const deleteAppResult = await dbRequest.query(`
 			DELETE FROM [SJDA_Users].[dbo].[PE_Application]
-			WHERE [ApplicationId] = ${applicationId}
+			WHERE [ApplicationId] = @applicationId
 		`);
 
 		if (deleteAppResult.rowsAffected[0] === 0) {

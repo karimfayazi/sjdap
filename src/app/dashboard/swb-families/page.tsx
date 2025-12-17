@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Search, Download, List, Eye, Edit, Trash2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useSectionAccess } from "@/hooks/useSectionAccess";
+import SectionAccessDenied from "@/components/SectionAccessDenied";
 
 type SWBFamilyData = {
 	CNIC?: string;
@@ -32,6 +34,7 @@ type SWBFamilyData = {
 export default function SWBFamiliesPage() {
 	const router = useRouter();
 	const { userProfile, loading: authLoading } = useAuth();
+	const { hasAccess, loading: accessLoading, sectionName } = useSectionAccess("SWB_Families");
 	const [swbFamilies, setSwbFamilies] = useState<SWBFamilyData[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -327,6 +330,23 @@ export default function SWBFamiliesPage() {
 					>
 						Try Again
 					</button>
+				</div>
+			</div>
+		);
+	}
+
+	// Show access denied if user doesn't have permission
+	if (hasAccess === false) {
+		return <SectionAccessDenied sectionName={sectionName} requiredPermission="SWB Families" />;
+	}
+
+	// Show loading while checking access
+	if (accessLoading || authLoading) {
+		return (
+			<div className="space-y-6">
+				<div className="flex items-center justify-center py-12">
+					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
+					<span className="ml-3 text-gray-600">Loading...</span>
 				</div>
 			</div>
 		);

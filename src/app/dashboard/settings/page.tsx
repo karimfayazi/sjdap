@@ -2,9 +2,10 @@
 
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { Save, User, Lock, Bell, Globe, Shield, Users, Download } from "lucide-react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { Save, User, Lock, Bell, Globe, Shield, Users, Download, Edit, Trash2, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { isSuperUser as checkIsSuperUser } from "@/lib/auth-utils";
 
 type UserProfileData = {
 	USER_ID: string;
@@ -65,14 +66,25 @@ type UserData = {
 	LC: string | null;
 	REPORT_TO: string | null;
 	ROP_EDIT: boolean | number | null;
-	access_loans: boolean | number | null;
+	access_loans: boolean | number | string | null;
 	baseline_access: boolean | number | null;
-	bank_account: boolean | number | null;
-	Supper_User: boolean | number | null;
+	bank_account: boolean | number | string | null;
+	Supper_User: boolean | number | string | null;
 	Finance_Officer: string | null;
+	BaselineQOL: boolean | number | null;
+	Dashboard: boolean | number | null;
+	PowerBI: boolean | number | null;
+	Family_Development_Plan: boolean | number | null;
+	Family_Approval_CRC: boolean | number | null;
+	Family_Income: boolean | number | null;
+	ROP: boolean | number | null;
+	Setting: boolean | number | null;
+	Other: boolean | number | null;
+	SWB_Families: boolean | number | null;
 };
 
 function UserDataView() {
+	const router = useRouter();
 	const [users, setUsers] = useState<UserData[]>([]);
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -254,6 +266,42 @@ function UserDataView() {
 			});
 		} catch {
 			return dateString;
+		}
+	};
+
+	const handleEditUser = (user: UserData) => {
+		router.push(`/dashboard/settings/edit/${encodeURIComponent(user.USER_ID)}`);
+	};
+
+	const handleDeleteUser = async (userId: string) => {
+		if (!userId) return;
+
+		const confirmed = window.confirm(
+			`Are you sure you want to delete user: ${userId}? This action cannot be undone.`
+		);
+		if (!confirmed) return;
+
+		try {
+			setLoading(true);
+			setError(null);
+
+			const response = await fetch(`/api/users?userId=${encodeURIComponent(userId)}`, {
+				method: "DELETE",
+			});
+
+			const result = await response.json();
+
+			if (!response.ok || !result.success) {
+				throw new Error(result.message || "Failed to delete user");
+			}
+
+			// Refresh users list
+			await fetchUsers();
+		} catch (err) {
+			setError(err instanceof Error ? err.message : "Failed to delete user");
+			console.error("Error deleting user:", err);
+		} finally {
+			setLoading(false);
 		}
 	};
 
@@ -462,7 +510,18 @@ function UserDataView() {
 								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Can Update</th>
 								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Can Delete</th>
 								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Super User</th>
+								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Access Loans</th>
 								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bank Account</th>
+								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">BaselineQOL</th>
+								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dashboard</th>
+								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">PowerBI</th>
+								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Family Dev Plan</th>
+								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Family Approval</th>
+								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Family Income</th>
+								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ROP</th>
+								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Setting</th>
+								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Other</th>
+								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SWB Families</th>
 								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
 								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Update Date</th>
 							</tr>
@@ -470,7 +529,7 @@ function UserDataView() {
 						<tbody className="bg-white divide-y divide-gray-200">
 							{users.length === 0 ? (
 								<tr>
-									<td colSpan={15} className="px-4 py-8 text-center text-gray-500">
+									<td colSpan={25} className="px-4 py-8 text-center text-gray-500">
 										No users found
 									</td>
 								</tr>
@@ -518,26 +577,120 @@ function UserDataView() {
 											{formatBool(user.CAN_DELETE)}
 										</td>
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-											{formatBool(user.Supper_User)}
+											<span className={`px-2 py-1 rounded-full text-xs font-medium ${
+												formatBool(user.Supper_User) === "Yes" ? "bg-purple-100 text-purple-800" : "bg-gray-100 text-gray-600"
+											}`}>
+												{formatBool(user.Supper_User)}
+											</span>
+										</td>
+										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+											<span className={`px-2 py-1 rounded-full text-xs font-medium ${
+												formatBool(user.access_loans) === "Yes" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600"
+											}`}>
+												{formatBool(user.access_loans)}
+											</span>
+										</td>
+										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+											<span className={`px-2 py-1 rounded-full text-xs font-medium ${
+												formatBool(user.bank_account) === "Yes" ? "bg-blue-100 text-blue-800" : "bg-gray-100 text-gray-600"
+											}`}>
+												{formatBool(user.bank_account)}
+											</span>
+										</td>
+										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+											<span className={`px-2 py-1 rounded-full text-xs font-medium ${
+												formatBool(user.BaselineQOL) === "Yes" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600"
+											}`}>
+												{formatBool(user.BaselineQOL)}
+											</span>
+										</td>
+										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+											<span className={`px-2 py-1 rounded-full text-xs font-medium ${
+												formatBool(user.Dashboard) === "Yes" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600"
+											}`}>
+												{formatBool(user.Dashboard)}
+											</span>
+										</td>
+										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+											<span className={`px-2 py-1 rounded-full text-xs font-medium ${
+												formatBool(user.PowerBI) === "Yes" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600"
+											}`}>
+												{formatBool(user.PowerBI)}
+											</span>
+										</td>
+										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+											<span className={`px-2 py-1 rounded-full text-xs font-medium ${
+												formatBool(user.Family_Development_Plan) === "Yes" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600"
+											}`}>
+												{formatBool(user.Family_Development_Plan)}
+											</span>
+										</td>
+										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+											<span className={`px-2 py-1 rounded-full text-xs font-medium ${
+												formatBool(user.Family_Approval_CRC) === "Yes" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600"
+											}`}>
+												{formatBool(user.Family_Approval_CRC)}
+											</span>
+										</td>
+										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+											<span className={`px-2 py-1 rounded-full text-xs font-medium ${
+												formatBool(user.Family_Income) === "Yes" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600"
+											}`}>
+												{formatBool(user.Family_Income)}
+											</span>
+										</td>
+										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+											<span className={`px-2 py-1 rounded-full text-xs font-medium ${
+												formatBool(user.ROP) === "Yes" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600"
+											}`}>
+												{formatBool(user.ROP)}
+											</span>
+										</td>
+										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+											<span className={`px-2 py-1 rounded-full text-xs font-medium ${
+												formatBool(user.Setting) === "Yes" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600"
+											}`}>
+												{formatBool(user.Setting)}
+											</span>
+										</td>
+										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+											<span className={`px-2 py-1 rounded-full text-xs font-medium ${
+												formatBool(user.Other) === "Yes" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600"
+											}`}>
+												{formatBool(user.Other)}
+											</span>
+										</td>
+										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+											<span className={`px-2 py-1 rounded-full text-xs font-medium ${
+												formatBool(user.SWB_Families) === "Yes" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600"
+											}`}>
+												{formatBool(user.SWB_Families)}
+											</span>
+										</td>
+										<td className="px-4 py-3 whitespace-nowrap text-sm">
+											<div className="flex items-center gap-2">
+												<button
+													type="button"
+													onClick={() => handleEditUser(user)}
+													className="inline-flex items-center gap-1 px-3 py-1 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+													title="Edit User"
+												>
+													<Edit className="h-3 w-3" />
+													Edit
+												</button>
+												<button
+													type="button"
+													onClick={() => handleDeleteUser(user.USER_ID)}
+													className="inline-flex items-center gap-1 px-3 py-1 text-xs bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+													title="Delete User"
+												>
+													<Trash2 className="h-3 w-3" />
+													Delete
+												</button>
+											</div>
 										</td>
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
 											{formatDate(user.UPDATE_DATE)}
-										</td>
-										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-											{formatBool(user.bank_account)}
-										</td>
-										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-											{formatBool(user.bank_account) === "Yes" ? (
-												<button
-													type="button"
-													onClick={() => handleDeleteBankAccount(user.USER_ID)}
-													className="px-3 py-1 text-xs bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
-												>
-													Delete Bank Account
-												</button>
-											) : (
-												<span className="text-gray-400 text-xs">No Bank Access</span>
-											)}
 										</td>
 									</tr>
 								))
@@ -1264,7 +1417,7 @@ function SettingsPageContent() {
 											<input
 												type="checkbox"
 												name="ACTIVE"
-												checked={!!formData.ACTIVE}
+												checked={formData.ACTIVE === 1 || formData.ACTIVE === true || formData.ACTIVE === "1" || formData.ACTIVE === "true"}
 												onChange={handleProfileChange}
 												className="sr-only peer"
 											/>
@@ -1305,7 +1458,7 @@ function SettingsPageContent() {
 											<input
 												type="checkbox"
 												name="CAN_ADD"
-												checked={!!formData.CAN_ADD}
+												checked={formData.CAN_ADD === 1 || formData.CAN_ADD === true || formData.CAN_ADD === "1" || formData.CAN_ADD === "true"}
 												onChange={handleProfileChange}
 												className="sr-only peer"
 											/>
@@ -1322,7 +1475,7 @@ function SettingsPageContent() {
 											<input
 												type="checkbox"
 												name="CAN_UPDATE"
-												checked={!!formData.CAN_UPDATE}
+												checked={formData.CAN_UPDATE === 1 || formData.CAN_UPDATE === true || formData.CAN_UPDATE === "1" || formData.CAN_UPDATE === "true"}
 												onChange={handleProfileChange}
 												className="sr-only peer"
 											/>
@@ -1339,7 +1492,7 @@ function SettingsPageContent() {
 											<input
 												type="checkbox"
 												name="CAN_DELETE"
-												checked={!!formData.CAN_DELETE}
+												checked={formData.CAN_DELETE === 1 || formData.CAN_DELETE === true || formData.CAN_DELETE === "1" || formData.CAN_DELETE === "true"}
 												onChange={handleProfileChange}
 												className="sr-only peer"
 											/>
@@ -1356,7 +1509,7 @@ function SettingsPageContent() {
 											<input
 												type="checkbox"
 												name="CAN_UPLOAD"
-												checked={!!formData.CAN_UPLOAD}
+												checked={formData.CAN_UPLOAD === 1 || formData.CAN_UPLOAD === true || formData.CAN_UPLOAD === "1" || formData.CAN_UPLOAD === "true"}
 												onChange={handleProfileChange}
 												className="sr-only peer"
 											/>
@@ -1373,7 +1526,7 @@ function SettingsPageContent() {
 											<input
 												type="checkbox"
 												name="SEE_REPORTS"
-												checked={!!formData.SEE_REPORTS}
+												checked={formData.SEE_REPORTS === 1 || formData.SEE_REPORTS === true || formData.SEE_REPORTS === "1" || formData.SEE_REPORTS === "true"}
 												onChange={handleProfileChange}
 												className="sr-only peer"
 											/>
@@ -1390,7 +1543,7 @@ function SettingsPageContent() {
 											<input
 												type="checkbox"
 												name="ROP_EDIT"
-												checked={!!formData.ROP_EDIT}
+												checked={formData.ROP_EDIT === 1 || formData.ROP_EDIT === true || formData.ROP_EDIT === "1" || formData.ROP_EDIT === "true"}
 												onChange={handleProfileChange}
 												className="sr-only peer"
 											/>
@@ -1407,7 +1560,7 @@ function SettingsPageContent() {
 											<input
 												type="checkbox"
 												name="access_loans"
-												checked={!!formData.access_loans}
+												checked={formData.access_loans === 1 || formData.access_loans === true || formData.access_loans === "1" || formData.access_loans === "true"}
 												onChange={handleProfileChange}
 												className="sr-only peer"
 											/>
@@ -1424,7 +1577,7 @@ function SettingsPageContent() {
 											<input
 												type="checkbox"
 												name="baseline_access"
-												checked={!!formData.baseline_access}
+												checked={formData.baseline_access === 1 || formData.baseline_access === true || formData.baseline_access === "1" || formData.baseline_access === "true"}
 												onChange={handleProfileChange}
 												className="sr-only peer"
 											/>
@@ -1441,7 +1594,7 @@ function SettingsPageContent() {
 											<input
 												type="checkbox"
 												name="bank_account"
-												checked={!!formData.bank_account}
+												checked={formData.bank_account === 1 || formData.bank_account === true || formData.bank_account === "1" || formData.bank_account === "true"}
 												onChange={handleProfileChange}
 												className="sr-only peer"
 											/>
@@ -1458,7 +1611,7 @@ function SettingsPageContent() {
 											<input
 												type="checkbox"
 												name="Supper_User"
-												checked={!!formData.Supper_User}
+												checked={formData.Supper_User === 1 || formData.Supper_User === true || formData.Supper_User === "1" || formData.Supper_User === "true"}
 												onChange={handleProfileChange}
 												className="sr-only peer"
 											/>
@@ -1678,7 +1831,7 @@ function SettingsPageContent() {
 											<input
 												type="checkbox"
 												name="ACTIVE"
-												checked={!!newUserData.ACTIVE}
+												checked={newUserData.ACTIVE === 1 || newUserData.ACTIVE === true || newUserData.ACTIVE === "1" || newUserData.ACTIVE === "true"}
 												onChange={handleNewUserChange}
 												className="sr-only peer"
 											/>
@@ -1705,29 +1858,35 @@ function SettingsPageContent() {
 										{ key: "baseline_access", label: "Baseline Access", desc: "Access baseline data" },
 										{ key: "bank_account", label: "Bank Account", desc: "Access bank account module" },
 										{ key: "Supper_User", label: "Super User", desc: "Super user privileges" },
-									].map((item) => (
-										<div
-											key={item.key}
-											className="flex items-center justify-between p-4 border border-gray-200 rounded-lg"
-										>
-											<div>
-												<label className="text-sm font-medium text-gray-900">
-													{item.label}
+									].map((item) => {
+										const value = (newUserData as any)[item.key];
+										// Explicitly convert to boolean: 1, true, "1", "true" = checked; 0, false, "0", "false", null, undefined = unchecked
+										const isChecked = value === 1 || value === true || value === "1" || value === "true";
+										
+										return (
+											<div
+												key={item.key}
+												className="flex items-center justify-between p-4 border border-gray-200 rounded-lg"
+											>
+												<div>
+													<label className="text-sm font-medium text-gray-900">
+														{item.label}
+													</label>
+													<p className="text-sm text-gray-500">{item.desc}</p>
+												</div>
+												<label className="relative inline-flex items-center cursor-pointer">
+													<input
+														type="checkbox"
+														name={item.key}
+														checked={isChecked}
+														onChange={handleNewUserChange}
+														className="sr-only peer"
+													/>
+													<div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[#0b4d2b] peer-focus:ring-opacity-20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#0b4d2b]"></div>
 												</label>
-												<p className="text-sm text-gray-500">{item.desc}</p>
 											</div>
-											<label className="relative inline-flex items-center cursor-pointer">
-												<input
-													type="checkbox"
-													name={item.key}
-													checked={!!(newUserData as any)[item.key]}
-													onChange={handleNewUserChange}
-													className="sr-only peer"
-												/>
-												<div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[#0b4d2b] peer-focus:ring-opacity-20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#0b4d2b]"></div>
-											</label>
-										</div>
-									))}
+										);
+									})}
 								</div>
 
 								<div className="flex justify-end pt-4">
@@ -1753,6 +1912,87 @@ function SettingsPageContent() {
 }
 
 export default function SettingsPage() {
+	const [isSuperUser, setIsSuperUser] = useState<boolean | null>(null);
+	const [loading, setLoading] = useState(true);
+
+	// Check if user is Super User
+	useEffect(() => {
+		const checkSuperUser = async () => {
+			try {
+				// First check localStorage
+				if (typeof window !== "undefined") {
+					const stored = localStorage.getItem("userData");
+					if (stored) {
+						const parsed = JSON.parse(stored);
+						const supperUserValue = parsed.super_user;
+						// Use utility function for consistent checking
+						const isSu = checkIsSuperUser(supperUserValue);
+						
+						console.log("=== SETTINGS PAGE ACCESS CHECK ===", {
+							supperUserValue,
+							isSuperUser: isSu
+						});
+						
+						setIsSuperUser(isSu);
+					} else {
+						setIsSuperUser(false);
+					}
+				}
+			} catch (error) {
+				console.error("Error checking super user status:", error);
+				setIsSuperUser(false);
+			} finally {
+				setLoading(false);
+			}
+		};
+
+		checkSuperUser();
+	}, []);
+
+	// Show loading while checking access
+	if (loading) {
+		return (
+			<div className="space-y-6">
+				<div className="flex items-center justify-center py-12">
+					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
+					<span className="ml-3 text-gray-600">Checking permissions...</span>
+				</div>
+			</div>
+		);
+	}
+
+	// Show access denied if user is not Super User
+	if (!isSuperUser) {
+		return (
+			<div className="space-y-6">
+				<div className="flex justify-between items-center">
+					<div>
+						<h1 className="text-3xl font-bold text-gray-900">Settings</h1>
+						<p className="text-gray-600 mt-2">Access Restricted</p>
+					</div>
+				</div>
+				<div className="bg-red-50 border-l-4 border-red-400 p-6 rounded-lg">
+					<div className="flex items-center">
+						<div className="flex-shrink-0">
+							<svg className="h-8 w-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+							</svg>
+						</div>
+						<div className="ml-4">
+							<h2 className="text-lg font-semibold text-red-800">Access Denied</h2>
+							<p className="mt-2 text-red-700">
+								This section is only accessible to <strong>Super Users (Admin)</strong>.
+							</p>
+							<p className="mt-1 text-red-600 text-sm">
+								If you believe you should have access, please contact your system administrator.
+							</p>
+						</div>
+					</div>
+				</div>
+			</div>
+		);
+	}
+
 	return (
 		<Suspense fallback={
 			<div className="space-y-6">

@@ -2,6 +2,8 @@
 
 import { useEffect, useState, Fragment } from "react";
 import { Download, Users } from "lucide-react";
+import { useSectionAccess } from "@/hooks/useSectionAccess";
+import SectionAccessDenied from "@/components/SectionAccessDenied";
 
 type FamilyDetailedData = {
 	FAMILY_ID: string | null;
@@ -128,6 +130,7 @@ const TAB_MENU_ITEMS = FDP_MENU_ITEMS.filter(item =>
 );
 
 export default function FamilyDevelopmentPlanPage() {
+	const { hasAccess, loading: accessLoading, sectionName } = useSectionAccess("Family_Development_Plan");
 	const [families, setFamilies] = useState<FamilyDetailedData[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -278,6 +281,23 @@ export default function FamilyDevelopmentPlanPage() {
 		link.click();
 		document.body.removeChild(link);
 	};
+
+	// Show access denied if user doesn't have permission
+	if (hasAccess === false) {
+		return <SectionAccessDenied sectionName={sectionName} requiredPermission="Family Development Plan" />;
+	}
+
+	// Show loading while checking access
+	if (accessLoading) {
+		return (
+			<div className="space-y-6">
+				<div className="flex items-center justify-center py-12">
+					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
+					<span className="ml-3 text-gray-600">Loading...</span>
+				</div>
+			</div>
+		);
+	}
 
 	return (
 		<div className="space-y-6">

@@ -17,6 +17,18 @@ export type UserProfile = {
 	access_reports: boolean | number | null;
 	section: string | null;
 	supper_user: string | boolean | number | null;
+	access_loans: boolean | number | string | null;
+	bank_account: boolean | number | string | null;
+	BaselineQOL: boolean | number | null;
+	Dashboard: boolean | number | null;
+	PowerBI: boolean | number | null;
+	Family_Development_Plan: boolean | number | null;
+	Family_Approval_CRC: boolean | number | null;
+	Family_Income: boolean | number | null;
+	ROP: boolean | number | null;
+	Setting: boolean | number | null;
+	Other: boolean | number | null;
+	SWB_Families: boolean | number | null;
 };
 
 export type UserInfo = {

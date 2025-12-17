@@ -15,7 +15,8 @@ type ApplicationDetails = {
 		CreatedBy: string | null;
 	};
 	familyHeads: Array<{
-		ApplicationPersonId: number;
+		FormNo: string;
+		ApplicationId: number;
 		PersonRole: string;
 		FullName: string;
 		DOBMonth: string;
@@ -468,7 +469,7 @@ export default function ApplicationDetailsPage() {
 				<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
 					<h2 className="text-xl font-semibold text-gray-900 mb-4">Family Head Information</h2>
 					{details.familyHeads.map((head, index) => (
-						<div key={head.ApplicationPersonId} className="mb-6 pb-6 border-b border-gray-200 last:border-b-0 last:mb-0 last:pb-0">
+						<div key={`${head.FormNo}-${head.ApplicationId}-${index}`} className="mb-6 pb-6 border-b border-gray-200 last:border-b-0 last:mb-0 last:pb-0">
 							<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 								<div>
 									<label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>

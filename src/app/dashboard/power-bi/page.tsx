@@ -2,8 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { ExternalLink } from "lucide-react";
+import { useSectionAccess } from "@/hooks/useSectionAccess";
+import SectionAccessDenied from "@/components/SectionAccessDenied";
 
 export default function PowerBIPage() {
+	const { hasAccess, loading: accessLoading, sectionName } = useSectionAccess("PowerBI");
 	const powerBIUrl = "http://data.sjdap.local/reports/powerbi/Silver%20Jubilee%20Development%20Agency%20Pakistan/FEAP/FEAP-DASHBOARDS";
 	const [iframeLoaded, setIframeLoaded] = useState(false);
 	const [showDirectLink, setShowDirectLink] = useState(false);
@@ -23,6 +26,23 @@ export default function PowerBIPage() {
 		setIframeLoaded(true);
 		setShowDirectLink(false);
 	};
+
+	// Show loading while checking access
+	if (accessLoading) {
+		return (
+			<div className="space-y-6">
+				<div className="flex items-center justify-center py-12">
+					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
+					<span className="ml-3 text-gray-600">Checking permissions...</span>
+				</div>
+			</div>
+		);
+	}
+
+	// Show access denied if user doesn't have permission
+	if (hasAccess === false) {
+		return <SectionAccessDenied sectionName={sectionName} requiredPermission="PowerBI" />;
+	}
 
 	return (
 		<div className="h-full flex flex-col -m-6">

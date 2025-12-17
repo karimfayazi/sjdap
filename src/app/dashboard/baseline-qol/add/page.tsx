@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Save, ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { Save, ArrowLeft, Trash2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 type ApplicationFormData = {
@@ -24,45 +24,6 @@ type FamilyHeadFormData = {
 	PrimaryLocationSettlement: string;
 	AreaOfOrigin: string;
 	HouseStatusName: string;
-};
-
-type EducationFormData = {
-	IsCurrentlyStudying: string; // 1) Yes, 2) No, 99) Not applicable
-	InstitutionType: string; // 1) AKES, 2) Private, 3) Government, 4) NGO, 5) Community based, 98) Others, 99) Not applicable
-	InstitutionTypeOther: string;
-	CurrentClass: string; // 1-9, 98) Others, 99) Not applicable
-	CurrentClassOther: string;
-	LastFormalQualification: string; // 1-7, 98) Others, 99) Not applicable
-	LastFormalQualificationOther: string;
-	HighestQualification: string; // 1-9, 98) Others, 99) Not applicable
-	HighestQualificationOther: string;
-};
-
-type LivelihoodFormData = {
-	IsCurrentlyEarning: string; // 1) Yes, 2) No, 99) Not applicable
-	EarningSource: string; // 1) Salaried, 2) Business, 3) Self-employed, 4) Agriculture/Livestock, 5) Wage earner, 98) Others
-	EarningSourceOther: string;
-	SalariedWorkSector: string; // 1) Government, 2) Private, 3) NGO, 98) Others, 99) Not Applicable
-	SalariedWorkSectorOther: string;
-	WorkField: string; // 1-12, 98) Others, 99) Not Applicable
-	WorkFieldOther: string;
-	MonthlyIncome: string;
-	JoblessDuration: string; // 1) Less than 6 month, 2) 6-12 months, 3) 12-24 months, 4) More than 24 months, 99) Not applicable
-	ReasonNotEarning: string; // 1) Cannot get a job, 2) Non-availability of desirable job, 3) Family does not allow, 4) Job offers have lower than desirable salary, 98) Others, 99) Not Applicable
-	ReasonNotEarningOther: string;
-};
-
-type FamilyMemberFormData = {
-	MemberNo: string;
-	FullName: string;
-	BFormOrCNIC: string;
-	RelationshipId: string;
-	GenderId: string;
-	MaritalStatusId: string;
-	DOBMonth: string;
-	DOBYear: string;
-	education: EducationFormData;
-	livelihood: LivelihoodFormData;
 };
 
 type LocationHierarchy = {
@@ -102,15 +63,12 @@ export default function AddBaselineApplicationPage() {
 		},
 	]);
 
-	const [familyMembers, setFamilyMembers] = useState<FamilyMemberFormData[]>([]);
 	const [loadingFormNo, setLoadingFormNo] = useState(true);
-	const [relationships, setRelationships] = useState<Array<{ RelationshipId: number; RelationshipName: string }>>([]);
-	const [genders, setGenders] = useState<Array<{ GenderId: number; GenderName: string }>>([]);
-	const [maritalStatuses, setMaritalStatuses] = useState<Array<{ MaritalStatusId: number; MaritalStatusName: string }>>([]);
+	const [loadingExistingData, setLoadingExistingData] = useState(false);
 	const [houseStatuses, setHouseStatuses] = useState<Array<{ HouseStatusId: number; HouseStatusName: string }>>([]);
 	const [locationHierarchy, setLocationHierarchy] = useState<LocationHierarchy[]>([]);
-	const [editingApplicationId, setEditingApplicationId] = useState<string | null>(null);
-	const [applicationIdParam, setApplicationIdParam] = useState<string | null>(null);
+	const [isEditMode, setIsEditMode] = useState(false);
+	const [formNoParam, setFormNoParam] = useState<string | null>(null);
 
 	// Fetch next Form No and relationships on component mount
 	useEffect(() => {
@@ -127,42 +85,6 @@ export default function AddBaselineApplicationPage() {
 				setApplicationData((prev) => ({ ...prev, FormNo: "PE-00001" }));
 			} finally {
 				setLoadingFormNo(false);
-			}
-		};
-
-		const fetchRelationships = async () => {
-			try {
-				const response = await fetch("/api/baseline-applications?action=getRelationships");
-				const data = await response.json();
-				if (data.success && data.relationships) {
-					setRelationships(data.relationships);
-				}
-			} catch (error) {
-				console.error("Error fetching relationships:", error);
-			}
-		};
-
-		const fetchGenders = async () => {
-			try {
-				const response = await fetch("/api/baseline-applications?action=getGenders");
-				const data = await response.json();
-				if (data.success && data.genders) {
-					setGenders(data.genders);
-				}
-			} catch (error) {
-				console.error("Error fetching genders:", error);
-			}
-		};
-
-		const fetchMaritalStatuses = async () => {
-			try {
-				const response = await fetch("/api/baseline-applications?action=getMaritalStatuses");
-				const data = await response.json();
-				if (data.success && data.maritalStatuses) {
-					setMaritalStatuses(data.maritalStatuses);
-				}
-			} catch (error) {
-				console.error("Error fetching marital statuses:", error);
 			}
 		};
 
@@ -191,9 +113,6 @@ export default function AddBaselineApplicationPage() {
 		};
 
 		fetchNextFormNo();
-		fetchRelationships();
-		fetchGenders();
-		fetchMaritalStatuses();
 		fetchHouseStatuses();
 		fetchLocationHierarchy();
 	}, []);
@@ -201,181 +120,70 @@ export default function AddBaselineApplicationPage() {
 	useEffect(() => {
 		if (typeof window === "undefined") return;
 		const params = new URLSearchParams(window.location.search);
-		setApplicationIdParam(params.get("applicationId"));
+		const formNo = params.get("formNo");
+		
+		// If formNo exists in URL, we're in edit mode
+		if (formNo) {
+			setFormNoParam(formNo);
+			setIsEditMode(true);
+		}
 	}, []);
 
 	useEffect(() => {
-		if (!applicationIdParam) return;
-		setEditingApplicationId(applicationIdParam);
+		if (!formNoParam) return;
 
 		const fetchApplicationData = async () => {
 			try {
-				const response = await fetch(`/api/baseline-applications/${applicationIdParam}`);
+				setLoadingExistingData(true);
+				// Fetch using formNo
+				const response = await fetch(`/api/baseline-applications/by-formno?formNo=${encodeURIComponent(formNoParam)}`);
 				const data = await response.json();
+				
 				if (data.success && data.data) {
 					const app = data.data.application;
+					
+					// Don't fetch next FormNo if we're editing
+					setLoadingFormNo(false);
+					
 					setApplicationData({
 						FormNo: app.FormNo || "",
 						TotalFamilyMembers: app.TotalFamilyMembers ? String(app.TotalFamilyMembers) : "",
 						Remarks: app.Remarks || "",
 					});
 
-					setFamilyHeads(
-						(Array.isArray(data.data.familyHeads) ? data.data.familyHeads : []).map((head: any) => ({
-							PersonRole: head.PersonRole || "Head",
-							FullName: head.FullName || "",
-							CNICNo: head.CNICNo || "",
-							MotherTongue: head.MotherTongue || "",
-							ResidentialAddress: head.ResidentialAddress || "",
-							PrimaryContactNo: head.PrimaryContactNo || "",
-							RegionalCouncil: head.RegionalCouncil || "",
-							LocalCouncil: head.LocalCouncil || "",
-							CurrentJK: head.CurrentJK || "",
-							PrimaryLocationSettlement: head.PrimaryLocationSettlement || "",
-							AreaOfOrigin: head.AreaOfOrigin || "",
-							HouseStatusName: head.HouseStatusName || "",
-						}))
-					);
-
-					setFamilyMembers(
-						Array.isArray(data.data.familyMembers)
-							? data.data.familyMembers.map((member: any, index: number) => ({
-									MemberNo: member.MemberNo || `${app.ApplicationId}${String(index + 1).padStart(2, "0")}`,
-									FullName: member.FullName || "",
-									BFormOrCNIC: member.BFormOrCNIC || "",
-									RelationshipId: member.RelationshipId ? String(member.RelationshipId) : "",
-									GenderId: member.GenderId ? String(member.GenderId) : "",
-									MaritalStatusId: member.MaritalStatusId ? String(member.MaritalStatusId) : "",
-									DOBMonth: member.DOBMonth || "",
-									DOBYear: member.DOBYear || "",
-									education: member.education || {
-										IsCurrentlyStudying: "",
-										InstitutionType: "",
-										InstitutionTypeOther: "",
-										CurrentClass: "",
-										CurrentClassOther: "",
-										LastFormalQualification: "",
-										LastFormalQualificationOther: "",
-										HighestQualification: "",
-										HighestQualificationOther: "",
-									},
-									livelihood: member.livelihood || {
-										IsCurrentlyEarning: "",
-										EarningSource: "",
-										EarningSourceOther: "",
-										SalariedWorkSector: "",
-										SalariedWorkSectorOther: "",
-										WorkField: "",
-										WorkFieldOther: "",
-										MonthlyIncome: "",
-										JoblessDuration: "",
-										ReasonNotEarning: "",
-										ReasonNotEarningOther: "",
-									},
-							  }))
-							: []
-					);
+					// Load family heads
+					if (Array.isArray(data.data.familyHeads) && data.data.familyHeads.length > 0) {
+						setFamilyHeads(
+							data.data.familyHeads.map((head: any) => ({
+								PersonRole: head.PersonRole || "Head",
+								FullName: head.FullName || "",
+								CNICNo: head.CNICNo || "",
+								MotherTongue: head.MotherTongue || "",
+								ResidentialAddress: head.ResidentialAddress || "",
+								PrimaryContactNo: head.PrimaryContactNo || "",
+								RegionalCouncil: head.RegionalCouncil || "",
+								LocalCouncil: head.LocalCouncil || "",
+								CurrentJK: head.CurrentJK || "",
+								PrimaryLocationSettlement: head.PrimaryLocationSettlement || "",
+								AreaOfOrigin: head.AreaOfOrigin || "",
+								HouseStatusName: head.HouseStatusName || "",
+							}))
+						);
+					}
 				}
 			} catch (err) {
 				console.error("Error loading application for edit:", err);
+				setError("Failed to load application data for editing");
+			} finally {
+				setLoadingExistingData(false);
 			}
 		};
 
 		fetchApplicationData();
-	}, [applicationIdParam]);
-
-	// Recalculate MemberNo when FormNo changes
-	useEffect(() => {
-		if (applicationData.FormNo && familyMembers.length > 0) {
-			setFamilyMembers((prev) => {
-				const formNo = applicationData.FormNo || "PE-00001";
-				return prev.map((member, i) => {
-					const expectedMemberNo = `${formNo}-${String(i + 1).padStart(2, '0')}`;
-					// Only update if MemberNo doesn't match the expected format
-					if (member.MemberNo !== expectedMemberNo) {
-						return {
-							...member,
-							MemberNo: expectedMemberNo
-						};
-					}
-					return member;
-				});
-			});
-		}
-	}, [applicationData.FormNo]);
+	}, [formNoParam]);
 
 	const handleApplicationChange = (field: keyof ApplicationFormData, value: string) => {
-		setApplicationData((prev) => {
-			const updated = { ...prev, [field]: value };
-			
-			// When TotalFamilyMembers changes, update family members array
-			if (field === "TotalFamilyMembers") {
-				// Validate: must be between 1 and 15
-				const count = parseInt(value) || 0;
-				if (count < 1 || count > 15) {
-					// Don't update if value is invalid
-					return prev;
-				}
-				if (count >= 1 && count <= 15) {
-					// Create or adjust family members array
-					setFamilyMembers((prev) => {
-						const currentCount = prev.length;
-						if (count > currentCount) {
-							// Add new members
-							const formNo = updated.FormNo || "PE-00001";
-							const newMembers: FamilyMemberFormData[] = Array.from({ length: count - currentCount }, (_, i) => ({
-								MemberNo: `${formNo}-${String(currentCount + i + 1).padStart(2, '0')}`,
-								FullName: "",
-								BFormOrCNIC: "",
-								RelationshipId: "",
-								GenderId: "",
-								MaritalStatusId: "",
-								DOBMonth: "",
-								DOBYear: "",
-								education: {
-									IsCurrentlyStudying: "",
-									InstitutionType: "",
-									InstitutionTypeOther: "",
-									CurrentClass: "",
-									CurrentClassOther: "",
-									LastFormalQualification: "",
-									LastFormalQualificationOther: "",
-									HighestQualification: "",
-									HighestQualificationOther: "",
-								},
-								livelihood: {
-									IsCurrentlyEarning: "",
-									EarningSource: "",
-									EarningSourceOther: "",
-									SalariedWorkSector: "",
-									SalariedWorkSectorOther: "",
-									WorkField: "",
-									WorkFieldOther: "",
-									MonthlyIncome: "",
-									JoblessDuration: "",
-									ReasonNotEarning: "",
-									ReasonNotEarningOther: "",
-								},
-							}));
-							return [...prev, ...newMembers];
-						} else if (count < currentCount) {
-							// Remove excess members and recalculate MemberNo
-							const formNo = updated.FormNo || "PE-00001";
-							const trimmed = prev.slice(0, count);
-							return trimmed.map((member, i) => ({
-								...member,
-								MemberNo: `${formNo}-${String(i + 1).padStart(2, '0')}`
-							}));
-						}
-						return prev;
-					});
-				} else {
-					setFamilyMembers([]);
-				}
-			}
-			
-			return updated;
-		});
+		setApplicationData((prev) => ({ ...prev, [field]: value }));
 	};
 
 	const handleFamilyHeadChange = (index: number, field: keyof FamilyHeadFormData, value: string) => {
@@ -421,104 +229,6 @@ export default function AddBaselineApplicationPage() {
 		if (familyHeads.length > 1) {
 			setFamilyHeads((prev) => prev.filter((_, i) => i !== index));
 		}
-	};
-
-	const handleFamilyMemberChange = (index: number, field: keyof FamilyMemberFormData, value: string | boolean) => {
-		setFamilyMembers((prev) => {
-			const updated = [...prev];
-			updated[index] = { ...updated[index], [field]: value };
-			return updated;
-		});
-	};
-
-	const handleEducationChange = (memberIndex: number, field: keyof EducationFormData, value: string) => {
-		setFamilyMembers((prev) => {
-			const updated = [...prev];
-			updated[memberIndex] = {
-				...updated[memberIndex],
-				education: {
-					...updated[memberIndex].education,
-					[field]: value,
-				},
-			};
-			return updated;
-		});
-	};
-
-	const handleLivelihoodChange = (memberIndex: number, field: keyof LivelihoodFormData, value: string | boolean) => {
-		setFamilyMembers((prev) => {
-			const updated = [...prev];
-			updated[memberIndex] = {
-				...updated[memberIndex],
-				livelihood: {
-					...updated[memberIndex].livelihood,
-					[field]: value,
-				},
-			};
-			return updated;
-		});
-	};
-
-	// Helper function to generate Member No in format PE-{FormNo}-{MemberNumber}
-	const generateMemberNo = (memberIndex: number): string => {
-		const formNo = applicationData.FormNo || "PE-00001";
-		const memberNumber = String(memberIndex + 1).padStart(2, '0');
-		return `${formNo}-${memberNumber}`;
-	};
-
-	const addFamilyMember = () => {
-		setFamilyMembers((prev) => {
-			const nextMemberNo = generateMemberNo(prev.length);
-			return [
-				...prev,
-				{
-					MemberNo: nextMemberNo,
-					FullName: "",
-					BFormOrCNIC: "",
-					RelationshipId: "",
-					GenderId: "",
-					MaritalStatusId: "",
-					DOBMonth: "",
-					DOBYear: "",
-					education: {
-						IsCurrentlyStudying: "",
-						InstitutionType: "",
-						InstitutionTypeOther: "",
-						CurrentClass: "",
-						CurrentClassOther: "",
-						LastFormalQualification: "",
-						LastFormalQualificationOther: "",
-						HighestQualification: "",
-						HighestQualificationOther: "",
-					},
-					livelihood: {
-						IsCurrentlyEarning: "",
-						EarningSource: "",
-						EarningSourceOther: "",
-						SalariedWorkSector: "",
-						SalariedWorkSectorOther: "",
-						WorkField: "",
-						WorkFieldOther: "",
-						MonthlyIncome: "",
-						JoblessDuration: "",
-						ReasonNotEarning: "",
-						ReasonNotEarningOther: "",
-					},
-				},
-			];
-		});
-	};
-
-	const removeFamilyMember = (index: number) => {
-		setFamilyMembers((prev) => {
-			const updated = prev.filter((_, i) => i !== index);
-			// Recalculate MemberNo for remaining members
-			const formNo = applicationData.FormNo || "PE-00001";
-			return updated.map((member, i) => ({
-				...member,
-				MemberNo: `${formNo}-${String(i + 1).padStart(2, '0')}`
-			}));
-		});
 	};
 
 	const handleSubmit = async (e: React.FormEvent) => {
@@ -616,79 +326,18 @@ export default function AddBaselineApplicationPage() {
 				}
 			}
 
-			// Validate all family members - all fields are required
-			for (let i = 0; i < familyMembers.length; i++) {
-				const member = familyMembers[i];
-				const memberNumber = i + 1;
-				
-				if (!member.MemberNo || member.MemberNo.trim() === "") {
-					setError(`Member No is required for Family Member ${memberNumber}`);
-					setSaving(false);
-					return;
-				}
-				if (!member.FullName || member.FullName.trim() === "") {
-					setError(`Full Name is required for Family Member ${memberNumber}`);
-					setSaving(false);
-					return;
-				}
-				if (!member.BFormOrCNIC || member.BFormOrCNIC.trim() === "") {
-					setError(`B-Form or CNIC is required for Family Member ${memberNumber}`);
-					setSaving(false);
-					return;
-				}
-				if (!member.RelationshipId || member.RelationshipId.trim() === "") {
-					setError(`Relationship is required for Family Member ${memberNumber}`);
-					setSaving(false);
-					return;
-				}
-				if (!member.GenderId || member.GenderId.trim() === "") {
-					setError(`Gender is required for Family Member ${memberNumber}`);
-					setSaving(false);
-					return;
-				}
-				if (!member.MaritalStatusId || member.MaritalStatusId.trim() === "") {
-					setError(`Marital Status is required for Family Member ${memberNumber}`);
-					setSaving(false);
-					return;
-				}
-				if (!member.DOBMonth || member.DOBMonth.trim() === "") {
-					setError(`Date of Birth - Month is required for Family Member ${memberNumber}`);
-					setSaving(false);
-					return;
-				}
-				if (!member.DOBYear || member.DOBYear.trim() === "") {
-					setError(`Date of Birth - Year is required for Family Member ${memberNumber}`);
-					setSaving(false);
-					return;
-				}
-				
-				// If currently earning (Yes), Monthly Income is required
-				if (member.livelihood?.IsCurrentlyEarning === "1") {
-					if (!member.livelihood.MonthlyIncome || member.livelihood.MonthlyIncome.trim() === "") {
-						setError(`Member per month Income is required for Family Member ${memberNumber} (currently earning)`);
-						setSaving(false);
-						return;
-					}
-				}
-			}
-
-			// All family members are valid if they pass validation
-			const validFamilyMembers = familyMembers;
-
-			const isEditing = Boolean(editingApplicationId);
 			const payload = {
 				application: {
 					FormNo: applicationData.FormNo,
-					TotalFamilyMembers: applicationData.TotalFamilyMembers || (validFamilyHeads.length + validFamilyMembers.length).toString(),
+					TotalFamilyMembers: applicationData.TotalFamilyMembers || validFamilyHeads.length.toString(),
 					Remarks: applicationData.Remarks || null,
-					...(isEditing ? { ApplicationId: Number(editingApplicationId) } : {}),
 				},
 				familyHeads: validFamilyHeads,
-				familyMembers: validFamilyMembers,
+				familyMembers: [],
 			};
 
 			const response = await fetch("/api/baseline-applications", {
-				method: isEditing ? "PUT" : "POST",
+				method: isEditMode ? "PUT" : "POST",
 				headers: {
 					"Content-Type": "application/json",
 				},
@@ -703,31 +352,52 @@ export default function AddBaselineApplicationPage() {
 					router.push("/dashboard/baseline-qol");
 				}, 1500);
 			} else {
-				setError(data.message || "Failed to create application");
+				setError(data.message || (isEditMode ? "Failed to update application" : "Failed to create application"));
 			}
 		} catch (err: any) {
-			console.error("Error creating application:", err);
-			setError(err.message || "Error creating application. Please try again.");
+			console.error(isEditMode ? "Error updating application:" : "Error creating application:", err);
+			setError(err.message || (isEditMode ? "Error updating application. Please try again." : "Error creating application. Please try again."));
 		} finally {
 			setSaving(false);
 		}
 	};
 
-	const months = [
-		"", "January", "February", "March", "April", "May", "June",
-		"July", "August", "September", "October", "November", "December"
-	];
-
-	const currentYear = new Date().getFullYear();
-	const years = Array.from({ length: 100 }, (_, i) => currentYear - i);
+	// Show loading indicator when fetching existing data for edit
+	if (loadingExistingData) {
+		return (
+			<div className="space-y-6">
+				<div className="flex justify-between items-center">
+					<div>
+						<h1 className="text-3xl font-bold text-gray-900">Loading Application...</h1>
+						<p className="text-gray-600 mt-2">Fetching application data for editing</p>
+					</div>
+					<button
+						onClick={() => router.back()}
+						className="inline-flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+					>
+						<ArrowLeft className="h-4 w-4" />
+						Back
+					</button>
+				</div>
+				<div className="flex items-center justify-center py-12 bg-white rounded-lg border border-gray-200">
+					<div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0b4d2b]"></div>
+					<span className="ml-4 text-gray-600 text-lg">Loading application data...</span>
+				</div>
+			</div>
+		);
+	}
 
 	return (
 		<div className="space-y-6">
 			{/* Header */}
 			<div className="flex items-center justify-between">
 				<div>
-					<h1 className="text-3xl font-bold text-gray-900">Add Baseline Application</h1>
-					<p className="text-gray-600 mt-2">Create a new PE Application</p>
+					<h1 className="text-3xl font-bold text-gray-900">
+						{isEditMode ? "Edit Baseline Application" : "Add Baseline Application"}
+					</h1>
+					<p className="text-gray-600 mt-2">
+						{isEditMode ? `Update PE Application - ${applicationData.FormNo}` : "Create a new PE Application"}
+					</p>
 				</div>
 				<button
 					onClick={() => router.back()}
@@ -738,9 +408,29 @@ export default function AddBaselineApplicationPage() {
 				</button>
 			</div>
 
+			{/* Edit Mode Indicator */}
+			{isEditMode && (
+				<div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+					<div className="flex items-center gap-2">
+						<div className="flex-shrink-0">
+							<svg className="h-5 w-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+								<path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+							</svg>
+						</div>
+						<div>
+							<p className="text-sm font-medium text-blue-800">
+								Editing Mode: You are updating an existing application. Family head information has been loaded.
+							</p>
+						</div>
+					</div>
+				</div>
+			)}
+
 			{success && (
 				<div className="bg-green-50 border border-green-200 rounded-lg p-4">
-					<p className="text-green-800">Application created successfully! Redirecting...</p>
+					<p className="text-green-800">
+						{isEditMode ? "Application updated successfully! Redirecting..." : "Application created successfully! Redirecting..."}
+					</p>
 				</div>
 			)}
 
@@ -1024,608 +714,9 @@ export default function AddBaselineApplicationPage() {
 										</select>
 									</div>
 								</div>
-								<div className="flex justify-end mt-4">
-									<button
-										type="submit"
-										className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-									>
-										<Save className="h-4 w-4" />
-										Save Family Head Information
-									</button>
-								</div>
 							</div>
 						))}
 					</div>
-				</div>
-
-				{/* Family Members Information */}
-				<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
-					<div className="flex items-center justify-between mb-6">
-						<h2 className="text-xl font-bold text-gray-900">Family Members</h2>
-						<button
-							type="button"
-							onClick={addFamilyMember}
-							className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-						>
-							<Plus className="h-4 w-4" />
-							Add Member
-						</button>
-					</div>
-
-					{familyMembers.length === 0 ? (
-						<div className="text-center py-8 text-gray-500">
-							<p>No family members added yet. Click "Add Member" to add a family member.</p>
-						</div>
-					) : (
-						<div className="space-y-8">
-							{familyMembers.map((member, index) => (
-								<div key={index} className="border border-gray-200 rounded-lg p-6">
-									<div className="flex items-center justify-between mb-4">
-										<h3 className="text-lg font-semibold text-gray-900">
-											Family Member {index + 1}
-										</h3>
-										<button
-											type="button"
-											onClick={() => removeFamilyMember(index)}
-											className="inline-flex items-center gap-2 px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors text-sm"
-										>
-											<Trash2 className="h-4 w-4" />
-											Remove
-										</button>
-									</div>
-
-									<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-										<div>
-											<label className="block text-sm font-medium text-gray-700 mb-2">
-												Member No <span className="text-red-500">*</span>
-											</label>
-											<input
-												type="text"
-												value={member.MemberNo}
-												readOnly
-												className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm bg-gray-100 cursor-not-allowed focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-												placeholder="Auto-generated"
-											/>
-										</div>
-
-										<div>
-											<label className="block text-sm font-medium text-gray-700 mb-2">
-												Full Name <span className="text-red-500">*</span>
-											</label>
-											<input
-												type="text"
-												value={member.FullName}
-												onChange={(e) => handleFamilyMemberChange(index, "FullName", e.target.value)}
-												required
-												className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-												placeholder="Enter full name"
-											/>
-										</div>
-
-										<div>
-											<label className="block text-sm font-medium text-gray-700 mb-2">
-												B-Form or CNIC <span className="text-red-500">*</span>
-											</label>
-											<input
-												type="text"
-												value={member.BFormOrCNIC}
-												onChange={(e) => handleFamilyMemberChange(index, "BFormOrCNIC", e.target.value)}
-												required
-												className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-												placeholder="Enter B-Form or CNIC"
-											/>
-										</div>
-
-										<div>
-											<label className="block text-sm font-medium text-gray-700 mb-2">
-												Relationship ID <span className="text-red-500">*</span>
-											</label>
-											<select
-												value={member.RelationshipId}
-												onChange={(e) => handleFamilyMemberChange(index, "RelationshipId", e.target.value)}
-												required
-												className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-											>
-												<option value="">Select Relationship</option>
-												{relationships.map((rel) => (
-													<option key={rel.RelationshipId} value={rel.RelationshipId.toString()}>
-														{rel.RelationshipName}
-													</option>
-												))}
-											</select>
-										</div>
-
-										<div>
-											<label className="block text-sm font-medium text-gray-700 mb-2">
-												Gender <span className="text-red-500">*</span>
-											</label>
-											<select
-												value={member.GenderId}
-												onChange={(e) => handleFamilyMemberChange(index, "GenderId", e.target.value)}
-												required
-												className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-											>
-												<option value="">Select Gender</option>
-												{genders.map((gender) => (
-													<option key={gender.GenderId} value={gender.GenderId.toString()}>
-														{gender.GenderName}
-													</option>
-												))}
-											</select>
-										</div>
-
-										<div>
-											<label className="block text-sm font-medium text-gray-700 mb-2">
-												Marital Status <span className="text-red-500">*</span>
-											</label>
-											<select
-												value={member.MaritalStatusId}
-												onChange={(e) => handleFamilyMemberChange(index, "MaritalStatusId", e.target.value)}
-												required
-												className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-											>
-												<option value="">Select Marital Status</option>
-												{maritalStatuses.map((status) => (
-													<option key={status.MaritalStatusId} value={status.MaritalStatusId.toString()}>
-														{status.MaritalStatusName}
-													</option>
-												))}
-											</select>
-										</div>
-
-										<div>
-											<label className="block text-sm font-medium text-gray-700 mb-2">
-												Date of Birth - Month <span className="text-red-500">*</span>
-											</label>
-											<select
-												value={member.DOBMonth}
-												onChange={(e) => handleFamilyMemberChange(index, "DOBMonth", e.target.value)}
-												required
-												className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-											>
-												{months.map((month, i) => (
-													<option key={i} value={i === 0 ? "" : i.toString()}>
-														{month}
-													</option>
-												))}
-											</select>
-										</div>
-
-										<div>
-											<label className="block text-sm font-medium text-gray-700 mb-2">
-												Date of Birth - Year <span className="text-red-500">*</span>
-											</label>
-											<select
-												value={member.DOBYear}
-												onChange={(e) => handleFamilyMemberChange(index, "DOBYear", e.target.value)}
-												required
-												className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-											>
-												<option value="">Select Year</option>
-												{years.map((year) => (
-													<option key={year} value={year.toString()}>
-														{year}
-													</option>
-												))}
-											</select>
-										</div>
-									</div>
-
-									{/* Education Section */}
-									<div className="mt-6 pt-6 border-t border-gray-200">
-										<h3 className="text-lg font-semibold text-gray-900 mb-4">Education Information</h3>
-										<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-											{/* Q.FM1: Are you currently studying? */}
-											<div>
-												<label className="block text-sm font-medium text-gray-700 mb-2">
-													Are you currently studying?
-												</label>
-												<select
-													value={member.education.IsCurrentlyStudying}
-													onChange={(e) => handleEducationChange(index, "IsCurrentlyStudying", e.target.value)}
-													className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-												>
-													<option value="">Select option</option>
-													<option value="1">1) Yes</option>
-													<option value="2">2) No</option>
-													<option value="99">99) Not applicable</option>
-												</select>
-											</div>
-
-											{/* Show fields if Yes (IsCurrentlyStudying === "1") */}
-											{member.education.IsCurrentlyStudying === "1" && (
-												<>
-													{/* Q.FM1.1: Type of Institution */}
-													<div>
-														<label className="block text-sm font-medium text-gray-700 mb-2">
-															Type of Institution
-														</label>
-														<select
-															value={member.education.InstitutionType}
-															onChange={(e) => handleEducationChange(index, "InstitutionType", e.target.value)}
-															className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-														>
-															<option value="">Select option</option>
-															<option value="1">1) AKES</option>
-															<option value="2">2) Private</option>
-															<option value="3">3) Government</option>
-															<option value="4">4) NGO</option>
-															<option value="5">5) Community based</option>
-															<option value="98">98) Others</option>
-															<option value="99">99) Not applicable</option>
-														</select>
-													</div>
-
-													{/* Show "Other" field if InstitutionType is "98" */}
-													{member.education.InstitutionType === "98" && (
-														<div>
-															<label className="block text-sm font-medium text-gray-700 mb-2">
-																Institution Type Other
-															</label>
-															<input
-																type="text"
-																value={member.education.InstitutionTypeOther}
-																onChange={(e) => handleEducationChange(index, "InstitutionTypeOther", e.target.value)}
-																className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-																placeholder="Specify other institution type"
-															/>
-														</div>
-													)}
-
-													{/* Q.FM1.2: Current class */}
-													<div>
-														<label className="block text-sm font-medium text-gray-700 mb-2">
-															Current class
-														</label>
-														<select
-															value={member.education.CurrentClass}
-															onChange={(e) => handleEducationChange(index, "CurrentClass", e.target.value)}
-															className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-														>
-															<option value="">Select option</option>
-															<option value="1">1) ECD/pre-primary</option>
-															<option value="2">2) Primary</option>
-															<option value="3">3) Secondary (till Matric / O-Levels)</option>
-															<option value="4">4) Higher secondary (Inter / A-Levels)</option>
-															<option value="5">5) Bachelors (Graduate)</option>
-															<option value="6">6) Masters (Post graduate)</option>
-															<option value="7">7) M. Phil / PhD</option>
-															<option value="8">8) Diploma</option>
-															<option value="9">9) Professional certification</option>
-															<option value="98">98) Others</option>
-															<option value="99">99) Not applicable</option>
-														</select>
-													</div>
-
-													{/* Show "Other" field if CurrentClass is "98" */}
-													{member.education.CurrentClass === "98" && (
-														<div>
-															<label className="block text-sm font-medium text-gray-700 mb-2">
-																Current Class Other
-															</label>
-															<input
-																type="text"
-																value={member.education.CurrentClassOther}
-																onChange={(e) => handleEducationChange(index, "CurrentClassOther", e.target.value)}
-																className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-																placeholder="Specify other current class"
-															/>
-														</div>
-													)}
-												</>
-											)}
-
-											{/* Q.FM1.5: If currently availing any diploma / professional certificate / others */}
-											{(member.education.CurrentClass === "8" || member.education.CurrentClass === "9" || member.education.CurrentClass === "98") && (
-												<div>
-													<label className="block text-sm font-medium text-gray-700 mb-2">
-														If currently availing any diploma / professional certificate / others, what is the last formal qualification you have completed?
-													</label>
-													<select
-														value={member.education.LastFormalQualification}
-														onChange={(e) => handleEducationChange(index, "LastFormalQualification", e.target.value)}
-														className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-													>
-														<option value="">Select option</option>
-														<option value="1">1) ECD / pre-primary</option>
-														<option value="2">2) Primary</option>
-														<option value="3">3) Secondary (till Matric / O-Levels)</option>
-														<option value="4">4) Higher secondary (Inter / A-Levels)</option>
-														<option value="5">5) Bachelors (Graduate)</option>
-														<option value="6">6) Masters (Post graduate)</option>
-														<option value="7">7) M. Phil / PhD</option>
-														<option value="98">98) Others</option>
-														<option value="99">99) Not applicable</option>
-													</select>
-												</div>
-											)}
-
-											{/* Show "Other" field if LastFormalQualification is "98" */}
-											{member.education.LastFormalQualification === "98" && (
-												<div>
-													<label className="block text-sm font-medium text-gray-700 mb-2">
-														Last Formal Qualification Other
-													</label>
-													<input
-														type="text"
-														value={member.education.LastFormalQualificationOther}
-														onChange={(e) => handleEducationChange(index, "LastFormalQualificationOther", e.target.value)}
-														className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-														placeholder="Specify other last formal qualification"
-													/>
-												</div>
-											)}
-
-											{/* Q.FM1.7: What is your highest qualification? */}
-											<div>
-												<label className="block text-sm font-medium text-gray-700 mb-2">
-													What is your highest qualification?
-												</label>
-												<select
-													value={member.education.HighestQualification}
-													onChange={(e) => handleEducationChange(index, "HighestQualification", e.target.value)}
-													className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-												>
-													<option value="">Select option</option>
-													<option value="1">1) ECD/pre-primary</option>
-													<option value="2">2) Primary</option>
-													<option value="3">3) Secondary (till matric / O-Levels)</option>
-													<option value="4">4) Higher secondary (Inter / A-Levels)</option>
-													<option value="5">5) Bachelors (Graduate)</option>
-													<option value="6">6) Masters (Post graduate)</option>
-													<option value="7">7) M. Phil / PhD</option>
-													<option value="8">8) Diploma</option>
-													<option value="9">9) Professional certification</option>
-													<option value="98">98) Others</option>
-													<option value="99">99) Not applicable</option>
-												</select>
-											</div>
-
-											{/* Show "Other" field if HighestQualification is "98" */}
-											{member.education.HighestQualification === "98" && (
-												<div>
-													<label className="block text-sm font-medium text-gray-700 mb-2">
-														Highest Qualification Other
-													</label>
-													<input
-														type="text"
-														value={member.education.HighestQualificationOther}
-														onChange={(e) => handleEducationChange(index, "HighestQualificationOther", e.target.value)}
-														className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-														placeholder="Specify other highest qualification"
-													/>
-												</div>
-											)}
-										</div>
-									</div>
-
-									{/* Livelihood Section */}
-									<div className="mt-6 pt-6 border-t border-gray-200">
-										<h3 className="text-lg font-semibold text-gray-900 mb-4">Livelihood Information</h3>
-										<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-											{/* Q.FM15: Are you currently earning? */}
-											<div>
-												<label className="block text-sm font-medium text-gray-700 mb-2">
-													Are you currently earning?
-												</label>
-												<select
-													value={member.livelihood.IsCurrentlyEarning}
-													onChange={(e) => handleLivelihoodChange(index, "IsCurrentlyEarning", e.target.value)}
-													className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-												>
-													<option value="">Select option</option>
-													<option value="1">1) Yes</option>
-													<option value="2">2) No</option>
-													<option value="99">99) Not applicable</option>
-												</select>
-											</div>
-
-											{/* Show fields if Yes (IsCurrentlyEarning === "1") */}
-											{member.livelihood.IsCurrentlyEarning === "1" && (
-												<>
-													{/* Q.FM15.1: What is the source of your earning? */}
-													<div>
-														<label className="block text-sm font-medium text-gray-700 mb-2">
-															What is the source of your earning?
-														</label>
-														<select
-															value={member.livelihood.EarningSource}
-															onChange={(e) => handleLivelihoodChange(index, "EarningSource", e.target.value)}
-															className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-														>
-															<option value="">Select option</option>
-															<option value="1">1) Salaried (employment)</option>
-															<option value="2">2) Business</option>
-															<option value="3">3) Self-employed</option>
-															<option value="4">4) Agriculture / Livestock</option>
-															<option value="5">5) Wage earner</option>
-															<option value="98">98) Others</option>
-														</select>
-													</div>
-
-													{/* Show "Other" field if EarningSource is "98" */}
-													{member.livelihood.EarningSource === "98" && (
-														<div>
-															<label className="block text-sm font-medium text-gray-700 mb-2">
-																Earning Source Other
-															</label>
-															<input
-																type="text"
-																value={member.livelihood.EarningSourceOther}
-																onChange={(e) => handleLivelihoodChange(index, "EarningSourceOther", e.target.value)}
-																className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-																placeholder="Specify other earning source"
-															/>
-														</div>
-													)}
-
-													{/* Q.FM15.2: If Salaried: where do you currently work? */}
-													{member.livelihood.EarningSource === "1" && (
-														<div>
-															<label className="block text-sm font-medium text-gray-700 mb-2">
-																If Salaried: where do you currently work?
-															</label>
-															<select
-																value={member.livelihood.SalariedWorkSector}
-																onChange={(e) => handleLivelihoodChange(index, "SalariedWorkSector", e.target.value)}
-																className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-															>
-																<option value="">Select option</option>
-																<option value="1">1) Government</option>
-																<option value="2">2) Private</option>
-																<option value="3">3) NGO</option>
-																<option value="98">98) Others</option>
-																<option value="99">99) Not Applicable</option>
-															</select>
-														</div>
-													)}
-
-													{/* Show "Other" field if SalariedWorkSector is "98" */}
-													{member.livelihood.SalariedWorkSector === "98" && (
-														<div>
-															<label className="block text-sm font-medium text-gray-700 mb-2">
-																Salaried Work Sector Other
-															</label>
-															<input
-																type="text"
-																value={member.livelihood.SalariedWorkSectorOther}
-																onChange={(e) => handleLivelihoodChange(index, "SalariedWorkSectorOther", e.target.value)}
-																className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-																placeholder="Specify other salaried work sector"
-															/>
-														</div>
-													)}
-
-													{/* Q.FM15.3: If Salaried OR Self-employed: specify the field? */}
-													{(member.livelihood.EarningSource === "1" || member.livelihood.EarningSource === "3") && (
-														<div>
-															<label className="block text-sm font-medium text-gray-700 mb-2">
-																If Salaried OR Self-employed: specify the field?
-															</label>
-															<select
-																value={member.livelihood.WorkField}
-																onChange={(e) => handleLivelihoodChange(index, "WorkField", e.target.value)}
-																className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-															>
-																<option value="">Select option</option>
-																<option value="1">1) Education</option>
-																<option value="2">2) IT professional</option>
-																<option value="3">3) Agriculture</option>
-																<option value="4">4) Health</option>
-																<option value="5">5) Labor</option>
-																<option value="6">6) Civil / engineering / construction / architecture</option>
-																<option value="7">7) Accounting / taxation / audit</option>
-																<option value="8">8) Financial institution (bank / society / investment company / brokerage firm / insurance)</option>
-																<option value="9">9) Trading (retail / wholesale)</option>
-																<option value="10">10) Media / communications / public relations</option>
-																<option value="11">11) Shop worker (retail / grocery / food stall)</option>
-																<option value="12">12) Transportation (driver / rider)</option>
-																<option value="98">98) Others</option>
-																<option value="99">99) Not Applicable</option>
-															</select>
-														</div>
-													)}
-
-													{/* Show "Other" field if WorkField is "98" */}
-													{member.livelihood.WorkField === "98" && (
-														<div>
-															<label className="block text-sm font-medium text-gray-700 mb-2">
-																Work Field Other
-															</label>
-															<input
-																type="text"
-																value={member.livelihood.WorkFieldOther}
-																onChange={(e) => handleLivelihoodChange(index, "WorkFieldOther", e.target.value)}
-																className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-																placeholder="Specify other work field"
-															/>
-														</div>
-													)}
-
-													{/* Monthly Income */}
-													<div>
-														<label className="block text-sm font-medium text-gray-700 mb-2">
-															Member per month Income <span className="text-red-500">*</span>
-														</label>
-														<input
-															type="number"
-															value={member.livelihood.MonthlyIncome}
-															onChange={(e) => handleLivelihoodChange(index, "MonthlyIncome", e.target.value)}
-															required
-															className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-															placeholder="Enter monthly income"
-															min="0"
-															step="0.01"
-														/>
-													</div>
-												</>
-											)}
-
-											{/* Show fields if No (IsCurrentlyEarning === "2") */}
-											{member.livelihood.IsCurrentlyEarning === "2" && (
-												<>
-													{/* Q.FM15.6: Since how long are you jobless/out of business */}
-													<div>
-														<label className="block text-sm font-medium text-gray-700 mb-2">
-															Since how long are you jobless/out of business
-														</label>
-														<select
-															value={member.livelihood.JoblessDuration}
-															onChange={(e) => handleLivelihoodChange(index, "JoblessDuration", e.target.value)}
-															className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-														>
-															<option value="">Select option</option>
-															<option value="1">1) Less than 6 month</option>
-															<option value="2">2) 6 - 12 months</option>
-															<option value="3">3) 12 months to 24 months</option>
-															<option value="4">4) More than 24 months</option>
-															<option value="99">99) Not applicable</option>
-														</select>
-													</div>
-
-													{/* Q.FM15.8: Reason for not currently earning? */}
-													<div>
-														<label className="block text-sm font-medium text-gray-700 mb-2">
-															Reason for not currently earning?
-														</label>
-														<select
-															value={member.livelihood.ReasonNotEarning}
-															onChange={(e) => handleLivelihoodChange(index, "ReasonNotEarning", e.target.value)}
-															className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-														>
-															<option value="">Select option</option>
-															<option value="1">1) Cannot get a job</option>
-															<option value="2">2) Non-availability of desirable job</option>
-															<option value="3">3) Family does not allow</option>
-															<option value="4">4) Job offers have lower than desirable salary</option>
-															<option value="98">98) Others</option>
-															<option value="99">99) Not Applicable</option>
-														</select>
-													</div>
-
-													{/* Show "Other" field if ReasonNotEarning is "98" */}
-													{member.livelihood.ReasonNotEarning === "98" && (
-														<div>
-															<label className="block text-sm font-medium text-gray-700 mb-2">
-																Reason Not Earning Other
-															</label>
-															<input
-																type="text"
-																value={member.livelihood.ReasonNotEarningOther}
-																onChange={(e) => handleLivelihoodChange(index, "ReasonNotEarningOther", e.target.value)}
-																className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-																placeholder="Specify other reason"
-															/>
-														</div>
-													)}
-												</>
-											)}
-										</div>
-									</div>
-								</div>
-							))}
-						</div>
-					)}
 				</div>
 
 				{/* Submit Button */}
@@ -1643,7 +734,7 @@ export default function AddBaselineApplicationPage() {
 						className="inline-flex items-center gap-2 px-6 py-2 bg-[#0b4d2b] text-white rounded-md hover:bg-[#0a3d22] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
 					>
 						<Save className="h-4 w-4" />
-						{saving ? "Saving..." : "Save Application"}
+						{saving ? (isEditMode ? "Updating..." : "Saving...") : (isEditMode ? "Update Application" : "Save Application")}
 					</button>
 				</div>
 			</form>

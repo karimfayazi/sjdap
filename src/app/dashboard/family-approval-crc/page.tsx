@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Download, X, Plus } from "lucide-react";
+import { useSectionAccess } from "@/hooks/useSectionAccess";
+import SectionAccessDenied from "@/components/SectionAccessDenied";
 
 type FamilyData = {
 	FAMILY_ID: string | null;
@@ -22,6 +24,7 @@ type FamilyData = {
 
 export default function FamilyApprovalCRCPage() {
 	const router = useRouter();
+	const { hasAccess, loading: accessLoading, sectionName } = useSectionAccess("Family_Approval_CRC");
 	const [families, setFamilies] = useState<FamilyData[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -292,6 +295,23 @@ export default function FamilyApprovalCRCPage() {
 					>
 						Try Again
 					</button>
+				</div>
+			</div>
+		);
+	}
+
+	// Show access denied if user doesn't have permission
+	if (hasAccess === false) {
+		return <SectionAccessDenied sectionName={sectionName} requiredPermission="Family Approval CRC" />;
+	}
+
+	// Show loading while checking access
+	if (accessLoading) {
+		return (
+			<div className="space-y-6">
+				<div className="flex items-center justify-center py-12">
+					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
+					<span className="ml-3 text-gray-600">Loading...</span>
 				</div>
 			</div>
 		);
