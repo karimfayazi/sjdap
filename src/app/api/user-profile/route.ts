@@ -80,6 +80,50 @@ export async function GET(request: NextRequest) {
 			}
 		}
 		
+		// Handle access_loans field - normalize to 0/1 for consistency
+		let accessLoansValue: number = 0;
+		if (user.access_loans !== null && user.access_loans !== undefined) {
+			if (typeof user.access_loans === 'string') {
+				const trimmed = user.access_loans.trim();
+				const lowerTrimmed = trimmed.toLowerCase();
+				if (lowerTrimmed === 'yes' || lowerTrimmed === '1' || lowerTrimmed === 'true') {
+					accessLoansValue = 1;
+				} else if (lowerTrimmed === 'no' || lowerTrimmed === '0' || lowerTrimmed === 'false') {
+					accessLoansValue = 0;
+				} else {
+					accessLoansValue = 0;
+				}
+			} else if (typeof user.access_loans === 'boolean') {
+				accessLoansValue = user.access_loans ? 1 : 0;
+			} else if (typeof user.access_loans === 'number') {
+				accessLoansValue = user.access_loans === 1 ? 1 : 0;
+			} else {
+				accessLoansValue = 0;
+			}
+		}
+
+		// Handle bank_account field - normalize to 0/1
+		let bankAccountValue: number = 0;
+		if (user.bank_account !== null && user.bank_account !== undefined) {
+			if (typeof user.bank_account === 'string') {
+				const trimmed = user.bank_account.trim();
+				const lowerTrimmed = trimmed.toLowerCase();
+				if (lowerTrimmed === 'yes' || lowerTrimmed === '1' || lowerTrimmed === 'true') {
+					bankAccountValue = 1;
+				} else if (lowerTrimmed === 'no' || lowerTrimmed === '0' || lowerTrimmed === 'false') {
+					bankAccountValue = 0;
+				} else {
+					bankAccountValue = 0;
+				}
+			} else if (typeof user.bank_account === 'boolean') {
+				bankAccountValue = user.bank_account ? 1 : 0;
+			} else if (typeof user.bank_account === 'number') {
+				bankAccountValue = user.bank_account === 1 ? 1 : 0;
+			} else {
+				bankAccountValue = 0;
+			}
+		}
+
 		// Debug logging for admin user - log all permission fields
 		if (userId && userId.toLowerCase() === 'admin') {
 			console.log('=== ADMIN USER PROFILE DEBUG ===');
@@ -115,28 +159,6 @@ export async function GET(request: NextRequest) {
 			console.log('===============================');
 		}
 
-		// Handle access_loans field - normalize to 0/1 for consistency
-		let accessLoansValue: number = 0;
-		if (user.access_loans !== null && user.access_loans !== undefined) {
-			if (typeof user.access_loans === 'string') {
-				const trimmed = user.access_loans.trim();
-				const lowerTrimmed = trimmed.toLowerCase();
-				if (lowerTrimmed === 'yes' || lowerTrimmed === '1' || lowerTrimmed === 'true') {
-					accessLoansValue = 1;
-				} else if (lowerTrimmed === 'no' || lowerTrimmed === '0' || lowerTrimmed === 'false') {
-					accessLoansValue = 0;
-				} else {
-					accessLoansValue = 0;
-				}
-			} else if (typeof user.access_loans === 'boolean') {
-				accessLoansValue = user.access_loans ? 1 : 0;
-			} else if (typeof user.access_loans === 'number') {
-				accessLoansValue = user.access_loans === 1 ? 1 : 0;
-			} else {
-				accessLoansValue = 0;
-			}
-		}
-		
 		// Additional logging for specific user
 		if (user.USER_ID === 'barkat.ebrahim@sjdap.org') {
 			console.log('=== DEBUGGING USER: barkat.ebrahim@sjdap.org ===');
@@ -144,28 +166,6 @@ export async function GET(request: NextRequest) {
 			console.log('Type of access_loans:', typeof user.access_loans);
 			console.log('Normalized accessLoansValue:', accessLoansValue);
 			console.log('==============================================');
-		}
-
-		// Handle bank_account field - normalize to 0/1
-		let bankAccountValue: number = 0;
-		if (user.bank_account !== null && user.bank_account !== undefined) {
-			if (typeof user.bank_account === 'string') {
-				const trimmed = user.bank_account.trim();
-				const lowerTrimmed = trimmed.toLowerCase();
-				if (lowerTrimmed === 'yes' || lowerTrimmed === '1' || lowerTrimmed === 'true') {
-					bankAccountValue = 1;
-				} else if (lowerTrimmed === 'no' || lowerTrimmed === '0' || lowerTrimmed === 'false') {
-					bankAccountValue = 0;
-				} else {
-					bankAccountValue = 0;
-				}
-			} else if (typeof user.bank_account === 'boolean') {
-				bankAccountValue = user.bank_account ? 1 : 0;
-			} else if (typeof user.bank_account === 'number') {
-				bankAccountValue = user.bank_account === 1 ? 1 : 0;
-			} else {
-				bankAccountValue = 0;
-			}
 		}
 
 		// Helper function to normalize permission values (1/0, true/false, "Yes"/"No" -> boolean)
