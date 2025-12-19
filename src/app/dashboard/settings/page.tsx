@@ -1417,7 +1417,7 @@ function SettingsPageContent() {
 											<input
 												type="checkbox"
 												name="ACTIVE"
-												checked={formData.ACTIVE === 1 || formData.ACTIVE === true || formData.ACTIVE === "1" || formData.ACTIVE === "true"}
+												checked={formData.ACTIVE === 1 || formData.ACTIVE === true}
 												onChange={handleProfileChange}
 												className="sr-only peer"
 											/>
@@ -1458,7 +1458,7 @@ function SettingsPageContent() {
 											<input
 												type="checkbox"
 												name="CAN_ADD"
-												checked={formData.CAN_ADD === 1 || formData.CAN_ADD === true || formData.CAN_ADD === "1" || formData.CAN_ADD === "true"}
+												checked={formData.CAN_ADD === 1 || formData.CAN_ADD === true}
 												onChange={handleProfileChange}
 												className="sr-only peer"
 											/>
@@ -1475,7 +1475,7 @@ function SettingsPageContent() {
 											<input
 												type="checkbox"
 												name="CAN_UPDATE"
-												checked={formData.CAN_UPDATE === 1 || formData.CAN_UPDATE === true || formData.CAN_UPDATE === "1" || formData.CAN_UPDATE === "true"}
+												checked={formData.CAN_UPDATE === 1 || formData.CAN_UPDATE === true}
 												onChange={handleProfileChange}
 												className="sr-only peer"
 											/>
@@ -1492,7 +1492,7 @@ function SettingsPageContent() {
 											<input
 												type="checkbox"
 												name="CAN_DELETE"
-												checked={formData.CAN_DELETE === 1 || formData.CAN_DELETE === true || formData.CAN_DELETE === "1" || formData.CAN_DELETE === "true"}
+												checked={formData.CAN_DELETE === 1 || formData.CAN_DELETE === true}
 												onChange={handleProfileChange}
 												className="sr-only peer"
 											/>
@@ -1509,7 +1509,7 @@ function SettingsPageContent() {
 											<input
 												type="checkbox"
 												name="CAN_UPLOAD"
-												checked={formData.CAN_UPLOAD === 1 || formData.CAN_UPLOAD === true || formData.CAN_UPLOAD === "1" || formData.CAN_UPLOAD === "true"}
+												checked={formData.CAN_UPLOAD === 1 || formData.CAN_UPLOAD === true}
 												onChange={handleProfileChange}
 												className="sr-only peer"
 											/>
@@ -1526,7 +1526,7 @@ function SettingsPageContent() {
 											<input
 												type="checkbox"
 												name="SEE_REPORTS"
-												checked={formData.SEE_REPORTS === 1 || formData.SEE_REPORTS === true || formData.SEE_REPORTS === "1" || formData.SEE_REPORTS === "true"}
+												checked={formData.SEE_REPORTS === 1 || formData.SEE_REPORTS === true}
 												onChange={handleProfileChange}
 												className="sr-only peer"
 											/>
@@ -1543,7 +1543,7 @@ function SettingsPageContent() {
 											<input
 												type="checkbox"
 												name="ROP_EDIT"
-												checked={formData.ROP_EDIT === 1 || formData.ROP_EDIT === true || formData.ROP_EDIT === "1" || formData.ROP_EDIT === "true"}
+												checked={formData.ROP_EDIT === 1 || formData.ROP_EDIT === true}
 												onChange={handleProfileChange}
 												className="sr-only peer"
 											/>
@@ -1560,7 +1560,7 @@ function SettingsPageContent() {
 											<input
 												type="checkbox"
 												name="access_loans"
-												checked={formData.access_loans === 1 || formData.access_loans === true || formData.access_loans === "1" || formData.access_loans === "true"}
+												checked={formData.access_loans === 1 || formData.access_loans === true}
 												onChange={handleProfileChange}
 												className="sr-only peer"
 											/>
@@ -1577,7 +1577,7 @@ function SettingsPageContent() {
 											<input
 												type="checkbox"
 												name="baseline_access"
-												checked={formData.baseline_access === 1 || formData.baseline_access === true || formData.baseline_access === "1" || formData.baseline_access === "true"}
+												checked={formData.baseline_access === 1 || formData.baseline_access === true}
 												onChange={handleProfileChange}
 												className="sr-only peer"
 											/>
@@ -1594,7 +1594,7 @@ function SettingsPageContent() {
 											<input
 												type="checkbox"
 												name="bank_account"
-												checked={formData.bank_account === 1 || formData.bank_account === true || formData.bank_account === "1" || formData.bank_account === "true"}
+												checked={formData.bank_account === 1 || formData.bank_account === true}
 												onChange={handleProfileChange}
 												className="sr-only peer"
 											/>
@@ -1611,7 +1611,7 @@ function SettingsPageContent() {
 											<input
 												type="checkbox"
 												name="Supper_User"
-												checked={formData.Supper_User === 1 || formData.Supper_User === true || formData.Supper_User === "1" || formData.Supper_User === "true"}
+												checked={formData.Supper_User === 1 || formData.Supper_User === true}
 												onChange={handleProfileChange}
 												className="sr-only peer"
 											/>
@@ -1831,7 +1831,7 @@ function SettingsPageContent() {
 											<input
 												type="checkbox"
 												name="ACTIVE"
-												checked={newUserData.ACTIVE === 1 || newUserData.ACTIVE === true || newUserData.ACTIVE === "1" || newUserData.ACTIVE === "true"}
+												checked={newUserData.ACTIVE === 1 || newUserData.ACTIVE === true}
 												onChange={handleNewUserChange}
 												className="sr-only peer"
 											/>
