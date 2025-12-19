@@ -352,6 +352,19 @@ export default function SWBFamiliesPage() {
 		);
 	}
 
+	// Helper function to format permission value for display
+	const formatPermissionValue = (value: any): string => {
+		if (value === null || value === undefined) return "Not Set";
+		if (typeof value === 'boolean') return value ? "true" : "false";
+		if (typeof value === 'number') return value.toString();
+		if (typeof value === 'string') return value;
+		return String(value);
+	};
+
+	// Get SWB_Families permission value
+	const swbFamiliesPermission = userProfile?.SWB_Families;
+	const hasSWBAccess = hasAccess === true;
+
 	return (
 		<div className="space-y-6">
 			{/* Header */}
@@ -359,6 +372,24 @@ export default function SWBFamiliesPage() {
 				<div>
 					<h1 className="text-3xl font-bold text-gray-900">SWB-Families</h1>
 					<p className="text-gray-600 mt-2">Manage SWB families information</p>
+					{/* SWB_Families Permission Display */}
+					<div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-gray-100 border border-gray-300">
+						<span className="text-sm font-medium text-gray-700">SWB_Families Permission:</span>
+						<span className={`text-sm font-semibold px-2 py-0.5 rounded ${
+							hasSWBAccess 
+								? 'bg-green-100 text-green-800 border border-green-300' 
+								: 'bg-red-100 text-red-800 border border-red-300'
+						}`}>
+							{formatPermissionValue(swbFamiliesPermission)}
+						</span>
+						<span className={`text-xs font-medium px-2 py-0.5 rounded ${
+							hasSWBAccess 
+								? 'bg-green-50 text-green-700' 
+								: 'bg-red-50 text-red-700'
+						}`}>
+							{hasSWBAccess ? '✓ Access Granted' : '✗ Access Denied'}
+						</span>
+					</div>
 				</div>
 				<div className="flex items-center gap-3">
 					<button
@@ -378,6 +409,45 @@ export default function SWBFamiliesPage() {
 							Add Records
 						</button>
 					)}
+				</div>
+			</div>
+
+			{/* SWB_Families Permission Info Card */}
+			<div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+				<div className="flex items-start justify-between">
+					<div className="flex-1">
+						<h3 className="text-sm font-semibold text-blue-900 mb-2">SWB_Families Access Control Information</h3>
+						<div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+							<div>
+								<span className="font-medium text-gray-700">Database Value:</span>
+								<span className="ml-2 font-mono text-gray-900">
+									{swbFamiliesPermission !== null && swbFamiliesPermission !== undefined 
+										? formatPermissionValue(swbFamiliesPermission) 
+										: 'null/undefined'}
+								</span>
+							</div>
+							<div>
+								<span className="font-medium text-gray-700">Value Type:</span>
+								<span className="ml-2 font-mono text-gray-900">
+									{swbFamiliesPermission !== null && swbFamiliesPermission !== undefined 
+										? typeof swbFamiliesPermission 
+										: 'N/A'}
+								</span>
+							</div>
+							<div>
+								<span className="font-medium text-gray-700">Access Status:</span>
+								<span className={`ml-2 font-semibold ${
+									hasSWBAccess ? 'text-green-700' : 'text-red-700'
+								}`}>
+									{hasSWBAccess ? '✓ GRANTED' : '✗ DENIED'}
+								</span>
+							</div>
+						</div>
+						<div className="mt-3 text-xs text-gray-600">
+							<strong>Note:</strong> Access is granted when SWB_Families = 1 or true in the database. 
+							Super users have automatic access regardless of this value.
+						</div>
+					</div>
 				</div>
 			</div>
 
