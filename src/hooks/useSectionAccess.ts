@@ -74,22 +74,40 @@ export function useSectionAccess(section: SectionPermission) {
 		const permission = userProfile?.[section];
 		const hasPermission = normalizePermission(permission);
 
-		// Debug logging
+		// Enhanced debug logging for SWB_Families
 		if (typeof window !== "undefined") {
-			console.log("=== SECTION PERMISSION CHECK ===", {
+			const debugInfo: any = {
 				username: userProfile?.username,
 				section: section,
 				permission: permission,
+				permissionType: typeof permission,
 				normalized: hasPermission,
 				hasAccess: hasPermission === true
-			});
+			};
+			
+			// Add extra info for SWB_Families debugging
+			if (section === "SWB_Families") {
+				debugInfo.swbFamiliesRaw = permission;
+				debugInfo.swbFamiliesNormalized = hasPermission;
+				debugInfo.superUser = userIsSuperUser;
+				debugInfo.supperUserValue = supperUserValue;
+			}
+			
+			console.log("=== SECTION PERMISSION CHECK ===", debugInfo);
 		}
 
 		// If permission is explicitly false (0, "No", false) or null/undefined, deny access
+		// For SWB_Families: If value is true (from 1 or true in DB), grant access
 		if (hasPermission !== true) {
+			if (typeof window !== "undefined" && section === "SWB_Families") {
+				console.log("❌ SWB_Families ACCESS DENIED - Permission value:", permission, "Normalized:", hasPermission);
+			}
 			setHasAccess(false);
 			// Don't redirect automatically - let the component show the access denied message
 		} else {
+			if (typeof window !== "undefined" && section === "SWB_Families") {
+				console.log("✅ SWB_Families ACCESS GRANTED - Permission value:", permission, "Normalized:", hasPermission);
+			}
 			setHasAccess(true);
 		}
 	}, [userProfile, authLoading, section, router]);

@@ -156,17 +156,36 @@ export async function GET(request: NextRequest) {
 
 		// Helper function to normalize permission values (1/0, true/false, "Yes"/"No" -> boolean)
 		// Returns true if permission granted (1, "Yes", true), false if denied (0, "No", false), null if not set
+		// IMPORTANT: This function handles SWB_Families = 1 or true to grant access
 		const normalizePermissionForAPI = (value: any): boolean | null => {
 			if (value === null || value === undefined) return null;
-			if (typeof value === 'boolean') return value;
-			if (typeof value === 'number') return value === 1;
+			
+			// Handle boolean: true -> true, false -> false
+			if (typeof value === 'boolean') {
+				return value === true;
+			}
+			
+			// Handle number: 1 -> true, anything else -> false
+			if (typeof value === 'number') {
+				return value === 1;
+			}
+			
+			// Handle string: normalize and check
 			if (typeof value === 'string') {
 				const lower = value.toLowerCase().trim();
-				if (lower === 'yes' || lower === '1' || lower === 'true') return true;
-				if (lower === 'no' || lower === '0' || lower === 'false') return false;
-				// If it's a string but doesn't match known patterns, return null
+				// Grant access for: "yes", "1", "true"
+				if (lower === 'yes' || lower === '1' || lower === 'true') {
+					return true;
+				}
+				// Deny access for: "no", "0", "false"
+				if (lower === 'no' || lower === '0' || lower === 'false') {
+					return false;
+				}
+				// Unknown string pattern -> return null (will be converted to false)
 				return null;
 			}
+			
+			// Unknown type -> return null (will be converted to false)
 			return null;
 		};
 
@@ -221,13 +240,17 @@ export async function GET(request: NextRequest) {
 			console.log('==============================================');
 		}
 		
-		// Log SWB_Families for all users to debug
-		console.log(`=== SWB_Families DEBUG for ${user.USER_ID} ===`);
+		// Log SWB_Families for all users to debug - CRITICAL for access control
+		const swbNormalized = normalizePermissionForAPI(swbFamiliesValue);
+		const swbFinal = isSuperUserValue ? true : (swbNormalized ?? false);
+		console.log(`=== SWB_Families ACCESS CONTROL DEBUG for ${user.USER_ID} ===`);
 		console.log('Field key found:', swbFieldKey);
-		console.log('Raw SWB_Families from DB:', swbFamiliesValue);
-		console.log('Type:', typeof swbFamiliesValue);
-		console.log('Normalized:', normalizePermissionForAPI(swbFamiliesValue));
-		console.log('Final value in userProfile:', isSuperUserValue ? true : (normalizePermissionForAPI(swbFamiliesValue) ?? false));
+		console.log('Raw SWB_Families from DB:', swbFamiliesValue, `(type: ${typeof swbFamiliesValue})`);
+		console.log('After normalization:', swbNormalized);
+		console.log('Is Super User:', isSuperUserValue);
+		console.log('FINAL SWB_Families value in userProfile:', swbFinal);
+		console.log(swbFinal ? '✅ ACCESS GRANTED' : '❌ ACCESS DENIED');
+		console.log('==================================================');
 		
 		const userProfile = {
 			username: user.USER_ID || "",
@@ -257,6 +280,8 @@ export async function GET(request: NextRequest) {
 			ROP: isSuperUserValue ? true : (normalizePermissionForAPI((user as any).ROP) ?? false),
 			Setting: isSuperUserValue ? true : (normalizePermissionForAPI((user as any).Setting) ?? false),
 			Other: isSuperUserValue ? true : (normalizePermissionForAPI((user as any).Other) ?? false),
+			// SWB_Families: If value is 1 or true, grant access. Super users always have access.
+			// normalizePermissionForAPI converts: 1 -> true, true -> true, 0/false/null -> false
 			SWB_Families: isSuperUserValue ? true : (normalizePermissionForAPI(swbFamiliesValue) ?? false),
 		};
 
