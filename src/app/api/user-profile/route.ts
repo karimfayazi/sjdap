@@ -41,13 +41,19 @@ export async function GET(request: NextRequest) {
 			);
 		}
 		
-		// Find the actual SWB_Families field name (case-insensitive) - do this early
-		const swbFieldKey = Object.keys(user).find(key => 
-			key.toLowerCase() === 'swb_families' || 
-			key.toLowerCase() === 'swbfamilies'
-		) || 'SWB_Families'; // Fallback to expected name
+		// Get SWB_Families field value - try exact name first, then case-insensitive lookup
+		// Based on SQL: [SWB_Families] from [SJDA_Users].[dbo].[Table_User]
+		let swbFamiliesValue = (user as any).SWB_Families;
+		let swbFieldKey = 'SWB_Families';
 		
-		const swbFamiliesValue = swbFieldKey ? (user as any)[swbFieldKey] : null;
+		// If not found with exact name, try case-insensitive lookup
+		if (swbFamiliesValue === undefined) {
+			swbFieldKey = Object.keys(user).find(key => 
+				key.toLowerCase() === 'swb_families' || 
+				key.toLowerCase() === 'swbfamilies'
+			) || 'SWB_Families';
+			swbFamiliesValue = swbFieldKey ? (user as any)[swbFieldKey] : null;
+		}
 		
 		// Debug logging for specific user
 		if (userId === 'barkat.ebrahim@sjdap.org') {
@@ -148,6 +154,26 @@ export async function GET(request: NextRequest) {
 			}
 		}
 
+		// Helper function to normalize permission values (1/0, true/false, "Yes"/"No" -> boolean)
+		// Returns true if permission granted (1, "Yes", true), false if denied (0, "No", false), null if not set
+		const normalizePermissionForAPI = (value: any): boolean | null => {
+			if (value === null || value === undefined) return null;
+			if (typeof value === 'boolean') return value;
+			if (typeof value === 'number') return value === 1;
+			if (typeof value === 'string') {
+				const lower = value.toLowerCase().trim();
+				if (lower === 'yes' || lower === '1' || lower === 'true') return true;
+				if (lower === 'no' || lower === '0' || lower === 'false') return false;
+				// If it's a string but doesn't match known patterns, return null
+				return null;
+			}
+			return null;
+		};
+
+		// For super users, set all section permissions to true (they have access to everything)
+		// This ensures super users bypass all permission checks
+		const isSuperUserValue = isSuperUser(supperUserValue);
+
 		// Debug logging for admin user - log all permission fields
 		if (userId && userId.toLowerCase() === 'admin') {
 			console.log('=== ADMIN USER PROFILE DEBUG ===');
@@ -202,26 +228,6 @@ export async function GET(request: NextRequest) {
 		console.log('Type:', typeof swbFamiliesValue);
 		console.log('Normalized:', normalizePermissionForAPI(swbFamiliesValue));
 		console.log('Final value in userProfile:', isSuperUserValue ? true : (normalizePermissionForAPI(swbFamiliesValue) ?? false));
-
-		// Import normalizePermission from auth-utils for consistency
-		// This ensures the same normalization logic is used everywhere
-		const normalizePermissionForAPI = (value: any): boolean | null => {
-			if (value === null || value === undefined) return null;
-			if (typeof value === 'boolean') return value;
-			if (typeof value === 'number') return value === 1;
-			if (typeof value === 'string') {
-				const lower = value.toLowerCase().trim();
-				if (lower === 'yes' || lower === '1' || lower === 'true') return true;
-				if (lower === 'no' || lower === '0' || lower === 'false') return false;
-				// If it's a string but doesn't match known patterns, return null
-				return null;
-			}
-			return null;
-		};
-
-		// For super users, set all section permissions to true (they have access to everything)
-		// This ensures super users bypass all permission checks
-		const isSuperUserValue = isSuperUser(supperUserValue);
 		
 		const userProfile = {
 			username: user.USER_ID || "",
