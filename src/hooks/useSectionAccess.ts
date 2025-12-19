@@ -58,7 +58,8 @@ export function useSectionAccess(section: SectionPermission) {
 				supper_user: supperUserValue,
 				isSuperUser: userIsSuperUser,
 				section: section,
-				sectionPermission: userProfile?.[section]
+				sectionPermission: userProfile?.[section],
+				fullUserProfile: section === "SWB_Families" ? userProfile : undefined // Full profile for SWB_Families debugging
 			});
 		}
 

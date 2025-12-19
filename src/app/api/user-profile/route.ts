@@ -41,6 +41,14 @@ export async function GET(request: NextRequest) {
 			);
 		}
 		
+		// Find the actual SWB_Families field name (case-insensitive) - do this early
+		const swbFieldKey = Object.keys(user).find(key => 
+			key.toLowerCase() === 'swb_families' || 
+			key.toLowerCase() === 'swbfamilies'
+		) || 'SWB_Families'; // Fallback to expected name
+		
+		const swbFamiliesValue = swbFieldKey ? (user as any)[swbFieldKey] : null;
+		
 		// Debug logging for specific user
 		if (userId === 'barkat.ebrahim@sjdap.org') {
 			console.log('=== DATABASE RAW DATA FOR barkat.ebrahim@sjdap.org ===');
@@ -48,8 +56,24 @@ export async function GET(request: NextRequest) {
 			console.log('access_loans field exists?', 'access_loans' in user);
 			console.log('access_loans value:', user.access_loans);
 			console.log('access_loans type:', typeof user.access_loans);
+			console.log('SWB_Families field key:', swbFieldKey);
+			console.log('SWB_Families value:', swbFamiliesValue);
 			console.log('=========================================================');
 		}
+		
+		// Comprehensive debug logging for SWB_Families - check all possible field name variations
+		console.log('=== COMPREHENSIVE SWB_Families FIELD CHECK ===');
+		console.log('All user field keys:', Object.keys(user));
+		console.log('Checking for SWB_Families variations:');
+		console.log('  - SWB_Families:', (user as any).SWB_Families, 'exists:', 'SWB_Families' in user);
+		console.log('  - swb_families:', (user as any).swb_families, 'exists:', 'swb_families' in user);
+		console.log('  - SWB_FAMILIES:', (user as any).SWB_FAMILIES, 'exists:', 'SWB_FAMILIES' in user);
+		console.log('  - Swb_Families:', (user as any).Swb_Families, 'exists:', 'Swb_Families' in user);
+		console.log(`  - Found field with key: "${swbFieldKey}", value:`, swbFamiliesValue);
+		if (!swbFieldKey || swbFamiliesValue === undefined) {
+			console.log('  - WARNING: SWB_Families field may not exist or is undefined!');
+		}
+		console.log('================================================');
 
 		// Map database fields to UserProfile type
 		// Handle Supper_User field - it might be stored as bit (0/1), string ('Yes'/'No'), or boolean
@@ -142,7 +166,7 @@ export async function GET(request: NextRequest) {
 				ROP: { value: (user as any).ROP, type: typeof (user as any).ROP },
 				Setting: { value: (user as any).Setting, type: typeof (user as any).Setting },
 				Other: { value: (user as any).Other, type: typeof (user as any).Other },
-				SWB_Families: { value: (user as any).SWB_Families, type: typeof (user as any).SWB_Families, normalized: normalizePermissionForAPI((user as any).SWB_Families) },
+				SWB_Families: { value: swbFamiliesValue, type: typeof swbFamiliesValue, normalized: normalizePermissionForAPI(swbFamiliesValue) },
 			});
 			console.log('Finance Permissions:', {
 				access_loans: {
@@ -165,18 +189,19 @@ export async function GET(request: NextRequest) {
 			console.log('Raw access_loans from DB:', user.access_loans);
 			console.log('Type of access_loans:', typeof user.access_loans);
 			console.log('Normalized accessLoansValue:', accessLoansValue);
-			console.log('Raw SWB_Families from DB:', (user as any).SWB_Families);
-			console.log('Type of SWB_Families:', typeof (user as any).SWB_Families);
-			console.log('Normalized SWB_Families:', normalizePermissionForAPI((user as any).SWB_Families));
+			console.log('Raw SWB_Families from DB:', swbFamiliesValue);
+			console.log('Type of SWB_Families:', typeof swbFamiliesValue);
+			console.log('Normalized SWB_Families:', normalizePermissionForAPI(swbFamiliesValue));
 			console.log('==============================================');
 		}
 		
 		// Log SWB_Families for all users to debug
 		console.log(`=== SWB_Families DEBUG for ${user.USER_ID} ===`);
-		console.log('Raw SWB_Families from DB:', (user as any).SWB_Families);
-		console.log('Type:', typeof (user as any).SWB_Families);
-		console.log('Normalized:', normalizePermissionForAPI((user as any).SWB_Families));
-		console.log('Final value in userProfile:', isSuperUserValue ? true : (normalizePermissionForAPI((user as any).SWB_Families) ?? false));
+		console.log('Field key found:', swbFieldKey);
+		console.log('Raw SWB_Families from DB:', swbFamiliesValue);
+		console.log('Type:', typeof swbFamiliesValue);
+		console.log('Normalized:', normalizePermissionForAPI(swbFamiliesValue));
+		console.log('Final value in userProfile:', isSuperUserValue ? true : (normalizePermissionForAPI(swbFamiliesValue) ?? false));
 
 		// Import normalizePermission from auth-utils for consistency
 		// This ensures the same normalization logic is used everywhere
@@ -226,7 +251,7 @@ export async function GET(request: NextRequest) {
 			ROP: isSuperUserValue ? true : (normalizePermissionForAPI((user as any).ROP) ?? false),
 			Setting: isSuperUserValue ? true : (normalizePermissionForAPI((user as any).Setting) ?? false),
 			Other: isSuperUserValue ? true : (normalizePermissionForAPI((user as any).Other) ?? false),
-			SWB_Families: isSuperUserValue ? true : (normalizePermissionForAPI((user as any).SWB_Families) ?? false),
+			SWB_Families: isSuperUserValue ? true : (normalizePermissionForAPI(swbFamiliesValue) ?? false),
 		};
 
 		return NextResponse.json({
