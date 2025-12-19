@@ -136,11 +136,7 @@ function ApplicationDetailsContent() {
 		// Helper function to add a new page if needed
 		const checkPageBreak = (requiredSpace: number = 10) => {
 			if (yPos + requiredSpace > pageHeight - margin) {
-				pdf.addPage({
-					orientation: 'landscape',
-					unit: 'mm',
-					format: 'a4'
-				});
+				pdf.addPage();
 				yPos = margin;
 				return true;
 			}
