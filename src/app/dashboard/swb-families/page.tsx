@@ -337,7 +337,11 @@ export default function SWBFamiliesPage() {
 
 	// Show access denied if user doesn't have permission
 	if (hasAccess === false) {
-		return <SectionAccessDenied sectionName={sectionName} requiredPermission="SWB Families" />;
+		return <SectionAccessDenied 
+			sectionName={sectionName} 
+			requiredPermission="SWB Families"
+			permissionValue={userProfile?.SWB_Families}
+		/>;
 	}
 
 	// Show loading while checking access

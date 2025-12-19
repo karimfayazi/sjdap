@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Save, ArrowLeft, Eye } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 import { useSectionAccess } from "@/hooks/useSectionAccess";
 import SectionAccessDenied from "@/components/SectionAccessDenied";
 
@@ -31,6 +32,7 @@ type SWBFormData = {
 
 export default function AddSWBFamilyPage() {
 	const router = useRouter();
+	const { userProfile } = useAuth();
 	const { hasAccess, loading: accessLoading, sectionName } = useSectionAccess("SWB_Families");
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -299,7 +301,11 @@ export default function AddSWBFamilyPage() {
 
 	// Show access denied if user doesn't have permission
 	if (hasAccess === false) {
-		return <SectionAccessDenied sectionName={sectionName} requiredPermission="SWB Families" />;
+		return <SectionAccessDenied 
+			sectionName={sectionName} 
+			requiredPermission="SWB Families"
+			permissionValue={userProfile?.SWB_Families}
+		/>;
 	}
 
 	// Show loading while checking access
