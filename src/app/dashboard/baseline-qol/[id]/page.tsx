@@ -177,7 +177,7 @@ export default function ApplicationDetailsPage() {
 		pdf.setFillColor(11, 77, 43);
 		pdf.rect(marginLeft, yPosition, contentWidth, 20, 'F');
 		// Centered title with reduced font size
-		addCenteredText('BASELINE QOL APPLICATION DETAILS', yPosition + 8, 14, 'bold', [255, 255, 255]);
+		addCenteredText('QOL APPLICATION DETAILS', yPosition + 8, 14, 'bold', [255, 255, 255]);
 		// Family ID with small text
 		addCenteredText(`Family ID: ${details.application.ApplicationId}`, yPosition + 14, 9, 'normal', [255, 255, 255]);
 		yPosition += 25;
@@ -369,7 +369,7 @@ export default function ApplicationDetailsPage() {
 		}
 
 		// Save PDF
-		pdf.save(`Baseline_QOL_Application_${details.application.FormNo}_${new Date().toISOString().split('T')[0]}.pdf`);
+		pdf.save(`QOL_Application_${details.application.FormNo}_${new Date().toISOString().split('T')[0]}.pdf`);
 	};
 
 	if (loading) {

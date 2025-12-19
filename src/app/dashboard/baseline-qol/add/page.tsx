@@ -393,7 +393,7 @@ export default function AddBaselineApplicationPage() {
 			<div className="flex items-center justify-between">
 				<div>
 					<h1 className="text-3xl font-bold text-gray-900">
-						{isEditMode ? "Edit Baseline Application" : "Add Baseline Application"}
+						{isEditMode ? "Edit QOL Application" : "Add QOL Application"}
 					</h1>
 					<p className="text-gray-600 mt-2">
 						{isEditMode ? `Update PE Application - ${applicationData.FormNo}` : "Create a new PE Application"}

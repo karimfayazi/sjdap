@@ -271,7 +271,7 @@ export default function AddValuesPage() {
 							className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
 						>
 							<ArrowLeft className="h-4 w-4" />
-							Back to Baseline QOL
+							Back to QOL
 						</button>
 					</div>
 				</div>

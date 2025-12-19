@@ -66,7 +66,7 @@ const getNavigationGroups = (
 			{
 				divider: true,
 				items: [
-					{ label: "Baseline QOL", href: "/dashboard/baseline-qol", icon: BarChart3 },
+					{ label: "QOL", href: "/dashboard/baseline-qol", icon: BarChart3 },
 					{ label: "Logout", href: "/logout", icon: LogOut },
 				],
 			},

@@ -119,11 +119,11 @@ export default function BaselineQOLPage() {
 				setApplications(data.data || []);
 				setTotalRecords(data.total || 0);
 			} else {
-				setError(data.message || "Failed to fetch baseline applications");
+				setError(data.message || "Failed to fetch applications");
 			}
 		} catch (err: any) {
 			console.error("Error fetching baseline applications:", err);
-			setError(err.message || "Error fetching baseline applications");
+			setError(err.message || "Error fetching applications");
 		} finally {
 			setLoading(false);
 		}
@@ -236,7 +236,7 @@ export default function BaselineQOLPage() {
 			
 			const date = new Date();
 			const dateStr = date.toISOString().split('T')[0];
-			link.setAttribute("download", `Baseline_Applications_${dateStr}.csv`);
+			link.setAttribute("download", `QOL_Applications_${dateStr}.csv`);
 			
 			link.style.visibility = "hidden";
 			document.body.appendChild(link);
@@ -288,7 +288,7 @@ export default function BaselineQOLPage() {
 
 	// Show access denied if user doesn't have permission
 	if (hasAccess === false) {
-		return <SectionAccessDenied sectionName={sectionName} requiredPermission="BaselineQOL" />;
+		return <SectionAccessDenied sectionName={sectionName} requiredPermission="QOL" />;
 	}
 
 	if (loading) {
@@ -296,13 +296,13 @@ export default function BaselineQOLPage() {
 			<div className="space-y-6">
 				<div className="flex justify-between items-center">
 					<div>
-						<h1 className="text-3xl font-bold text-gray-900">Baseline QOL</h1>
-						<p className="text-gray-600 mt-2">Quality of Life Baseline Assessment</p>
+					<h1 className="text-3xl font-bold text-gray-900">QOL</h1>
+					<p className="text-gray-600 mt-2">Quality of Life Assessment</p>
 					</div>
 				</div>
 				<div className="flex items-center justify-center py-12">
 					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
-					<span className="ml-3 text-gray-600">Loading baseline applications...</span>
+					<span className="ml-3 text-gray-600">Loading applications...</span>
 				</div>
 			</div>
 		);
@@ -313,8 +313,8 @@ export default function BaselineQOLPage() {
 			<div className="space-y-6">
 				<div className="flex justify-between items-center">
 					<div>
-						<h1 className="text-3xl font-bold text-gray-900">Baseline QOL</h1>
-						<p className="text-gray-600 mt-2">Quality of Life Baseline Assessment</p>
+					<h1 className="text-3xl font-bold text-gray-900">QOL</h1>
+					<p className="text-gray-600 mt-2">Quality of Life Assessment</p>
 					</div>
 				</div>
 				<div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
@@ -335,7 +335,7 @@ export default function BaselineQOLPage() {
 			{/* Header */}
 			<div className="flex justify-between items-center">
 				<div>
-					<h1 className="text-3xl font-bold text-gray-900">Baseline QOL</h1>
+					<h1 className="text-3xl font-bold text-gray-900">QOL</h1>
 					<p className="text-gray-600 mt-2">
 						PE Application Management
 					</p>
