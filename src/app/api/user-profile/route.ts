@@ -132,17 +132,17 @@ export async function GET(request: NextRequest) {
 				normalized: supperUserValue,
 				type: typeof user.Supper_User
 			});
-			console.log('Section Permissions:', {
-				BaselineQOL: (user as any).BaselineQOL,
-				Dashboard: (user as any).Dashboard,
-				PowerBI: (user as any).PowerBI,
-				Family_Development_Plan: (user as any).Family_Development_Plan,
-				Family_Approval_CRC: (user as any).Family_Approval_CRC,
-				Family_Income: (user as any).Family_Income,
-				ROP: (user as any).ROP,
-				Setting: (user as any).Setting,
-				Other: (user as any).Other,
-				SWB_Families: (user as any).SWB_Families,
+			console.log('Section Permissions (RAW FROM DB):', {
+				BaselineQOL: { value: (user as any).BaselineQOL, type: typeof (user as any).BaselineQOL },
+				Dashboard: { value: (user as any).Dashboard, type: typeof (user as any).Dashboard },
+				PowerBI: { value: (user as any).PowerBI, type: typeof (user as any).PowerBI },
+				Family_Development_Plan: { value: (user as any).Family_Development_Plan, type: typeof (user as any).Family_Development_Plan },
+				Family_Approval_CRC: { value: (user as any).Family_Approval_CRC, type: typeof (user as any).Family_Approval_CRC },
+				Family_Income: { value: (user as any).Family_Income, type: typeof (user as any).Family_Income },
+				ROP: { value: (user as any).ROP, type: typeof (user as any).ROP },
+				Setting: { value: (user as any).Setting, type: typeof (user as any).Setting },
+				Other: { value: (user as any).Other, type: typeof (user as any).Other },
+				SWB_Families: { value: (user as any).SWB_Families, type: typeof (user as any).SWB_Families, normalized: normalizePermissionForAPI((user as any).SWB_Families) },
 			});
 			console.log('Finance Permissions:', {
 				access_loans: {
@@ -165,12 +165,22 @@ export async function GET(request: NextRequest) {
 			console.log('Raw access_loans from DB:', user.access_loans);
 			console.log('Type of access_loans:', typeof user.access_loans);
 			console.log('Normalized accessLoansValue:', accessLoansValue);
+			console.log('Raw SWB_Families from DB:', (user as any).SWB_Families);
+			console.log('Type of SWB_Families:', typeof (user as any).SWB_Families);
+			console.log('Normalized SWB_Families:', normalizePermissionForAPI((user as any).SWB_Families));
 			console.log('==============================================');
 		}
+		
+		// Log SWB_Families for all users to debug
+		console.log(`=== SWB_Families DEBUG for ${user.USER_ID} ===`);
+		console.log('Raw SWB_Families from DB:', (user as any).SWB_Families);
+		console.log('Type:', typeof (user as any).SWB_Families);
+		console.log('Normalized:', normalizePermissionForAPI((user as any).SWB_Families));
+		console.log('Final value in userProfile:', isSuperUserValue ? true : (normalizePermissionForAPI((user as any).SWB_Families) ?? false));
 
-		// Helper function to normalize permission values (1/0, true/false, "Yes"/"No" -> boolean)
-		// Returns true if permission granted (1, "Yes", true), false if denied (0, "No", false), null if not set
-		const normalizePermission = (value: any): boolean | null => {
+		// Import normalizePermission from auth-utils for consistency
+		// This ensures the same normalization logic is used everywhere
+		const normalizePermissionForAPI = (value: any): boolean | null => {
 			if (value === null || value === undefined) return null;
 			if (typeof value === 'boolean') return value;
 			if (typeof value === 'number') return value === 1;
@@ -206,16 +216,17 @@ export async function GET(request: NextRequest) {
 			access_loans: isSuperUserValue ? 1 : accessLoansValue, // Super users have access to loans
 			bank_account: isSuperUserValue ? 1 : bankAccountValue, // Super users have access to bank accounts
 			// Super users get access to ALL sections (set to true), otherwise use normalized permissions
-			BaselineQOL: isSuperUserValue ? true : normalizePermission((user as any).BaselineQOL),
-			Dashboard: isSuperUserValue ? true : normalizePermission((user as any).Dashboard),
-			PowerBI: isSuperUserValue ? true : normalizePermission((user as any).PowerBI),
-			Family_Development_Plan: isSuperUserValue ? true : normalizePermission((user as any).Family_Development_Plan),
-			Family_Approval_CRC: isSuperUserValue ? true : normalizePermission((user as any).Family_Approval_CRC),
-			Family_Income: isSuperUserValue ? true : normalizePermission((user as any).Family_Income),
-			ROP: isSuperUserValue ? true : normalizePermission((user as any).ROP),
-			Setting: isSuperUserValue ? true : normalizePermission((user as any).Setting),
-			Other: isSuperUserValue ? true : normalizePermission((user as any).Other),
-			SWB_Families: isSuperUserValue ? true : normalizePermission((user as any).SWB_Families),
+			// Convert null to false for consistency (null means no permission, which is false)
+			BaselineQOL: isSuperUserValue ? true : (normalizePermissionForAPI((user as any).BaselineQOL) ?? false),
+			Dashboard: isSuperUserValue ? true : (normalizePermissionForAPI((user as any).Dashboard) ?? false),
+			PowerBI: isSuperUserValue ? true : (normalizePermissionForAPI((user as any).PowerBI) ?? false),
+			Family_Development_Plan: isSuperUserValue ? true : (normalizePermissionForAPI((user as any).Family_Development_Plan) ?? false),
+			Family_Approval_CRC: isSuperUserValue ? true : (normalizePermissionForAPI((user as any).Family_Approval_CRC) ?? false),
+			Family_Income: isSuperUserValue ? true : (normalizePermissionForAPI((user as any).Family_Income) ?? false),
+			ROP: isSuperUserValue ? true : (normalizePermissionForAPI((user as any).ROP) ?? false),
+			Setting: isSuperUserValue ? true : (normalizePermissionForAPI((user as any).Setting) ?? false),
+			Other: isSuperUserValue ? true : (normalizePermissionForAPI((user as any).Other) ?? false),
+			SWB_Families: isSuperUserValue ? true : (normalizePermissionForAPI((user as any).SWB_Families) ?? false),
 		};
 
 		return NextResponse.json({
