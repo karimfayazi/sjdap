@@ -3,6 +3,8 @@
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
+import { useSectionAccess } from "@/hooks/useSectionAccess";
+import SectionAccessDenied from "@/components/SectionAccessDenied";
 
 type SWBFamilyData = {
 	CNIC?: string;
@@ -33,6 +35,7 @@ function ViewSWBFamilyContent() {
 	const searchParams = useSearchParams();
 	const cnic = searchParams.get("cnic");
 	const familyId = searchParams.get("familyId");
+	const { hasAccess, loading: accessLoading, sectionName } = useSectionAccess("SWB_Families");
 
 	const [family, setFamily] = useState<SWBFamilyData | null>(null);
 	const [loading, setLoading] = useState(true);
@@ -86,7 +89,13 @@ function ViewSWBFamilyContent() {
 		}).format(amount);
 	};
 
-	if (loading) {
+	// Show access denied if user doesn't have permission
+	if (hasAccess === false) {
+		return <SectionAccessDenied sectionName={sectionName} requiredPermission="SWB Families" />;
+	}
+
+	// Show loading while checking access or loading data
+	if (accessLoading || loading) {
 		return (
 			<div className="space-y-6">
 				<div className="flex items-center justify-between">
