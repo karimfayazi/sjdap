@@ -66,7 +66,7 @@ const getNavigationGroups = (
 			{
 				divider: true,
 				items: [
-					{ label: "QOL", href: "/dashboard/baseline-qol", icon: BarChart3 },
+					{ label: "Baseline", href: "/dashboard/baseline-qol", icon: BarChart3 },
 					{ label: "Logout", href: "/logout", icon: LogOut },
 				],
 			},
@@ -96,7 +96,7 @@ const getNavigationGroups = (
 				{ label: "Baseline QOL", href: "/dashboard/baseline-qol", icon: BarChart3 },
 				{ label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
 				{ label: "Power BI", href: "/dashboard/power-bi", icon: TrendingUp },
-				{ label: "QOL-Baseline", href: "/dashboard/qol-baseline", icon: BarChart3 },
+				{ label: "Testing page", href: "/dashboard/qol-baseline", icon: BarChart3 },
 				{ label: "Family Development Plan", href: "/dashboard/family-development-plan", icon: FileText },
 				{ label: "Family Approval from CRC", href: "/dashboard/family-approval-crc", icon: CheckCircle },
 				{ label: "Actual Intervention", href: "/dashboard/actual-intervention", icon: Activity },
