@@ -93,7 +93,7 @@ const getNavigationGroups = (
 		{
 			divider: true,
 			items: [
-				{ label: "Baseline QOL", href: "/dashboard/baseline-qol", icon: BarChart3 },
+				{ label: "Baseline", href: "/dashboard/baseline-qol", icon: BarChart3 },
 				{ label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
 				{ label: "Power BI", href: "/dashboard/power-bi", icon: TrendingUp },
 				{ label: "Testing page", href: "/dashboard/qol-baseline", icon: BarChart3 },
