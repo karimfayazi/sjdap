@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import MasterLayout from "@/components/MasterLayout";
 
 export default function LoginPage() {
@@ -113,14 +112,6 @@ export default function LoginPage() {
 							>
 								{loading ? "Signing in..." : "Sign in"}
 							</button>
-							<div className="mt-4 text-center">
-								<Link 
-									href="/change-password"
-									className="text-sm text-[#0b4d2b] hover:text-[#0a3d22] hover:underline font-medium"
-								>
-									Change Password
-								</Link>
-							</div>
 						</form>
 					</div>
 				</div>
