@@ -55,6 +55,21 @@ export async function GET(request: NextRequest) {
 			swbFamiliesValue = swbFieldKey ? (user as any)[swbFieldKey] : null;
 		}
 		
+		// Get BaselineQOL field value - try exact name first, then case-insensitive lookup
+		// Based on SQL: [BaselineQOL] from [SJDA_Users].[dbo].[Table_User]
+		let baselineQOLValue = (user as any).BaselineQOL;
+		let baselineQOLFieldKey = 'BaselineQOL';
+		
+		// If not found with exact name, try case-insensitive lookup
+		if (baselineQOLValue === undefined) {
+			baselineQOLFieldKey = Object.keys(user).find(key => 
+				key.toLowerCase() === 'baselineqol' || 
+				key.toLowerCase() === 'baseline_qol' ||
+				key.toLowerCase() === 'baseline-qol'
+			) || 'BaselineQOL';
+			baselineQOLValue = baselineQOLFieldKey ? (user as any)[baselineQOLFieldKey] : null;
+		}
+		
 		// Debug logging for specific user
 		if (userId === 'barkat.ebrahim@sjdap.org') {
 			console.log('=== DATABASE RAW DATA FOR barkat.ebrahim@sjdap.org ===');
@@ -78,6 +93,20 @@ export async function GET(request: NextRequest) {
 		console.log(`  - Found field with key: "${swbFieldKey}", value:`, swbFamiliesValue);
 		if (!swbFieldKey || swbFamiliesValue === undefined) {
 			console.log('  - WARNING: SWB_Families field may not exist or is undefined!');
+		}
+		console.log('================================================');
+		
+		// Comprehensive debug logging for BaselineQOL - check all possible field name variations
+		console.log('=== COMPREHENSIVE BaselineQOL FIELD CHECK ===');
+		console.log('Checking for BaselineQOL variations:');
+		console.log('  - BaselineQOL:', (user as any).BaselineQOL, 'exists:', 'BaselineQOL' in user);
+		console.log('  - baselineqol:', (user as any).baselineqol, 'exists:', 'baselineqol' in user);
+		console.log('  - BASELINEQOL:', (user as any).BASELINEQOL, 'exists:', 'BASELINEQOL' in user);
+		console.log('  - Baseline_QOL:', (user as any).Baseline_QOL, 'exists:', 'Baseline_QOL' in user);
+		console.log(`  - Found field with key: "${baselineQOLFieldKey}", value:`, baselineQOLValue, `(type: ${typeof baselineQOLValue})`);
+		console.log('  - Normalized value:', normalizePermissionForAPI(baselineQOLValue));
+		if (!baselineQOLFieldKey || baselineQOLValue === undefined) {
+			console.log('  - WARNING: BaselineQOL field may not exist or is undefined!');
 		}
 		console.log('================================================');
 
@@ -202,7 +231,7 @@ export async function GET(request: NextRequest) {
 				type: typeof user.Supper_User
 			});
 			console.log('Section Permissions (RAW FROM DB):', {
-				BaselineQOL: { value: (user as any).BaselineQOL, type: typeof (user as any).BaselineQOL },
+				BaselineQOL: { value: baselineQOLValue, type: typeof baselineQOLValue, normalized: normalizePermissionForAPI(baselineQOLValue) },
 				Dashboard: { value: (user as any).Dashboard, type: typeof (user as any).Dashboard },
 				PowerBI: { value: (user as any).PowerBI, type: typeof (user as any).PowerBI },
 				Family_Development_Plan: { value: (user as any).Family_Development_Plan, type: typeof (user as any).Family_Development_Plan },
@@ -237,7 +266,22 @@ export async function GET(request: NextRequest) {
 			console.log('Raw SWB_Families from DB:', swbFamiliesValue);
 			console.log('Type of SWB_Families:', typeof swbFamiliesValue);
 			console.log('Normalized SWB_Families:', normalizePermissionForAPI(swbFamiliesValue));
+			console.log('Raw BaselineQOL from DB:', baselineQOLValue);
+			console.log('Type of BaselineQOL:', typeof baselineQOLValue);
+			console.log('Normalized BaselineQOL:', normalizePermissionForAPI(baselineQOLValue));
 			console.log('==============================================');
+		}
+		
+		// Additional logging for admin user - BaselineQOL access
+		if (userId && userId.toLowerCase() === 'admin') {
+			console.log('=== ADMIN BaselineQOL ACCESS DEBUG ===');
+			console.log('Raw BaselineQOL from DB:', baselineQOLValue);
+			console.log('Field key:', baselineQOLFieldKey);
+			console.log('Type:', typeof baselineQOLValue);
+			console.log('Normalized:', normalizePermissionForAPI(baselineQOLValue));
+			console.log('Is Super User:', isSuperUserValue);
+			console.log('Final value:', isSuperUserValue ? true : (normalizePermissionForAPI(baselineQOLValue) ?? false));
+			console.log('=====================================');
 		}
 		
 		// Log SWB_Families for all users to debug - CRITICAL for access control
@@ -250,6 +294,18 @@ export async function GET(request: NextRequest) {
 		console.log('Is Super User:', isSuperUserValue);
 		console.log('FINAL SWB_Families value in userProfile:', swbFinal);
 		console.log(swbFinal ? '✅ ACCESS GRANTED' : '❌ ACCESS DENIED');
+		console.log('==================================================');
+		
+		// Log BaselineQOL for all users to debug - CRITICAL for access control
+		const baselineQOLNormalized = normalizePermissionForAPI(baselineQOLValue);
+		const baselineQOLFinal = isSuperUserValue ? true : (baselineQOLNormalized ?? false);
+		console.log(`=== BaselineQOL ACCESS CONTROL DEBUG for ${user.USER_ID} ===`);
+		console.log('Field key found:', baselineQOLFieldKey);
+		console.log('Raw BaselineQOL from DB:', baselineQOLValue, `(type: ${typeof baselineQOLValue})`);
+		console.log('After normalization:', baselineQOLNormalized);
+		console.log('Is Super User:', isSuperUserValue);
+		console.log('FINAL BaselineQOL value in userProfile:', baselineQOLFinal);
+		console.log(baselineQOLFinal ? '✅ ACCESS GRANTED' : '❌ ACCESS DENIED');
 		console.log('==================================================');
 		
 		const userProfile = {
@@ -271,7 +327,7 @@ export async function GET(request: NextRequest) {
 			bank_account: isSuperUserValue ? 1 : bankAccountValue, // Super users have access to bank accounts
 			// Super users get access to ALL sections (set to true), otherwise use normalized permissions
 			// Convert null to false for consistency (null means no permission, which is false)
-			BaselineQOL: isSuperUserValue ? true : (normalizePermissionForAPI((user as any).BaselineQOL) ?? false),
+			BaselineQOL: isSuperUserValue ? true : (normalizePermissionForAPI(baselineQOLValue) ?? false),
 			Dashboard: isSuperUserValue ? true : (normalizePermissionForAPI((user as any).Dashboard) ?? false),
 			PowerBI: isSuperUserValue ? true : (normalizePermissionForAPI((user as any).PowerBI) ?? false),
 			Family_Development_Plan: isSuperUserValue ? true : (normalizePermissionForAPI((user as any).Family_Development_Plan) ?? false),
