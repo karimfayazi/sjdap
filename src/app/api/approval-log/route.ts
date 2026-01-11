@@ -23,28 +23,39 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		// Fetch families with member counts
+		const { searchParams } = new URL(request.url);
+		const recordId = searchParams.get("recordId");
+		const moduleName = searchParams.get("moduleName") || "Feasibility Plan";
+
+		if (!recordId) {
+			return NextResponse.json(
+				{ success: false, message: "Record ID is required", records: [] },
+				{ status: 400 }
+			);
+		}
+
+		// Fetch approval log data
 		const pool = await getPeDb();
 		const sqlRequest = pool.request();
 		(sqlRequest as any).timeout = 120000;
 
+		sqlRequest.input("RecordID", sql.Int, parseInt(recordId));
+		sqlRequest.input("ModuleName", sql.NVarChar, moduleName);
+
 		const query = `
-			SELECT 
-				b.[FormNumber],
-				b.[Full_Name],
-				b.[CNICNumber],
-				b.[RegionalCommunity],
-				b.[LocalCommunity],
-				ISNULL(m.[TotalMembers], 0) AS TotalMembers
-			FROM [SJDA_Users].[dbo].[PE_Application_BasicInfo] b
-			LEFT JOIN (
-				SELECT 
-					[FormNo],
-					COUNT(*) AS TotalMembers
-				FROM [SJDA_Users].[dbo].[PE_FamilyMember]
-				GROUP BY [FormNo]
-			) m ON b.[FormNumber] = m.[FormNo]
-			ORDER BY b.[FormNumber]
+			SELECT TOP (1000) 
+				[LogID],
+				[ModuleName],
+				[RecordID],
+				[ActionLevel],
+				[ActionBy],
+				[ActionAt],
+				[ActionType],
+				[Remarks]
+			FROM [SJDA_Users].[dbo].[Approval_Log]
+			WHERE [RecordID] = @RecordID 
+				AND [ModuleName] = @ModuleName
+			ORDER BY [ActionAt] DESC
 		`;
 
 		const result = await sqlRequest.query(query);
@@ -55,13 +66,13 @@ export async function GET(request: NextRequest) {
 			records,
 		});
 	} catch (error) {
-		console.error("Error fetching actual intervention data:", error);
+		console.error("Error fetching approval log data:", error);
 
 		const errorMessage = error instanceof Error ? error.message : String(error);
 		return NextResponse.json(
 			{
 				success: false,
-				message: "Error fetching actual intervention data: " + errorMessage,
+				message: "Error fetching approval log data: " + errorMessage,
 				records: [],
 			},
 			{ status: 500 }

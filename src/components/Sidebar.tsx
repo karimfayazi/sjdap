@@ -20,7 +20,6 @@ import {
     Activity,
     FileBarChart,
     DollarSign,
-    TrendingUp,
     Building2,
     Wallet,
     Folder,
@@ -60,7 +59,7 @@ const getNavigationGroups = (userSection?: string | null, isLoading?: boolean): 
 			{
 				divider: true,
 				items: [
-					{ label: "Baseline QOL", href: "/dashboard/baseline-qol", icon: BarChart3 },
+					{ label: "Baseline", href: "/dashboard/baseline-qol", icon: BarChart3 },
 					{ label: "Logout", href: "/logout", icon: LogOut },
 				],
 			},
@@ -101,7 +100,7 @@ const getNavigationGroups = (userSection?: string | null, isLoading?: boolean): 
 			{
 				divider: true,
 				items: [
-					{ label: "Baseline QOL", href: "/dashboard/baseline-qol", icon: BarChart3 },
+					{ label: "Baseline", href: "/dashboard/baseline-qol", icon: BarChart3 },
 					{ label: "Logout", href: "/logout", icon: LogOut },
 				],
 			},
@@ -113,13 +112,12 @@ const getNavigationGroups = (userSection?: string | null, isLoading?: boolean): 
 		{
 			divider: true,
 			items: [
-				{ label: "Baseline QOL", href: "/dashboard/baseline-qol", icon: BarChart3 },
 				{ label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-				{ label: "Power BI", href: "/dashboard/power-bi", icon: TrendingUp },
+				{ label: "Baseline", href: "/dashboard/baseline-qol", icon: BarChart3 },
 				{ label: "Family Development Plan", href: "/dashboard/family-development-plan", icon: FileText },
+				{ label: "Feasibility Approval", href: "/dashboard/feasibility-approval", icon: FileCheck },
 				{ label: "Family Approval from CRC", href: "/dashboard/family-approval-crc", icon: CheckCircle },
 				{ label: "Actual Intervention", href: "/dashboard/actual-intervention", icon: Activity },
-				{ label: "Last Night Updates", href: "/dashboard/last-night-updates", icon: Clock },
 				{ label: "ROPs", href: "/dashboard/rops", icon: FileBarChart },
 				{ label: "Family Income", href: "/dashboard/family-income", icon: DollarSign },
 				{ label: "SWB-Families", href: "/dashboard/swb-families", icon: Users },

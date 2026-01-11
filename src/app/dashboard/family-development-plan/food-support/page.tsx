@@ -313,13 +313,9 @@ function FoodSupportContent() {
 			return;
 		}
 
-		// Validate total social support doesn't exceed limit
-		const currentRecordContribution = formData.FoodSupportTotalPEContribution;
-		// Total after save = already defined (excluding current record) + new current record contribution
-		const totalAfterSave = alreadyDefinedSocialSupport + currentRecordContribution;
-		
-		if (totalAfterSave > formData.MaxSocialSupportAmount) {
-			setError(`Total social support (PKR ${totalAfterSave.toLocaleString()}) exceeds the maximum allowed amount (PKR ${formData.MaxSocialSupportAmount.toLocaleString()}) for ${formData.BaselinePovertyLevel}. Available: PKR ${availableSocialSupport.toLocaleString()}`);
+		// Validate that Total PE Contribution does not exceed Available Social Support
+		if (formData.FoodSupportTotalPEContribution > availableSocialSupport) {
+			setError(`Total PE Contribution (PKR ${formData.FoodSupportTotalPEContribution.toLocaleString()}) exceeds Available Social Support (PKR ${availableSocialSupport.toLocaleString()}). Please reduce the amount.`);
 			return;
 		}
 

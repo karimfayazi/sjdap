@@ -13,9 +13,13 @@ export async function POST(request: NextRequest) {
 		// Input parameters
 		sqlRequest.input("FamilyID", sql.VarChar, body.FamilyID);
 		sqlRequest.input("MaxSocialSupportAmount", sql.Decimal(18, 2), body.MaxSocialSupportAmount || null);
-		sqlRequest.input("EduOneTimeAdmissionTotalCost", sql.Decimal(18, 2), body.EduOneTimeAdmissionTotalCost || 0);
-		sqlRequest.input("EduOneTimeAdmissionFamilyContribution", sql.Decimal(18, 2), body.EduOneTimeAdmissionFamilyContribution || 0);
-		sqlRequest.input("EduOneTimeAdmissionPEContribution", sql.Decimal(18, 2), body.EduOneTimeAdmissionPEContribution || 0);
+		// Set one-time admission costs to 0 if Regular Support is selected
+		const oneTimeCost = isRegularSupport ? 0 : (body.EduOneTimeAdmissionTotalCost || 0);
+		const oneTimeFamily = isRegularSupport ? 0 : (body.EduOneTimeAdmissionFamilyContribution || 0);
+		const oneTimePE = isRegularSupport ? 0 : (body.EduOneTimeAdmissionPEContribution || 0);
+		sqlRequest.input("EduOneTimeAdmissionTotalCost", sql.Decimal(18, 2), oneTimeCost);
+		sqlRequest.input("EduOneTimeAdmissionFamilyContribution", sql.Decimal(18, 2), oneTimeFamily);
+		sqlRequest.input("EduOneTimeAdmissionPEContribution", sql.Decimal(18, 2), oneTimePE);
 		sqlRequest.input("EduMonthlyTuitionTotalCost", sql.Decimal(18, 2), body.EduMonthlyTuitionTotalCost || 0);
 		sqlRequest.input("EduMonthlyTuitionFamilyContribution", sql.Decimal(18, 2), body.EduMonthlyTuitionFamilyContribution || 0);
 		sqlRequest.input("EduMonthlyTuitionPEContribution", sql.Decimal(18, 2), body.EduMonthlyTuitionPEContribution || 0);
@@ -33,8 +37,9 @@ export async function POST(request: NextRequest) {
 		sqlRequest.input("BeneficiaryAge", sql.Int, body.BeneficiaryAge || null);
 		sqlRequest.input("BeneficiaryGender", sql.VarChar, body.BeneficiaryGender || null);
 		sqlRequest.input("EducationInterventionType", sql.VarChar, body.EducationInterventionType);
-		sqlRequest.input("RegularSupport", sql.Bit, body.RegularSupport || false);
-		sqlRequest.input("BaselineReasonNotStudying", sql.NVarChar, body.RegularSupport ? null : (body.BaselineReasonNotStudying || null));
+		const isRegularSupport = body.EducationInterventionType === "Regular Support";
+		sqlRequest.input("RegularSupport", sql.Bit, isRegularSupport || body.RegularSupport || false);
+		sqlRequest.input("BaselineReasonNotStudying", sql.NVarChar, isRegularSupport ? null : (body.BaselineReasonNotStudying || null));
 		sqlRequest.input("AdmittedToSchoolType", sql.VarChar, body.AdmittedToSchoolType || null);
 		sqlRequest.input("AdmittedToClassLevel", sql.VarChar, body.AdmittedToClassLevel || null);
 		sqlRequest.input("BaselineSchoolType", sql.VarChar, body.BaselineSchoolType || null);
@@ -173,9 +178,17 @@ export async function PUT(request: NextRequest) {
 
 		sqlRequest.input("FDP_SocialEduID", sql.Int, parseInt(fdpSocialEduId));
 		sqlRequest.input("MaxSocialSupportAmount", sql.Decimal(18, 2), body.MaxSocialSupportAmount || null);
-		sqlRequest.input("EduOneTimeAdmissionTotalCost", sql.Decimal(18, 2), body.EduOneTimeAdmissionTotalCost || 0);
-		sqlRequest.input("EduOneTimeAdmissionFamilyContribution", sql.Decimal(18, 2), body.EduOneTimeAdmissionFamilyContribution || 0);
-		sqlRequest.input("EduOneTimeAdmissionPEContribution", sql.Decimal(18, 2), body.EduOneTimeAdmissionPEContribution || 0);
+		
+		// Check if Regular Support is selected
+		const isRegularSupport = body.EducationInterventionType === "Regular Support";
+		
+		// Set one-time admission costs to 0 if Regular Support is selected
+		const oneTimeCost = isRegularSupport ? 0 : (body.EduOneTimeAdmissionTotalCost || 0);
+		const oneTimeFamily = isRegularSupport ? 0 : (body.EduOneTimeAdmissionFamilyContribution || 0);
+		const oneTimePE = isRegularSupport ? 0 : (body.EduOneTimeAdmissionPEContribution || 0);
+		sqlRequest.input("EduOneTimeAdmissionTotalCost", sql.Decimal(18, 2), oneTimeCost);
+		sqlRequest.input("EduOneTimeAdmissionFamilyContribution", sql.Decimal(18, 2), oneTimeFamily);
+		sqlRequest.input("EduOneTimeAdmissionPEContribution", sql.Decimal(18, 2), oneTimePE);
 		sqlRequest.input("EduMonthlyTuitionTotalCost", sql.Decimal(18, 2), body.EduMonthlyTuitionTotalCost || 0);
 		sqlRequest.input("EduMonthlyTuitionFamilyContribution", sql.Decimal(18, 2), body.EduMonthlyTuitionFamilyContribution || 0);
 		sqlRequest.input("EduMonthlyTuitionPEContribution", sql.Decimal(18, 2), body.EduMonthlyTuitionPEContribution || 0);
@@ -193,8 +206,8 @@ export async function PUT(request: NextRequest) {
 		sqlRequest.input("BeneficiaryAge", sql.Int, body.BeneficiaryAge || null);
 		sqlRequest.input("BeneficiaryGender", sql.VarChar, body.BeneficiaryGender || null);
 		sqlRequest.input("EducationInterventionType", sql.VarChar, body.EducationInterventionType);
-		sqlRequest.input("RegularSupport", sql.Bit, body.RegularSupport || false);
-		sqlRequest.input("BaselineReasonNotStudying", sql.NVarChar, body.RegularSupport ? null : (body.BaselineReasonNotStudying || null));
+		sqlRequest.input("RegularSupport", sql.Bit, isRegularSupport || body.RegularSupport || false);
+		sqlRequest.input("BaselineReasonNotStudying", sql.NVarChar, isRegularSupport ? null : (body.BaselineReasonNotStudying || null));
 		sqlRequest.input("AdmittedToSchoolType", sql.VarChar, body.AdmittedToSchoolType || null);
 		sqlRequest.input("AdmittedToClassLevel", sql.VarChar, body.AdmittedToClassLevel || null);
 		sqlRequest.input("BaselineSchoolType", sql.VarChar, body.BaselineSchoolType || null);

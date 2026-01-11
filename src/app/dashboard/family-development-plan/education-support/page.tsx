@@ -254,24 +254,31 @@ function EducationSupportContent() {
 
 	// Handle Regular Support changes
 	useEffect(() => {
-		if (formData.RegularSupport) {
+		if (formData.EducationInterventionType === "Regular Support") {
 			// Clear Baseline Reason Not Studying and one-time admission costs
 			setFormData(prev => ({
 				...prev,
+				RegularSupport: true,
 				BaselineReasonNotStudying: "",
 				EduOneTimeAdmissionTotalCost: 0,
 				EduOneTimeAdmissionFamilyContribution: 0,
 				EduOneTimeAdmissionPEContribution: 0,
 			}));
+		} else {
+			setFormData(prev => ({
+				...prev,
+				RegularSupport: false,
+			}));
 		}
-	}, [formData.RegularSupport]);
+	}, [formData.EducationInterventionType]);
 
 	// Calculate totals
 	useEffect(() => {
 		// Exclude one-time admission costs if Regular Support is selected
-		const oneTimeCost = formData.RegularSupport ? 0 : formData.EduOneTimeAdmissionTotalCost;
-		const oneTimeFamily = formData.RegularSupport ? 0 : formData.EduOneTimeAdmissionFamilyContribution;
-		const oneTimePE = formData.RegularSupport ? 0 : formData.EduOneTimeAdmissionPEContribution;
+		const isRegularSupport = formData.EducationInterventionType === "Regular Support";
+		const oneTimeCost = isRegularSupport ? 0 : formData.EduOneTimeAdmissionTotalCost;
+		const oneTimeFamily = isRegularSupport ? 0 : formData.EduOneTimeAdmissionFamilyContribution;
+		const oneTimePE = isRegularSupport ? 0 : formData.EduOneTimeAdmissionPEContribution;
 
 		const totalSupportCost = 
 			oneTimeCost +
@@ -298,7 +305,7 @@ function EducationSupportContent() {
 			EduTotalPEContribution: totalPEContribution,
 		}));
 	}, [
-		formData.RegularSupport,
+		formData.EducationInterventionType,
 		formData.EduOneTimeAdmissionTotalCost,
 		formData.EduMonthlyTuitionTotalCost,
 		formData.EduTuitionNumberOfMonths,
@@ -453,7 +460,7 @@ function EducationSupportContent() {
 									BeneficiaryAge: existing.BeneficiaryAge || prev.BeneficiaryAge,
 									BeneficiaryGender: existing.BeneficiaryGender || prev.BeneficiaryGender,
 									EducationInterventionType: existing.EducationInterventionType || "",
-									RegularSupport: existing.RegularSupport || false,
+									RegularSupport: existing.RegularSupport || (existing.EducationInterventionType === "Regular Support"),
 									BaselineReasonNotStudying: existing.BaselineReasonNotStudying || "",
 									AdmittedToSchoolType: existing.AdmittedToSchoolType || "",
 									AdmittedToClassLevel: existing.AdmittedToClassLevel || "",
@@ -520,19 +527,19 @@ function EducationSupportContent() {
 			return;
 		}
 
+		if (formData.EducationInterventionType === "Regular Support" && !formData.AdmittedToSchoolType) {
+			setError("Please select School Type");
+			return;
+		}
+
 		if (formData.EducationInterventionType === "Transferred" && (!formData.BaselineSchoolType || !formData.TransferredToSchoolType)) {
 			setError("Please fill in Baseline School Type and Transferred To School Type");
 			return;
 		}
 
-		// Validate total social support doesn't exceed limit
-		const currentRecordContribution = formData.EduTotalPEContribution;
-		// In edit mode, we need to subtract the current record's contribution from alreadyDefinedSocialSupport
-		// because alreadyDefinedSocialSupport already excludes it
-		const totalAfterSave = alreadyDefinedSocialSupport + currentRecordContribution;
-		
-		if (totalAfterSave > formData.MaxSocialSupportAmount) {
-			setError(`Total social support (PKR ${totalAfterSave.toLocaleString()}) exceeds the maximum allowed amount (PKR ${formData.MaxSocialSupportAmount.toLocaleString()}) for ${formData.BaselinePovertyLevel}. Available: PKR ${availableSocialSupport.toLocaleString()}`);
+		// Validate that Total PE Contribution does not exceed Available Social Support
+		if (formData.EduTotalPEContribution > availableSocialSupport) {
+			setError(`Total PE Contribution (PKR ${formData.EduTotalPEContribution.toLocaleString()}) exceeds Available Social Support (PKR ${availableSocialSupport.toLocaleString()}). Please reduce the amount.`);
 			return;
 		}
 
@@ -929,48 +936,56 @@ function EducationSupportContent() {
 							</label>
 							<select
 								value={formData.EducationInterventionType}
-								onChange={(e) => handleChange("EducationInterventionType", e.target.value)}
+								onChange={(e) => {
+									const value = e.target.value;
+									handleChange("EducationInterventionType", value);
+									// If Regular Support is selected, clear BaselineReasonNotStudying and one-time admission costs
+									if (value === "Regular Support") {
+										setFormData(prev => ({
+											...prev,
+											EducationInterventionType: value,
+											RegularSupport: true,
+											BaselineReasonNotStudying: "",
+											EduOneTimeAdmissionTotalCost: 0,
+											EduOneTimeAdmissionFamilyContribution: 0,
+											EduOneTimeAdmissionPEContribution: 0,
+										}));
+									} else {
+										setFormData(prev => ({
+											...prev,
+											EducationInterventionType: value,
+											RegularSupport: false,
+										}));
+									}
+								}}
 								required
 								className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
 							>
 								<option value="">Select Type</option>
 								<option value="Admitted">Admitted</option>
 								<option value="Transferred">Transferred</option>
+								<option value="Regular Support">Regular Support</option>
 							</select>
-						</div>
-						
-						<div>
-							<label className="flex items-center gap-2">
-								<input
-									type="checkbox"
-									checked={formData.RegularSupport}
-									onChange={(e) => handleChange("RegularSupport", e.target.checked)}
-									className="rounded border-gray-300 text-[#0b4d2b] focus:ring-[#0b4d2b]"
-								/>
-								<span className="text-sm font-medium text-gray-700">Regular Support</span>
-							</label>
 						</div>
 					</div>
 
 					{/* If Admitted */}
 					{formData.EducationInterventionType === "Admitted" && (
 						<div className="mt-4 space-y-4">
-							{!formData.RegularSupport && (
-								<div>
-									<label className="block text-sm font-medium text-gray-700 mb-2">Baseline Reason Not Studying</label>
-									<input
-										type="text"
-										value={formData.BaselineReasonNotStudying}
-										onChange={(e) => handleChange("BaselineReasonNotStudying", e.target.value)}
-										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-										placeholder="Enter reason"
-									/>
-								</div>
-							)}
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-2">Baseline Reason Not Studying</label>
+								<input
+									type="text"
+									value={formData.BaselineReasonNotStudying}
+									onChange={(e) => handleChange("BaselineReasonNotStudying", e.target.value)}
+									className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+									placeholder="Enter reason"
+								/>
+							</div>
 							<div className="grid grid-cols-2 gap-4">
 								<div>
 									<label className="block text-sm font-medium text-gray-700 mb-2">
-										{formData.RegularSupport ? "School Type" : "Admitted To School Type"}
+										Admitted To School Type
 									</label>
 									<select
 										value={formData.AdmittedToSchoolType}
@@ -987,7 +1002,48 @@ function EducationSupportContent() {
 								</div>
 								<div>
 									<label className="block text-sm font-medium text-gray-700 mb-2">
-										{formData.RegularSupport ? "Class Level" : "Admitted To Class Level"}
+										Admitted To Class Level
+									</label>
+									<select
+										value={formData.AdmittedToClassLevel}
+										onChange={(e) => handleChange("AdmittedToClassLevel", e.target.value)}
+										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+									>
+										<option value="">Select Class Level</option>
+										<option value="Pre-Primary">Pre-Primary</option>
+										<option value="Primary">Primary</option>
+										<option value="Secondary">Secondary</option>
+										<option value="Higher Secondary">Higher Secondary</option>
+									</select>
+								</div>
+							</div>
+						</div>
+					)}
+
+					{/* If Regular Support */}
+					{formData.EducationInterventionType === "Regular Support" && (
+						<div className="mt-4 space-y-4">
+							<div className="grid grid-cols-2 gap-4">
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-2">
+										School Type
+									</label>
+									<select
+										value={formData.AdmittedToSchoolType}
+										onChange={(e) => handleChange("AdmittedToSchoolType", e.target.value)}
+										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+									>
+										<option value="">Select School Type</option>
+										<option value="Govt">Govt</option>
+										<option value="Private">Private</option>
+										<option value="AKES">AKES</option>
+										<option value="AK CBS">AK CBS</option>
+										<option value="NGO">NGO</option>
+									</select>
+								</div>
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-2">
+										Class Level
 									</label>
 									<select
 										value={formData.AdmittedToClassLevel}
@@ -1059,7 +1115,7 @@ function EducationSupportContent() {
 				</div>
 
 				{/* Section 4: Education Costs - One-time Admission */}
-				{!formData.RegularSupport && (
+				{formData.EducationInterventionType !== "Regular Support" && (
 				<div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
 					<h2 className="text-xl font-semibold text-gray-900 mb-4">4. Education Costs - One-time Admission</h2>
 					<div className="grid grid-cols-3 gap-4">

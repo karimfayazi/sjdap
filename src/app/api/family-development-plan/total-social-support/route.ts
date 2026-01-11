@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
 			let healthQuery = `
 				SELECT SUM(ISNULL([HealthTotalPEContribution], 0)) as Total
 				FROM [SJDA_Users].[dbo].[PE_FDP_HealthSupport]
-				WHERE [FamilyID] = @formNumber
+				WHERE [FormNumber] = @formNumber
 					AND [IsActive] = 1
 			`;
 			
