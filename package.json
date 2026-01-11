@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "cleanup": "node scripts/cleanup-lock.js",
+    "cleanup:full": "powershell -ExecutionPolicy Bypass -File ./cleanup-next-auto.ps1",
     "dev": "next dev --turbopack",
     "dev:network": "next dev --turbopack -H 0.0.0.0",
     "build": "next build",

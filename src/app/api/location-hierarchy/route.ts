@@ -50,39 +50,7 @@ export async function POST(request: NextRequest) {
 			);
 		}
 
-		// Check if user has Super User permission
-		const userPool = await getDb();
-		const userRequest = userPool.request();
-		(userRequest as any).timeout = 120000;
-		userRequest.input("user_id", userId);
-		
-		const userResult = await userRequest.query(
-			"SELECT TOP(1) [Supper_User] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
-		);
-
-		const user = userResult.recordset?.[0];
-		if (!user) {
-			return NextResponse.json(
-				{ success: false, message: "User not found" },
-				{ status: 404 }
-			);
-		}
-
-		// Check if user is Super User (checking for various formats: "Yes", "yes", 1, true, "1", "true")
-		const isSuperUser =
-			user.Supper_User === 1 ||
-			user.Supper_User === "1" ||
-			user.Supper_User === true ||
-			user.Supper_User === "true" ||
-			user.Supper_User === "Yes" ||
-			user.Supper_User === "yes";
-
-		if (!isSuperUser) {
-			return NextResponse.json(
-				{ success: false, message: "Access denied. Only Super Users can add location hierarchy." },
-				{ status: 403 }
-			);
-		}
+		// ALL USERS CAN ADD - NO PERMISSION CHECKS
 
 		const body = await request.json();
 		const { RC, LC, JK } = body;

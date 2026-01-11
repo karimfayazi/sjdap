@@ -1,69 +1,29 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Building2, Search, Download, Edit, Trash2, Eye } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
-import { isSuperUser } from "@/lib/auth-utils";
-import { hasBankAccess } from "@/lib/bank-access-utils";
-import SectionAccessDenied from "@/components/SectionAccessDenied";
+import { Download, Search, RefreshCw, Plus, Edit2, Trash2 } from "lucide-react";
 
-type BankData = {
-	FAMILY_ID: string;
-	PROGRAM: string;
-	AREA: string;
-	HEAD_NAME: string;
-	FAMILY_PROGRESS_STATUS: string;
-	MENTOR: string;
-	BANK_NAME: string;
-	ACCOUNT_TITLE: string;
-	ACCOUNT_NO: string;
-	CNIC: string;
-	ACCOUNT_TYPE: string;
+type BankInformation = {
+	FAMILY_ID: string | null;
+	PROGRAM: string | null;
+	AREA: string | null;
+	HEAD_NAME: string | null;
+	FAMILY_PROGRESS_STATUS: string | null;
+	MENTOR: string | null;
+	BANK_NAME: string | null;
+	ACCOUNT_TITLE: string | null;
+	ACCOUNT_NO: string | null;
+	CNIC: string | null;
+	ACCOUNT_TYPE: string | null;
 };
 
-export default function ViewBankDetailsPage() {
+export default function ViewBankInformationPage() {
 	const router = useRouter();
-	const { userProfile, loading: authLoading } = useAuth();
-	const [banks, setBanks] = useState<BankData[]>([]);
+	const [banks, setBanks] = useState<BankInformation[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [searchTerm, setSearchTerm] = useState("");
-	const [deletingId, setDeletingId] = useState<string | null>(null);
-	const [viewBank, setViewBank] = useState<BankData | null>(null);
-	const [hasAccess, setHasAccess] = useState<boolean | null>(null);
-
-	// Check bank account access permission
-	useEffect(() => {
-		if (authLoading) return;
-
-		// Check if user has bank account access (bank_account = 1 or "Yes")
-		const bankAccountValue = userProfile?.bank_account;
-		const userHasBankAccess = hasBankAccess(bankAccountValue);
-
-		// Also check if user is super user (has full access)
-		const supperUserValue = userProfile?.supper_user;
-		const userIsSuperUser = isSuperUser(supperUserValue);
-
-		// Debug logging
-		if (typeof window !== "undefined") {
-			console.log("=== VIEW BANK DETAILS ACCESS CHECK ===", {
-				username: userProfile?.username,
-				bank_account: bankAccountValue,
-				hasBankAccess: userHasBankAccess,
-				isSuperUser: userIsSuperUser,
-				willGrantAccess: userHasBankAccess || userIsSuperUser
-			});
-		}
-
-		if (!userHasBankAccess && !userIsSuperUser) {
-			setHasAccess(false);
-			// DO NOT redirect - user requested to stay on access denied page
-		} else {
-			setHasAccess(true);
-		}
-	}, [userProfile, authLoading]);
 	const [filters, setFilters] = useState({
 		familyId: "",
 		program: "",
@@ -76,22 +36,28 @@ export default function ViewBankDetailsPage() {
 		cnic: "",
 		accountType: "",
 	});
+	const [deleteConfirm, setDeleteConfirm] = useState<{
+		show: boolean;
+		familyId: string | null;
+		accountNo: string | null;
+	}>({
+		show: false,
+		familyId: null,
+		accountNo: null,
+	});
+	const [deleting, setDeleting] = useState(false);
 
-	const fetchBankDetails = async () => {
+	const fetchBanks = async () => {
 		try {
 			setLoading(true);
 			setError(null);
+			
 			const params = new URLSearchParams();
-			if (filters.familyId) params.append("familyId", filters.familyId);
-			if (filters.program) params.append("program", filters.program);
-			if (filters.headName) params.append("headName", filters.headName);
-			if (filters.familyProgressStatus) params.append("familyProgressStatus", filters.familyProgressStatus);
-			if (filters.mentor) params.append("mentor", filters.mentor);
-			if (filters.bankName) params.append("bankName", filters.bankName);
-			if (filters.accountTitle) params.append("accountTitle", filters.accountTitle);
-			if (filters.accountNo) params.append("accountNo", filters.accountNo);
-			if (filters.cnic) params.append("cnic", filters.cnic);
-			if (filters.accountType) params.append("accountType", filters.accountType);
+			Object.entries(filters).forEach(([key, value]) => {
+				if (value) {
+					params.append(key, value);
+				}
+			});
 
 			const response = await fetch(`/api/bank-information?${params.toString()}`);
 			const data = await response.json();
@@ -99,32 +65,26 @@ export default function ViewBankDetailsPage() {
 			if (data.success) {
 				setBanks(data.banks || []);
 			} else {
-				setError(data.message || "Failed to fetch bank details");
+				setError(data.message || "Failed to fetch bank information");
 			}
-		} catch (err) {
-			setError("Error fetching bank details");
-			console.error("Error fetching bank details:", err);
+		} catch (err: any) {
+			console.error("Error fetching bank information:", err);
+			setError(err.message || "Error fetching bank information");
 		} finally {
 			setLoading(false);
 		}
 	};
 
 	useEffect(() => {
-		fetchBankDetails();
-		// eslint-disable-next-line react-hooks/exhaustive-deps
+		fetchBanks();
 	}, []);
 
-	const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-		const { name, value } = e.target;
-		setFilters(prev => ({
-			...prev,
-			[name]: value
-		}));
+	const handleFilterChange = (key: string, value: string) => {
+		setFilters((prev) => ({ ...prev, [key]: value }));
 	};
 
-	const handleFilterSubmit = (e: React.FormEvent) => {
-		e.preventDefault();
-		fetchBankDetails();
+	const handleApplyFilters = () => {
+		fetchBanks();
 	};
 
 	const handleClearFilters = () => {
@@ -140,120 +100,136 @@ export default function ViewBankDetailsPage() {
 			cnic: "",
 			accountType: "",
 		});
-		setTimeout(() => fetchBankDetails(), 100);
+		setSearchTerm("");
 	};
 
-	const exportToCSV = () => {
-		if (banks.length === 0) {
-			alert("No data to export");
-			return;
-		}
-
-		const headers = Object.keys(banks[0]);
-		const csvHeaders = headers.join(",");
-		const csvRows = banks.map(bank => {
-			return headers.map(header => {
-				const value = bank[header as keyof BankData];
-				if (value === null || value === undefined) return "";
-				const stringValue = String(value);
-				if (stringValue.includes(",") || stringValue.includes('"') || stringValue.includes("\n")) {
-					return `"${stringValue.replace(/"/g, '""')}"`;
-				}
-				return stringValue;
-			}).join(",");
-		});
-
-		const csvContent = [csvHeaders, ...csvRows].join("\n");
-		const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-		const link = document.createElement("a");
-		const url = URL.createObjectURL(blob);
-		link.setAttribute("href", url);
-		link.setAttribute("download", `bank_details_export_${new Date().toISOString().split('T')[0]}.csv`);
-		link.style.visibility = "hidden";
-		document.body.appendChild(link);
-		link.click();
-		document.body.removeChild(link);
-	};
-
-	const handleEdit = (bank: BankData) => {
-		// Navigate to edit page with bank data
-		const params = new URLSearchParams({
-			familyId: bank.FAMILY_ID || "",
-			accountNo: bank.ACCOUNT_NO || "",
-		});
-		router.push(`/dashboard/finance/bank-information/edit?${params.toString()}`);
-	};
-
-	const handleDelete = async (bank: BankData) => {
-		if (!confirm(`Are you sure you want to delete bank information for Family ID: ${bank.FAMILY_ID}?`)) {
-			return;
-		}
-
+	const handleDelete = async (familyId: string, accountNo: string) => {
+		if (!familyId || !accountNo) return;
+		
+		setDeleting(true);
 		try {
-			setDeletingId(`${bank.FAMILY_ID}-${bank.ACCOUNT_NO}`);
-			const response = await fetch(
-				`/api/bank-information?familyId=${encodeURIComponent(bank.FAMILY_ID || "")}&accountNo=${encodeURIComponent(bank.ACCOUNT_NO || "")}`,
-				{
-					method: "DELETE",
-				}
-			);
-
+			const response = await fetch(`/api/bank-information?familyId=${encodeURIComponent(familyId)}&accountNo=${encodeURIComponent(accountNo)}`, {
+				method: "DELETE",
+			});
 			const data = await response.json();
 
 			if (data.success) {
-				// Refresh the list
-				fetchBankDetails();
+				fetchBanks();
+				setDeleteConfirm({ show: false, familyId: null, accountNo: null });
 			} else {
-				alert(data.message || "Failed to delete bank information");
+				setError(data.message || "Failed to delete bank information");
 			}
-		} catch (err) {
+		} catch (err: any) {
 			console.error("Error deleting bank information:", err);
-			alert("Error deleting bank information");
+			setError(err.message || "Error deleting bank information");
 		} finally {
-			setDeletingId(null);
+			setDeleting(false);
 		}
 	};
 
-	const handleView = (bank: BankData) => {
-		setViewBank(bank);
+	const exportToCSV = () => {
+		try {
+			const headers = [
+				"Family ID",
+				"Program",
+				"Area",
+				"Head Name",
+				"Family Progress Status",
+				"Mentor",
+				"Bank Name",
+				"Account Title",
+				"Account No",
+				"CNIC",
+				"Account Type",
+			];
+			const csvRows = [];
+			csvRows.push(headers.join(","));
+
+			filteredBanks.forEach((bank) => {
+				const row = headers.map((header) => {
+					const key = header.replace(/\s+/g, "_").toUpperCase();
+					const value = bank[key as keyof BankInformation];
+					if (value === null || value === undefined) return "";
+					const cellStr = String(value);
+					if (cellStr.includes(",") || cellStr.includes('"') || cellStr.includes("\n")) {
+						return `"${cellStr.replace(/"/g, '""')}"`;
+					}
+					return cellStr;
+				});
+				csvRows.push(row.join(","));
+			});
+
+			const csvContent = csvRows.join("\n");
+			const BOM = "\uFEFF";
+			const blob = new Blob([BOM + csvContent], { type: "text/csv;charset=utf-8;" });
+			
+			const link = document.createElement("a");
+			const url = URL.createObjectURL(blob);
+			link.setAttribute("href", url);
+			
+			const date = new Date();
+			const dateStr = date.toISOString().split('T')[0];
+			link.setAttribute("download", `Bank_Information_${dateStr}.csv`);
+			
+			link.style.visibility = "hidden";
+			document.body.appendChild(link);
+			link.click();
+			document.body.removeChild(link);
+			
+			setTimeout(() => URL.revokeObjectURL(url), 100);
+		} catch (error) {
+			console.error("Export error:", error);
+			alert("Failed to export data. Please try again.");
+		}
 	};
 
-	// Get unique values for dropdowns
-	const uniquePrograms = Array.from(new Set(banks.map(b => b.PROGRAM).filter(Boolean))).sort();
-	const uniqueFamilyProgressStatuses = Array.from(new Set(banks.map(b => b.FAMILY_PROGRESS_STATUS).filter(Boolean))).sort();
-	const uniqueAccountTypes = Array.from(new Set(banks.map(b => b.ACCOUNT_TYPE).filter(Boolean))).sort();
-
-	// Filter banks based on search
-	const filteredBanks = banks.filter(bank => {
+	const filteredBanks = banks.filter((bank) => {
 		if (!searchTerm) return true;
-		
-		const searchLower = searchTerm.toLowerCase();
+		const search = searchTerm.toLowerCase();
 		return (
-			(bank.FAMILY_ID || "").toLowerCase().includes(searchLower) ||
-			(bank.PROGRAM || "").toLowerCase().includes(searchLower) ||
-			(bank.HEAD_NAME || "").toLowerCase().includes(searchLower) ||
-			(bank.FAMILY_PROGRESS_STATUS || "").toLowerCase().includes(searchLower) ||
-			(bank.MENTOR || "").toLowerCase().includes(searchLower) ||
-			(bank.ACCOUNT_TITLE || "").toLowerCase().includes(searchLower) ||
-			(bank.BANK_NAME || "").toLowerCase().includes(searchLower) ||
-			(bank.ACCOUNT_NO || "").toLowerCase().includes(searchLower) ||
-			(bank.CNIC || "").toLowerCase().includes(searchLower) ||
-			(bank.ACCOUNT_TYPE || "").toLowerCase().includes(searchLower)
+			(bank.FAMILY_ID && String(bank.FAMILY_ID).toLowerCase().includes(search)) ||
+			(bank.HEAD_NAME && String(bank.HEAD_NAME).toLowerCase().includes(search)) ||
+			(bank.BANK_NAME && String(bank.BANK_NAME).toLowerCase().includes(search)) ||
+			(bank.ACCOUNT_TITLE && String(bank.ACCOUNT_TITLE).toLowerCase().includes(search)) ||
+			(bank.ACCOUNT_NO && String(bank.ACCOUNT_NO).toLowerCase().includes(search)) ||
+			(bank.CNIC && String(bank.CNIC).toLowerCase().includes(search))
 		);
 	});
 
-	// Show access denied if user doesn't have permission
-	if (hasAccess === false) {
-		return <SectionAccessDenied sectionName="View Bank Details" requiredPermission="bank_account" />;
-	}
-
-	// Show loading while checking access
-	if (hasAccess === null || authLoading) {
+	if (loading) {
 		return (
 			<div className="space-y-6">
+				<div className="flex justify-between items-center">
+					<div>
+						<h1 className="text-3xl font-bold text-gray-900">View Bank Details</h1>
+						<p className="text-gray-600 mt-2">Bank Information Management</p>
+					</div>
+				</div>
 				<div className="flex items-center justify-center py-12">
 					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
-					<span className="ml-3 text-gray-600">Loading...</span>
+					<span className="ml-3 text-gray-600">Loading bank information...</span>
+				</div>
+			</div>
+		);
+	}
+
+	if (error) {
+		return (
+			<div className="space-y-6">
+				<div className="flex justify-between items-center">
+					<div>
+						<h1 className="text-3xl font-bold text-gray-900">View Bank Details</h1>
+						<p className="text-gray-600 mt-2">Bank Information Management</p>
+					</div>
+				</div>
+				<div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+					<p className="text-red-600 mb-4">{error}</p>
+					<button
+						onClick={fetchBanks}
+						className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+					>
+						Try Again
+					</button>
 				</div>
 			</div>
 		);
@@ -261,393 +237,227 @@ export default function ViewBankDetailsPage() {
 
 	return (
 		<div className="space-y-6">
-			<div className="flex items-center justify-between">
+			{/* Header */}
+			<div className="flex justify-between items-center">
 				<div>
-					<h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-						<Building2 className="h-8 w-8 text-[#0b4d2b]" />
-						View Bank Details
-					</h1>
-					<p className="text-gray-600 mt-2">View and manage bank account information for families</p>
+					<h1 className="text-3xl font-bold text-gray-900">View Bank Details</h1>
+					<p className="text-gray-600 mt-2">Bank Information Management</p>
 				</div>
-				<div className="flex gap-3">
+				<div className="flex items-center gap-3">
+					<button
+						onClick={fetchBanks}
+						className="inline-flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+					>
+						<RefreshCw className="h-4 w-4" />
+						Refresh
+					</button>
+					<button
+						onClick={() => router.push("/dashboard/finance/bank-information/add")}
+						className="inline-flex items-center gap-2 px-4 py-2 bg-[#0b4d2b] text-white rounded-md hover:bg-[#0a3d22] transition-colors"
+					>
+						<Plus className="h-4 w-4" />
+						Add Bank Details
+					</button>
 					<button
 						onClick={exportToCSV}
-						disabled={banks.length === 0 || loading}
-						className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+						disabled={banks.length === 0}
+						className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
 					>
 						<Download className="h-4 w-4" />
 						Export CSV
 					</button>
-					<Link
-						href="/dashboard/finance/bank-information/add"
-						className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-[#0b4d2b] text-white rounded-md hover:bg-[#0a3d22] transition-colors"
-					>
-						<Plus className="h-4 w-4" />
-						Add Bank Details
-					</Link>
 				</div>
 			</div>
 
-			{error && (
-				<div className="bg-red-50 border border-red-200 rounded-lg p-4">
-					<p className="text-red-600 text-sm">{error}</p>
+			{/* Stats Card */}
+			<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+				<div className="flex items-center justify-between">
+					<div>
+						<p className="text-sm font-medium text-gray-600 mb-2">Total Records</p>
+						<p className="text-3xl font-bold text-[#0b4d2b]">{filteredBanks.length.toLocaleString()}</p>
+					</div>
 				</div>
-			)}
+			</div>
 
-			{/* Filters */}
-			<form onSubmit={handleFilterSubmit} className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-				<div className="mb-4">
-					<label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
-					<div className="relative">
-						<Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-						<input
-							type="text"
-							value={searchTerm}
-							onChange={(e) => setSearchTerm(e.target.value)}
-							className="w-full pl-10 rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-							placeholder="Search across all fields..."
-						/>
-					</div>
+			{/* Search and Filters */}
+			<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 space-y-4">
+				<div className="relative">
+					<Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+					<input
+						type="text"
+						placeholder="Search across all columns..."
+						value={searchTerm}
+						onChange={(e) => setSearchTerm(e.target.value)}
+						className="w-full pl-10 rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+					/>
 				</div>
-				<div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-2">Family ID</label>
-						<input
-							type="text"
-							name="familyId"
-							value={filters.familyId}
-							onChange={handleFilterChange}
-							className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-							placeholder="Family ID"
-						/>
-					</div>
-					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-2">Program</label>
-						<select
-							name="program"
-							value={filters.program}
-							onChange={handleFilterChange}
-							className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-						>
-							<option value="">All</option>
-							{uniquePrograms.map(prog => (
-								<option key={prog} value={prog}>{prog}</option>
-							))}
-						</select>
-					</div>
-					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-2">Head Name</label>
-						<input
-							type="text"
-							name="headName"
-							value={filters.headName}
-							onChange={handleFilterChange}
-							className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-							placeholder="Head Name"
-						/>
-					</div>
-					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-2">Family Progress Status</label>
-						<select
-							name="familyProgressStatus"
-							value={filters.familyProgressStatus}
-							onChange={handleFilterChange}
-							className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-						>
-							<option value="">All</option>
-							{uniqueFamilyProgressStatuses.map(status => (
-								<option key={status} value={status}>{status}</option>
-							))}
-						</select>
-					</div>
-					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-2">Mentor</label>
-						<input
-							type="text"
-							name="mentor"
-							value={filters.mentor}
-							onChange={handleFilterChange}
-							className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-							placeholder="Mentor"
-						/>
-					</div>
-					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-2">Bank Name</label>
-						<input
-							type="text"
-							name="bankName"
-							value={filters.bankName}
-							onChange={handleFilterChange}
-							className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-							placeholder="Bank Name"
-						/>
-					</div>
-					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-2">Account Title</label>
-						<input
-							type="text"
-							name="accountTitle"
-							value={filters.accountTitle}
-							onChange={handleFilterChange}
-							className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-							placeholder="Account Title"
-						/>
-					</div>
-					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-2">Account Number</label>
-						<input
-							type="text"
-							name="accountNo"
-							value={filters.accountNo}
-							onChange={handleFilterChange}
-							className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-							placeholder="Account Number"
-						/>
-					</div>
-					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-2">CNIC</label>
-						<input
-							type="text"
-							name="cnic"
-							value={filters.cnic}
-							onChange={handleFilterChange}
-							className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-							placeholder="CNIC"
-						/>
-					</div>
-					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-2">Account Type</label>
-						<select
-							name="accountType"
-							value={filters.accountType}
-							onChange={handleFilterChange}
-							className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-						>
-							<option value="">All</option>
-							{uniqueAccountTypes.map(type => (
-								<option key={type} value={type}>{type}</option>
-							))}
-						</select>
-					</div>
+				
+				<div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+					<input
+						type="text"
+						placeholder="Family ID"
+						value={filters.familyId}
+						onChange={(e) => handleFilterChange("familyId", e.target.value)}
+						className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+					/>
+					<input
+						type="text"
+						placeholder="Program"
+						value={filters.program}
+						onChange={(e) => handleFilterChange("program", e.target.value)}
+						className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+					/>
+					<input
+						type="text"
+						placeholder="Head Name"
+						value={filters.headName}
+						onChange={(e) => handleFilterChange("headName", e.target.value)}
+						className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+					/>
+					<input
+						type="text"
+						placeholder="Bank Name"
+						value={filters.bankName}
+						onChange={(e) => handleFilterChange("bankName", e.target.value)}
+						className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+					/>
+					<input
+						type="text"
+						placeholder="Account Title"
+						value={filters.accountTitle}
+						onChange={(e) => handleFilterChange("accountTitle", e.target.value)}
+						className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+					/>
+					<input
+						type="text"
+						placeholder="Account No"
+						value={filters.accountNo}
+						onChange={(e) => handleFilterChange("accountNo", e.target.value)}
+						className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+					/>
+					<input
+						type="text"
+						placeholder="CNIC"
+						value={filters.cnic}
+						onChange={(e) => handleFilterChange("cnic", e.target.value)}
+						className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+					/>
+					<input
+						type="text"
+						placeholder="Mentor"
+						value={filters.mentor}
+						onChange={(e) => handleFilterChange("mentor", e.target.value)}
+						className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+					/>
 				</div>
-				<div className="flex gap-2 mt-4">
+				
+				<div className="flex gap-2">
 					<button
-						type="submit"
-						disabled={loading}
-						className="px-4 py-2 bg-[#0b4d2b] text-white rounded-md hover:bg-[#0a3d22] transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+						onClick={handleApplyFilters}
+						className="px-4 py-2 bg-[#0b4d2b] text-white rounded-md hover:bg-[#0a3d22] transition-colors"
 					>
-						{loading ? "Loading..." : "Apply Filters"}
+						Apply Filters
 					</button>
 					<button
-						type="button"
 						onClick={handleClearFilters}
-						className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors text-sm"
+						className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition-colors"
 					>
 						Clear Filters
 					</button>
 				</div>
-			</form>
+			</div>
 
 			{/* Table */}
-			{loading ? (
-				<div className="flex items-center justify-center py-12 bg-white rounded-lg border border-gray-200">
-					<div className="text-center">
-						<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b] mx-auto"></div>
-						<span className="ml-3 text-gray-600 mt-3 block">Loading bank details...</span>
-					</div>
-				</div>
-			) : (
-				<div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-					<div className="overflow-x-auto">
-						<table className="min-w-full divide-y divide-gray-200">
-							<thead className="bg-gray-50">
+			<div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+				<div className="overflow-x-auto">
+					<table className="min-w-full divide-y divide-gray-200">
+						<thead className="bg-gray-50">
+							<tr>
+								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Family ID</th>
+								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Program</th>
+								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Area</th>
+								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Head Name</th>
+								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bank Name</th>
+								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account Title</th>
+								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account No</th>
+								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CNIC</th>
+								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mentor</th>
+							</tr>
+						</thead>
+						<tbody className="bg-white divide-y divide-gray-200">
+							{filteredBanks.length === 0 ? (
 								<tr>
-									<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Family ID</th>
-									<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Program</th>
-									<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Area</th>
-									<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Head Name</th>
-									<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Family Progress Status</th>
-									<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mentor</th>
-									<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bank Name</th>
-									<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account Title</th>
-									<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account Number</th>
-									<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CNIC</th>
-									<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account Type</th>
-									<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+									<td colSpan={10} className="px-4 py-8 text-center text-gray-500">
+										{searchTerm || Object.values(filters).some(f => f) ? "No bank information found matching your search/filters" : "No bank information found"}
+									</td>
 								</tr>
-							</thead>
-							<tbody className="bg-white divide-y divide-gray-200">
-								{filteredBanks.length === 0 ? (
-									<tr>
-										<td colSpan={11} className="px-4 py-8 text-center text-gray-500">
-											No bank details found. <Link href="/dashboard/bank-information/add" className="text-[#0b4d2b] hover:underline">Add your first bank detail</Link>
+							) : (
+								filteredBanks.map((bank, index) => (
+									<tr key={`${bank.FAMILY_ID}-${bank.ACCOUNT_NO}-${index}`} className="hover:bg-gray-50">
+										<td className="px-4 py-3 whitespace-nowrap text-sm">
+											<div className="flex items-center gap-2">
+												<button
+													onClick={() => {
+														// Edit functionality - you can implement this
+														alert("Edit functionality to be implemented");
+													}}
+													className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors"
+													title="Edit"
+												>
+													<Edit2 className="h-4 w-4" />
+												</button>
+												<button
+													onClick={() => setDeleteConfirm({ show: true, familyId: bank.FAMILY_ID, accountNo: bank.ACCOUNT_NO })}
+													className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+													title="Delete"
+												>
+													<Trash2 className="h-4 w-4" />
+												</button>
+											</div>
 										</td>
+										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{bank.FAMILY_ID || "N/A"}</td>
+										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{bank.PROGRAM || "N/A"}</td>
+										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{bank.AREA || "N/A"}</td>
+										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{bank.HEAD_NAME || "N/A"}</td>
+										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{bank.BANK_NAME || "N/A"}</td>
+										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{bank.ACCOUNT_TITLE || "N/A"}</td>
+										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{bank.ACCOUNT_NO || "N/A"}</td>
+										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{bank.CNIC || "N/A"}</td>
+										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{bank.MENTOR || "N/A"}</td>
 									</tr>
-								) : (
-									filteredBanks.map((bank, index) => {
-										const deleteKey = `${bank.FAMILY_ID}-${bank.ACCOUNT_NO}`;
-										const isDeleting = deletingId === deleteKey;
-										return (
-											<tr key={deleteKey} className="hover:bg-gray-50">
-												<td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
-													{bank.FAMILY_ID || "N/A"}
-												</td>
-												<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-													{bank.PROGRAM || "N/A"}
-												</td>
-										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-											{bank.AREA || "N/A"}
-										</td>
-												<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-													{bank.HEAD_NAME || "N/A"}
-												</td>
-												<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-													{bank.FAMILY_PROGRESS_STATUS || "N/A"}
-												</td>
-												<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-													{bank.MENTOR || "N/A"}
-												</td>
-												<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-													{bank.BANK_NAME || "N/A"}
-												</td>
-												<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-													{bank.ACCOUNT_TITLE || "N/A"}
-												</td>
-												<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-													{bank.ACCOUNT_NO || "N/A"}
-												</td>
-												<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-													{bank.CNIC || "N/A"}
-												</td>
-												<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-													{bank.ACCOUNT_TYPE || "N/A"}
-												</td>
-												<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-													<div className="flex items-center gap-2">
-														<button
-															onClick={() => handleView(bank)}
-															className="p-1.5 text-blue-600 hover:bg-blue-600 hover:text-white rounded transition-colors"
-															title="View"
-														>
-															<Eye className="h-4 w-4" />
-														</button>
-														<button
-															onClick={() => handleEdit(bank)}
-															className="p-1.5 text-[#0b4d2b] hover:bg-[#0b4d2b] hover:text-white rounded transition-colors"
-															title="Update"
-														>
-															<Edit className="h-4 w-4" />
-														</button>
-														<button
-															onClick={() => handleDelete(bank)}
-															disabled={isDeleting}
-															className="p-1.5 text-red-600 hover:bg-red-600 hover:text-white rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-															title="Delete"
-														>
-															{isDeleting ? (
-																<div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
-															) : (
-																<Trash2 className="h-4 w-4" />
-															)}
-														</button>
-													</div>
-												</td>
-											</tr>
-										);
-									})
-								)}
-							</tbody>
-						</table>
-					</div>
+								))
+							)}
+						</tbody>
+					</table>
 				</div>
-			)}
+			</div>
 
-			{/* View Modal */}
-			{viewBank && (
-				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-					<div className="bg-white rounded-lg shadow-lg max-w-2xl w-full">
-						<div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-							<h2 className="text-xl font-semibold text-gray-900">
-								Bank Details - {viewBank.FAMILY_ID || "N/A"}
-							</h2>
-							<button
-								type="button"
-								onClick={() => setViewBank(null)}
-								className="text-gray-500 hover:text-gray-700 text-sm"
-							>
-								Close
-							</button>
-						</div>
-						<div className="px-6 py-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-							<div>
-								<p className="font-medium text-gray-700">Program</p>
-								<p className="mt-1 text-gray-900 bg-gray-50 px-3 py-2 rounded-md">
-									{viewBank.PROGRAM || "N/A"}
-								</p>
+			{/* Delete Confirmation Modal */}
+			{deleteConfirm.show && (
+				<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+					<div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+						<div className="p-6">
+							<h3 className="text-lg font-semibold text-gray-900 mb-4">Confirm Delete</h3>
+							<p className="text-gray-600 mb-6">
+								Are you sure you want to delete this bank information record? This action cannot be undone.
+							</p>
+							<div className="flex justify-end gap-3">
+								<button
+									onClick={() => setDeleteConfirm({ show: false, familyId: null, accountNo: null })}
+									className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors"
+									disabled={deleting}
+								>
+									Cancel
+								</button>
+								<button
+									onClick={() => deleteConfirm.familyId && deleteConfirm.accountNo && handleDelete(deleteConfirm.familyId, deleteConfirm.accountNo)}
+									disabled={deleting}
+									className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors disabled:opacity-50"
+								>
+									{deleting ? "Deleting..." : "Delete"}
+								</button>
 							</div>
-							<div>
-								<p className="font-medium text-gray-700">Area</p>
-								<p className="mt-1 text-gray-900 bg-gray-50 px-3 py-2 rounded-md">
-									{viewBank.AREA || "N/A"}
-								</p>
-							</div>
-							<div>
-								<p className="font-medium text-gray-700">Head Name</p>
-								<p className="mt-1 text-gray-900 bg-gray-50 px-3 py-2 rounded-md">
-									{viewBank.HEAD_NAME || "N/A"}
-								</p>
-							</div>
-							<div>
-								<p className="font-medium text-gray-700">Family Progress Status</p>
-								<p className="mt-1 text-gray-900 bg-gray-50 px-3 py-2 rounded-md">
-									{viewBank.FAMILY_PROGRESS_STATUS || "N/A"}
-								</p>
-							</div>
-							<div>
-								<p className="font-medium text-gray-700">Mentor</p>
-								<p className="mt-1 text-gray-900 bg-gray-50 px-3 py-2 rounded-md">
-									{viewBank.MENTOR || "N/A"}
-								</p>
-							</div>
-							<div>
-								<p className="font-medium text-gray-700">Bank Name</p>
-								<p className="mt-1 text-gray-900 bg-gray-50 px-3 py-2 rounded-md">
-									{viewBank.BANK_NAME || "N/A"}
-								</p>
-							</div>
-							<div>
-								<p className="font-medium text-gray-700">Account Title</p>
-								<p className="mt-1 text-gray-900 bg-gray-50 px-3 py-2 rounded-md">
-									{viewBank.ACCOUNT_TITLE || "N/A"}
-								</p>
-							</div>
-							<div>
-								<p className="font-medium text-gray-700">Account Number</p>
-								<p className="mt-1 text-gray-900 bg-gray-50 px-3 py-2 rounded-md">
-									{viewBank.ACCOUNT_NO || "N/A"}
-								</p>
-							</div>
-							<div>
-								<p className="font-medium text-gray-700">CNIC</p>
-								<p className="mt-1 text-gray-900 bg-gray-50 px-3 py-2 rounded-md">
-									{viewBank.CNIC || "N/A"}
-								</p>
-							</div>
-							<div>
-								<p className="font-medium text-gray-700">Account Type</p>
-								<p className="mt-1 text-gray-900 bg-gray-50 px-3 py-2 rounded-md">
-									{viewBank.ACCOUNT_TYPE || "N/A"}
-								</p>
-							</div>
-						</div>
-						<div className="px-6 py-4 border-t border-gray-200 flex justify-end">
-							<button
-								type="button"
-								onClick={() => setViewBank(null)}
-								className="px-4 py-2 bg-[#0b4d2b] text-white rounded-md hover:bg-[#0a3d22] text-sm"
-							>
-								Close
-							</button>
 						</div>
 					</div>
 				</div>
@@ -655,4 +465,3 @@ export default function ViewBankDetailsPage() {
 		</div>
 	);
 }
-

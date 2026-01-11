@@ -1,299 +1,331 @@
 "use client";
 
-import { useEffect, useState, Fragment } from "react";
-import { Download, Users } from "lucide-react";
-import { useSectionAccess } from "@/hooks/useSectionAccess";
-import SectionAccessDenied from "@/components/SectionAccessDenied";
+import { useEffect, useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Download, Search, RefreshCw, Eye, X } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
-type FamilyDetailedData = {
-	FAMILY_ID: string | null;
-	PROGRAM: string | null;
-	AREA: string | null;
-	REGIONAL_COUNCIL: string | null;
-	LOCAL_COUNCIL: string | null;
-	JAMAT_KHANA: string | null;
-	HEAD_NAME: string | null;
-	CNIC: string | null;
-	CONTACT: string | null;
-	PER_CAPITA_INCOME: number | null;
-	TOTAL_FAMILY_MEMBER: number | null;
-	AREA_TYPE: string | null;
+type FamilyDevelopmentPlan = {
+	FormNumber: string | null;
+	Full_Name: string | null;
+	CNICNumber: string | null;
+	RegionalCommunity: string | null;
+	LocalCommunity: string | null;
+	TotalFamilyMembers: number | null;
+	Area_Type: string | null;
+	IncomeLevel: string | null;
+	MaxSocialSupport: number | null;
 };
 
 type FamilyMember = {
-	FAMILY_ID: string | null;
-	MEMBER_ID: string | null;
-	FULL_NAME: string | null;
-	CNIC: string | null;
-	RELATION: string | null;
-	GENDER: string | null;
-	AGE: number | null;
-	MARITAL_STATUS: string | null;
-	OCCUPATION: string | null;
-	CURRENT_EDUCATION: string | null;
-	HIGHEST_QLF: string | null;
-	EARNING_SOURCE: string | null;
-	MONTHLY_INCOME: number | null;
+	MemberNo: string | null;
+	FormNo: string | null;
+	FullName: string | null;
+	BFormOrCNIC: string | null;
+	Relationship: string | null;
+	Gender: string | null;
+	DOBMonth: string | null;
+	DOBYear: string | null;
+	MonthlyIncome: number | null;
 };
 
-type FDPMenuItem = {
-	id: string;
-	title: string;
-	href: string;
-	imageUrl?: string;
-	category: string;
-};
-
-const FDP_MENU_ITEMS: FDPMenuItem[] = [
-	{
-		id: "review-notes",
-		title: "Review Notes",
-		href: "/dashboard/family-development-plan/review-notes",
-		imageUrl: "/img/_icons/fdp_icons/_Review_Notes.jpg",
-		category: "overview"
-	},
-	{
-		id: "education",
-		title: "Education",
-		href: "/dashboard/family-development-plan/education",
-		imageUrl: "/img/_icons/fdp_icons/_Education.jpg",
-		category: "basic-services"
-	},
-	{
-		id: "health",
-		title: "Health",
-		href: "/dashboard/family-development-plan/health",
-		imageUrl: "/img/_icons/fdp_icons/_Health.jpg",
-		category: "basic-services"
-	},
-	{
-		id: "food-nutrition",
-		title: "Food Nutrition",
-		href: "/dashboard/family-development-plan/food-nutrition",
-		imageUrl: "/img/_icons/fdp_icons/_Food_Nutration.jpg",
-		category: "basic-services"
-	},
-	{
-		id: "housing-habitat",
-		title: "Housing / Habitat",
-		href: "/dashboard/family-development-plan/housing-habitat",
-		imageUrl: "/img/_icons/fdp_icons/_Housing.jpg",
-		category: "basic-services"
-	},
-	{
-		id: "livelihood",
-		title: "Livelihood",
-		href: "/dashboard/family-development-plan/livelihood",
-		imageUrl: "/img/_icons/fdp_icons/_Livelihood.jpg",
-		category: "financial"
-	},
-	{
-		id: "spending-pattern",
-		title: "Spending Pattern",
-		href: "/dashboard/family-development-plan/spending-pattern",
-		imageUrl: "/img/_icons/fdp_icons/_Spending_Pattern.jpg",
-		category: "financial"
-	},
-	{
-		id: "financial-support-decision",
-		title: "Financial Support Decision",
-		href: "/dashboard/family-development-plan/financial-support-decision",
-		imageUrl: "/img/_icons/fdp_icons/_Financial_Support_Decision.jpg",
-		category: "financial"
-	},
-	{
-		id: "access-to-finance",
-		title: "Access to Finance",
-		href: "/dashboard/family-development-plan/access-to-finance",
-		imageUrl: "/img/_icons/fdp_icons/_Access_to_Fianace.jpg",
-		category: "financial"
-	},
-	{
-		id: "social-inclusion",
-		title: "Social Inclusion",
-		href: "/dashboard/family-development-plan/social-inclusion",
-		imageUrl: "/img/_icons/fdp_icons/_Inclusion.png",
-		category: "planning"
-	},
-	{
-		id: "feasibility-plan",
-		title: "Feasibility Plan",
-		href: "/dashboard/family-development-plan/feasibility-plan",
-		imageUrl: "/img/_icons/fdp_icons/_Feasibility_Plan.jpg",
-		category: "planning"
-	}
-];
-
-// Get menu items from Education to Feasibility Plan (exclude Review Notes and Family Profile)
-const TAB_MENU_ITEMS = FDP_MENU_ITEMS.filter(item => 
-	item.id !== "review-notes" && item.id !== "family-profile"
-);
-
-export default function FamilyDevelopmentPlanPage() {
-	const { hasAccess, loading: accessLoading, sectionName } = useSectionAccess("Family_Development_Plan");
-	const [families, setFamilies] = useState<FamilyDetailedData[]>([]);
+function FamilyDevelopmentPlanPageContent() {
+	const router = useRouter();
+	const searchParams = useSearchParams();
+	const { userProfile } = useAuth();
+	const [applications, setApplications] = useState<FamilyDevelopmentPlan[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
-	const [searchTerm, setSearchTerm] = useState("");
 	const [currentPage, setCurrentPage] = useState(1);
-	const itemsPerPage = 20;
-	const [expandedFamilyId, setExpandedFamilyId] = useState<string | null>(null);
-	const [membersMap, setMembersMap] = useState<Record<string, FamilyMember[]>>({});
-	const [loadingMembersMap, setLoadingMembersMap] = useState<Record<string, boolean>>({});
-	const [activeTab, setActiveTab] = useState("education");
-	
-	useEffect(() => {
-		fetchFamilies();
-	}, []);
+	const [totalRecords, setTotalRecords] = useState(0);
+	const [searchTerm, setSearchTerm] = useState("");
+	const [filters, setFilters] = useState({
+		formNumber: "",
+		fullName: "",
+		cnicNumber: "",
+		regionalCommunity: "",
+		localCommunity: "",
+	});
+	const itemsPerPage = 50;
+	const [showMembersModal, setShowMembersModal] = useState(false);
+	const [selectedFormNumber, setSelectedFormNumber] = useState<string | null>(null);
+	const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
+	const [loadingMembers, setLoadingMembers] = useState(false);
+	const [selectedFamilyAreaType, setSelectedFamilyAreaType] = useState<string | null>(null);
+	const [selectedFamilyIncomeLevel, setSelectedFamilyIncomeLevel] = useState<string | null>(null);
+	const [debouncedFilters, setDebouncedFilters] = useState(filters);
 
-	const fetchFamilies = async () => {
+	// Check URL parameters on mount and when they change
+	useEffect(() => {
+		const formNumberParam = searchParams.get("formNumber");
+		const showMembersParam = searchParams.get("showMembers");
+		
+		if (formNumberParam && (showMembersParam === "true" || showMembersParam === "1")) {
+			// Automatically open the modal with the form number
+			fetchFamilyMembers(formNumberParam);
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [searchParams]);
+
+	// Debounce filter changes to prevent focus loss
+	useEffect(() => {
+		const timer = setTimeout(() => {
+			setDebouncedFilters(filters);
+		}, 500); // 500ms delay
+
+		return () => clearTimeout(timer);
+	}, [filters]);
+
+	const fetchApplications = async () => {
 		try {
 			setLoading(true);
 			setError(null);
-			const response = await fetch('/api/families-detailed');
+			
+			const params = new URLSearchParams({
+				page: currentPage.toString(),
+				limit: itemsPerPage.toString(),
+			});
+
+			// Add filter parameters (use debounced filters)
+			if (debouncedFilters.formNumber) params.append("formNumber", debouncedFilters.formNumber);
+			if (debouncedFilters.fullName) params.append("fullName", debouncedFilters.fullName);
+			if (debouncedFilters.cnicNumber) params.append("cnicNumber", debouncedFilters.cnicNumber);
+			if (debouncedFilters.regionalCommunity) params.append("regionalCommunity", debouncedFilters.regionalCommunity);
+			if (debouncedFilters.localCommunity) params.append("localCommunity", debouncedFilters.localCommunity);
+
+			const response = await fetch(`/api/family-development-plan?${params.toString()}`);
 			const data = await response.json();
 
 			if (data.success) {
-				setFamilies(data.families || []);
+				setApplications(data.data || []);
+				setTotalRecords(data.total || 0);
 			} else {
-				setError(data.message || "Failed to fetch families");
+				setError(data.message || "Failed to fetch family development plan data");
 			}
-		} catch (err) {
-			setError("Error fetching families");
-			console.error("Error fetching families:", err);
+		} catch (err: any) {
+			console.error("Error fetching family development plan data:", err);
+			setError(err.message || "Error fetching family development plan data");
 		} finally {
 			setLoading(false);
 		}
 	};
 
-	// Filter families based on search term
-	const filteredFamilies = families.filter((family) => {
-		const searchLower = searchTerm.toLowerCase();
+	useEffect(() => {
+		fetchApplications();
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [currentPage, debouncedFilters]);
+
+	const handleFilterChange = (key: string, value: string) => {
+		setFilters((prev) => ({ ...prev, [key]: value }));
+		setCurrentPage(1);
+	};
+
+	const clearFilters = () => {
+		const emptyFilters = {
+			formNumber: "",
+			fullName: "",
+			cnicNumber: "",
+			regionalCommunity: "",
+			localCommunity: "",
+		};
+		setFilters(emptyFilters);
+		setDebouncedFilters(emptyFilters);
+		setSearchTerm("");
+		setCurrentPage(1);
+	};
+
+	const exportToCSV = () => {
+		try {
+			if (applications.length === 0) {
+				alert("No data to export");
+				return;
+			}
+
+			const headers = [
+				"FormNumber",
+				"Full_Name",
+				"CNICNumber",
+				"RegionalCommunity",
+				"LocalCommunity",
+				"TotalFamilyMembers",
+				"Area_Type",
+				"IncomeLevel",
+				"MaxSocialSupport",
+			];
+			const csvRows = [];
+			csvRows.push(headers.join(","));
+
+			applications.forEach((app) => {
+				const row = headers.map((header) => {
+					const value = app[header as keyof FamilyDevelopmentPlan];
+					if (value === null || value === undefined) return "";
+					const cellStr = String(value);
+					if (cellStr.includes(",") || cellStr.includes('"') || cellStr.includes("\n")) {
+						return `"${cellStr.replace(/"/g, '""')}"`;
+					}
+					return cellStr;
+				});
+				csvRows.push(row.join(","));
+			});
+
+			const csvContent = csvRows.join("\n");
+			const BOM = "\uFEFF";
+			const blob = new Blob([BOM + csvContent], { type: "text/csv;charset=utf-8;" });
+			
+			const link = document.createElement("a");
+			const url = URL.createObjectURL(blob);
+			link.setAttribute("href", url);
+			
+			const date = new Date();
+			const dateStr = date.toISOString().split('T')[0];
+			link.setAttribute("download", `Family_Development_Plan_${dateStr}.csv`);
+			
+			link.style.visibility = "hidden";
+			document.body.appendChild(link);
+			link.click();
+			document.body.removeChild(link);
+			
+			setTimeout(() => URL.revokeObjectURL(url), 100);
+		} catch (error) {
+			console.error("Export error:", error);
+			alert("Failed to export data. Please try again.");
+		}
+	};
+
+	const filteredApplications = applications.filter((app) => {
+		if (!searchTerm) return true;
+		const search = searchTerm.toLowerCase();
 		return (
-			(family.FAMILY_ID?.toLowerCase().includes(searchLower)) ||
-			(family.HEAD_NAME?.toLowerCase().includes(searchLower)) ||
-			(family.CNIC?.toLowerCase().includes(searchLower)) ||
-			(family.PROGRAM?.toLowerCase().includes(searchLower)) ||
-			(family.AREA?.toLowerCase().includes(searchLower)) ||
-			(family.REGIONAL_COUNCIL?.toLowerCase().includes(searchLower)) ||
-			(family.LOCAL_COUNCIL?.toLowerCase().includes(searchLower)) ||
-			(family.JAMAT_KHANA?.toLowerCase().includes(searchLower)) ||
-			(family.CONTACT?.toLowerCase().includes(searchLower)) ||
-			(family.AREA_TYPE?.toLowerCase().includes(searchLower))
+			(app.FormNumber && String(app.FormNumber).toLowerCase().includes(search)) ||
+			(app.Full_Name && String(app.Full_Name).toLowerCase().includes(search)) ||
+			(app.CNICNumber && String(app.CNICNumber).toLowerCase().includes(search)) ||
+			(app.RegionalCommunity && String(app.RegionalCommunity).toLowerCase().includes(search)) ||
+			(app.LocalCommunity && String(app.LocalCommunity).toLowerCase().includes(search))
 		);
 	});
 
-	// Pagination
-	const totalPages = Math.ceil(filteredFamilies.length / itemsPerPage);
-	const startIndex = (currentPage - 1) * itemsPerPage;
-	const paginatedFamilies = filteredFamilies.slice(startIndex, startIndex + itemsPerPage);
+	const totalPages = Math.ceil(totalRecords / itemsPerPage);
 
-	// Fetch family members
-	const fetchFamilyMembers = async (familyId: string) => {
-		// If already expanded, collapse it
-		if (expandedFamilyId === familyId) {
-			setExpandedFamilyId(null);
-			return;
-		}
-
-		// If members already loaded, just expand
-		if (membersMap[familyId]) {
-			setExpandedFamilyId(familyId);
-			return;
-		}
-
-		// Fetch members
+	const fetchFamilyMembers = async (formNumber: string) => {
 		try {
-			setLoadingMembersMap(prev => ({ ...prev, [familyId]: true }));
-			setError(null);
-			const response = await fetch(`/api/family-members?familyId=${encodeURIComponent(familyId)}`);
+			setLoadingMembers(true);
+			setSelectedFormNumber(formNumber);
+			
+			// Fetch family members
+			const response = await fetch(`/api/family-development-plan/members?formNumber=${encodeURIComponent(formNumber)}`);
 			const data = await response.json();
 
 			if (data.success) {
-				setMembersMap(prev => ({ ...prev, [familyId]: data.members || [] }));
-				setExpandedFamilyId(familyId);
+				setFamilyMembers(data.data || []);
+				
+				// Get Area_Type and IncomeLevel from the applications array or fetch it
+				const familyData = applications.find(app => app.FormNumber === formNumber);
+				if (familyData) {
+					setSelectedFamilyAreaType(familyData.Area_Type || null);
+					setSelectedFamilyIncomeLevel(familyData.IncomeLevel || null);
+				} else {
+					// If not found in applications, fetch it separately
+					const familyInfoResponse = await fetch(`/api/family-development-plan?formNumber=${encodeURIComponent(formNumber)}&limit=1`);
+					const familyInfoData = await familyInfoResponse.json();
+					if (familyInfoData.success && familyInfoData.data && familyInfoData.data.length > 0) {
+						setSelectedFamilyAreaType(familyInfoData.data[0].Area_Type || null);
+						setSelectedFamilyIncomeLevel(familyInfoData.data[0].IncomeLevel || null);
+					}
+				}
+				
+				setShowMembersModal(true);
 			} else {
-				setError(data.message || "Failed to fetch family members");
+				alert(data.message || "Failed to fetch family members");
 			}
-		} catch (err) {
-			setError("Error fetching family members");
+		} catch (err: any) {
 			console.error("Error fetching family members:", err);
+			alert(err.message || "Error fetching family members");
 		} finally {
-			setLoadingMembersMap(prev => ({ ...prev, [familyId]: false }));
+			setLoadingMembers(false);
 		}
 	};
 
-	// CSV Export
-	const exportToCSV = () => {
-		const headers = [
-			"Family ID",
-			"Program",
-			"Area",
-			"Regional Council",
-			"Local Council",
-			"Jamat Khana",
-			"Head Name",
-			"CNIC",
-			"Contact",
-			"Per Capita Income",
-			"Total Family Member",
-			"Area Type"
-		];
-
-		// Helper function to escape CSV values
-		const escapeCSVValue = (value: any): string => {
-			if (value === null || value === undefined) return "";
-			const stringValue = String(value);
-			// If value contains comma, quote, or newline, wrap in quotes and escape quotes
-			if (stringValue.includes(",") || stringValue.includes('"') || stringValue.includes("\n")) {
-				return `"${stringValue.replace(/"/g, '""')}"`;
-			}
-			return stringValue;
-		};
-
-		const csvContent = [
-			headers.map(escapeCSVValue).join(","),
-			...filteredFamilies.map((family) =>
-				[
-					family.FAMILY_ID,
-					family.PROGRAM,
-					family.AREA,
-					family.REGIONAL_COUNCIL,
-					family.LOCAL_COUNCIL,
-					family.JAMAT_KHANA,
-					family.HEAD_NAME,
-					family.CNIC,
-					family.CONTACT,
-					family.PER_CAPITA_INCOME,
-					family.TOTAL_FAMILY_MEMBER,
-					family.AREA_TYPE
-				].map(escapeCSVValue).join(",")
-			)
-		].join("\n");
-
-		const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-		const link = document.createElement("a");
-		const url = URL.createObjectURL(blob);
-		link.setAttribute("href", url);
-		link.setAttribute("download", `families_detailed_${new Date().toISOString().split('T')[0]}.csv`);
-		link.style.visibility = "hidden";
-		document.body.appendChild(link);
-		link.click();
-		document.body.removeChild(link);
+	const closeMembersModal = () => {
+		setShowMembersModal(false);
+		setSelectedFormNumber(null);
+		setFamilyMembers([]);
+		setSelectedFamilyAreaType(null);
+		setSelectedFamilyIncomeLevel(null);
 	};
 
-	// Show access denied if user doesn't have permission
-	if (hasAccess === false) {
-		return <SectionAccessDenied sectionName={sectionName} requiredPermission="Family Development Plan" />;
-	}
+	// Helper function to format date
+	const formatDate = (month: string | null, year: string | null): string => {
+		if (!month || !year) return "-";
+		return `${month} ${year}`;
+	};
 
-	// Show loading while checking access
-	if (accessLoading) {
+	// Helper function to format currency
+	const formatCurrency = (value: number | null): string => {
+		if (value === null || value === undefined) return "-";
+		return `Rs. ${value.toLocaleString()}`;
+	};
+
+	// Helper function to calculate age from DOBMonth and DOBYear
+	const calculateAge = (dobMonth: string | null, dobYear: string | null): number | null => {
+		if (!dobMonth || !dobYear) return null;
+		
+		const monthMap: { [key: string]: number } = {
+			"Jan": 0, "Feb": 1, "Mar": 2, "Apr": 3, "May": 4, "Jun": 5,
+			"Jul": 6, "Aug": 7, "Sep": 8, "Oct": 9, "Nov": 10, "Dec": 11
+		};
+		
+		const month = monthMap[dobMonth];
+		const year = parseInt(dobYear);
+		
+		if (isNaN(year) || month === undefined) return null;
+		
+		const today = new Date();
+		const birthDate = new Date(year, month, 1);
+		
+		let age = today.getFullYear() - birthDate.getFullYear();
+		const monthDiff = today.getMonth() - birthDate.getMonth();
+		
+		if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+			age--;
+		}
+		
+		return age;
+	};
+
+	if (loading) {
 		return (
 			<div className="space-y-6">
+				<div className="flex justify-between items-center">
+					<div>
+						<h1 className="text-3xl font-bold text-gray-900">Family Development Plan</h1>
+						<p className="text-gray-600 mt-2">Family Development Plan Management</p>
+					</div>
+				</div>
 				<div className="flex items-center justify-center py-12">
 					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
-					<span className="ml-3 text-gray-600">Loading...</span>
+					<span className="ml-3 text-gray-600">Loading family development plan data...</span>
+				</div>
+			</div>
+		);
+	}
+
+	if (error) {
+		return (
+			<div className="space-y-6">
+				<div className="flex justify-between items-center">
+					<div>
+						<h1 className="text-3xl font-bold text-gray-900">Family Development Plan</h1>
+						<p className="text-gray-600 mt-2">Family Development Plan Management</p>
+					</div>
+				</div>
+				<div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+					<p className="text-red-600 mb-4">{error}</p>
+					<button
+						onClick={fetchApplications}
+						className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+					>
+						Try Again
+					</button>
 				</div>
 			</div>
 		);
@@ -301,313 +333,534 @@ export default function FamilyDevelopmentPlanPage() {
 
 	return (
 		<div className="space-y-6">
-			<div>
-				<h1 className="text-3xl font-bold text-gray-900">Family Development Plan</h1>
-				<p className="text-gray-600 mt-2">Manage and track family development plans</p>
-			</div>
-			
-			{/* Data Table Section */}
-			<div className="space-y-4">
-				<div className="flex justify-between items-center">
-					<h2 className="text-2xl font-bold text-gray-900">Family Data</h2>
+			{/* Header */}
+			<div className="flex justify-between items-center">
+				<div>
+					<h1 className="text-3xl font-bold text-gray-900">Family Development Plan</h1>
+					<p className="text-gray-600 mt-2">Family Development Plan Management</p>
+				</div>
+				<div className="flex items-center gap-3">
+					<button
+						onClick={fetchApplications}
+						className="inline-flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+					>
+						<RefreshCw className="h-4 w-4" />
+						Refresh
+					</button>
 					<button
 						onClick={exportToCSV}
-						className="flex items-center gap-2 px-4 py-2 bg-[#0b4d2b] text-white rounded-md hover:bg-[#0a3d22] transition-colors"
+						className="inline-flex items-center gap-2 px-4 py-2 bg-[#0b4d2b] text-white rounded-md hover:bg-[#0a3d22] transition-colors"
 					>
 						<Download className="h-4 w-4" />
 						Export CSV
 					</button>
 				</div>
+			</div>
 
-				{error && (
-					<div className="bg-red-50 border border-red-200 rounded-lg p-4">
-						<p className="text-red-600 text-sm">{error}</p>
-					</div>
-				)}
-
-				{/* Search */}
-				<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-					<input
-						type="text"
-						placeholder="Search by Family ID, Head Name, CNIC, Program, Area, etc..."
-						value={searchTerm}
-						onChange={(e) => {
-							setSearchTerm(e.target.value);
-							setCurrentPage(1);
-						}}
-						className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-					/>
-				</div>
-
-				{/* Table */}
-				{loading ? (
-					<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-8">
-						<div className="flex items-center justify-center">
-							<div className="text-center">
-								<div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#0b4d2b]"></div>
-								<p className="mt-4 text-gray-600">Loading families...</p>
-							</div>
+			{/* Search and Filters */}
+			<div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+					{/* Search */}
+					<div className="lg:col-span-3">
+						<div className="relative">
+							<Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+							<input
+								type="text"
+								placeholder="Search by Form Number, Full Name, CNIC, Regional/Local Community..."
+								value={searchTerm}
+								onChange={(e) => setSearchTerm(e.target.value)}
+								className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#0b4d2b] focus:border-[#0b4d2b] outline-none"
+							/>
 						</div>
 					</div>
-				) : (
-					<div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-						<div className="overflow-x-auto">
-							<table className="min-w-full divide-y divide-gray-200">
-								<thead className="bg-gray-50">
-									<tr>
-										<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-										<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Family ID</th>
-										<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Program</th>
-										<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Area</th>
-										<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Regional Council</th>
-										<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Local Council</th>
-										<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jamat Khana</th>
-										<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Head Name</th>
-										<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CNIC</th>
-										<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-										<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Per Capita Income</th>
-										<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Family Member</th>
-										<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Area Type</th>
-									</tr>
-								</thead>
-								<tbody className="bg-white divide-y divide-gray-200">
-									{paginatedFamilies.length === 0 ? (
-										<tr>
-											<td colSpan={13} className="px-4 py-8 text-center text-gray-500">
-												{searchTerm ? "No families found matching your search" : "No families found"}
-											</td>
-										</tr>
-									) : (
-										paginatedFamilies.map((family, index) => {
-											const familyId = family.FAMILY_ID || "";
-											const isExpanded = expandedFamilyId === familyId;
-											const members = membersMap[familyId] || [];
-											const isLoading = loadingMembersMap[familyId] || false;
 
-											return (
-												<Fragment key={familyId || index}>
-													<tr className="hover:bg-gray-50">
+					{/* Form Number Filter */}
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-1">
+							Form Number
+						</label>
+						<input
+							type="text"
+							value={filters.formNumber}
+							onChange={(e) => handleFilterChange("formNumber", e.target.value)}
+							placeholder="Filter by Form Number"
+							className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#0b4d2b] focus:border-[#0b4d2b] outline-none"
+						/>
+					</div>
+
+					{/* Full Name Filter */}
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-1">
+							Full Name
+						</label>
+						<input
+							type="text"
+							value={filters.fullName}
+							onChange={(e) => handleFilterChange("fullName", e.target.value)}
+							placeholder="Filter by Full Name"
+							className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#0b4d2b] focus:border-[#0b4d2b] outline-none"
+						/>
+					</div>
+
+					{/* CNIC Number Filter */}
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-1">
+							CNIC Number
+						</label>
+						<input
+							type="text"
+							value={filters.cnicNumber}
+							onChange={(e) => handleFilterChange("cnicNumber", e.target.value)}
+							placeholder="Filter by CNIC Number"
+							className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#0b4d2b] focus:border-[#0b4d2b] outline-none"
+						/>
+					</div>
+
+					{/* Regional Community Filter */}
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-1">
+							Regional Community
+						</label>
+						<input
+							type="text"
+							value={filters.regionalCommunity}
+							onChange={(e) => handleFilterChange("regionalCommunity", e.target.value)}
+							placeholder="Filter by Regional Community"
+							className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#0b4d2b] focus:border-[#0b4d2b] outline-none"
+						/>
+					</div>
+
+					{/* Local Community Filter */}
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-1">
+							Local Community
+						</label>
+						<input
+							type="text"
+							value={filters.localCommunity}
+							onChange={(e) => handleFilterChange("localCommunity", e.target.value)}
+							placeholder="Filter by Local Community"
+							className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#0b4d2b] focus:border-[#0b4d2b] outline-none"
+						/>
+					</div>
+				</div>
+
+				{/* Clear Filters Button */}
+				<div className="flex justify-end">
+					<button
+						onClick={clearFilters}
+						className="px-4 py-2 text-sm text-gray-700 hover:text-gray-900 hover:underline"
+					>
+						Clear Filters
+					</button>
+				</div>
+			</div>
+
+			{/* Table */}
+			<div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+				<div className="overflow-hidden">
+					<table className="w-full divide-y divide-gray-200" style={{ tableLayout: 'fixed' }}>
+						<colgroup>
+							<col style={{ width: '8%' }} />
+							<col style={{ width: '12%' }} />
+							<col style={{ width: '10%' }} />
+							<col style={{ width: '14%' }} />
+							<col style={{ width: '6%' }} />
+							<col style={{ width: '8%' }} />
+							<col style={{ width: '8%' }} />
+							<col style={{ width: '10%' }} />
+							<col style={{ width: '24%' }} />
+						</colgroup>
+						<thead className="bg-gray-50">
+							<tr>
+								<th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+									Form #
+								</th>
+								<th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+									Full Name
+								</th>
+								<th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+									CNIC
+								</th>
+								<th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+									Regional / Local
+								</th>
+								<th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+									Members
+								</th>
+								<th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+									Area
+								</th>
+								<th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+									Income
+								</th>
+								<th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+									Max Support
+								</th>
+								<th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+									Actions
+								</th>
+							</tr>
+						</thead>
+						<tbody className="bg-white divide-y divide-gray-200">
+							{filteredApplications.length === 0 ? (
+								<tr>
+									<td colSpan={9} className="px-6 py-12 text-center text-gray-500">
+										No records found
+									</td>
+								</tr>
+							) : (
+								filteredApplications.map((app, index) => (
+									<tr key={index} className="hover:bg-gray-50">
+										<td className="px-2 py-2 text-xs font-medium text-gray-900 truncate" title={app.FormNumber || "-"}>
+											{app.FormNumber || "-"}
+										</td>
+										<td className="px-2 py-2 text-xs text-gray-900 truncate" title={app.Full_Name || "-"}>
+											{app.Full_Name || "-"}
+										</td>
+										<td className="px-2 py-2 text-xs text-gray-700 truncate" title={app.CNICNumber || "-"}>
+											{app.CNICNumber || "-"}
+										</td>
+										<td className="px-2 py-2 text-xs text-gray-700 truncate" title={`${app.RegionalCommunity || "-"} / ${app.LocalCommunity || "-"}`}>
+											{app.RegionalCommunity || "-"} / {app.LocalCommunity || "-"}
+										</td>
+										<td className="px-2 py-2 text-xs font-semibold text-gray-900 text-center">
+											{app.TotalFamilyMembers !== null ? app.TotalFamilyMembers : 0}
+										</td>
+										<td className="px-2 py-2 text-xs text-gray-700 truncate" title={app.Area_Type || "-"}>
+											{app.Area_Type || "-"}
+										</td>
+										<td className="px-2 py-2 text-xs font-semibold text-gray-900 truncate" title={app.IncomeLevel || "-"}>
+											{app.IncomeLevel || "-"}
+										</td>
+										<td className="px-2 py-2 text-xs font-semibold text-gray-900 truncate" title={app.MaxSocialSupport && app.MaxSocialSupport > 0 ? `PKR ${app.MaxSocialSupport.toLocaleString()}` : "-"}>
+											{app.MaxSocialSupport && app.MaxSocialSupport > 0 
+												? `PKR ${app.MaxSocialSupport.toLocaleString()}` 
+												: "-"}
+										</td>
+										<td className="px-2 py-2 text-xs">
+											<div className="flex items-center gap-1 flex-wrap">
+												<button
+													onClick={() => app.FormNumber && fetchFamilyMembers(app.FormNumber)}
+													disabled={loadingMembers || !app.FormNumber}
+													className="inline-flex items-center gap-1 px-2 py-1 bg-[#0b4d2b] text-white rounded text-xs hover:bg-[#0a3d22] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+													title="Show Members"
+												>
+													<Eye className="h-3 w-3" />
+													<span>Show Members</span>
+												</button>
+												<button
+													onClick={() => app.FormNumber && router.push(`/dashboard/family-development-plan/planned-self-sufficiency?formNumber=${encodeURIComponent(app.FormNumber)}`)}
+													disabled={!app.FormNumber}
+													className="inline-flex items-center gap-1 px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+													title="Planned Self-Sufficiency Status"
+												>
+													<Eye className="h-3 w-3" />
+													<span>PSS</span>
+												</button>
+												<button
+													onClick={() => app.FormNumber && router.push(`/dashboard/family-development-plan/view-fdp?formNumber=${encodeURIComponent(app.FormNumber)}`)}
+													disabled={!app.FormNumber}
+													className="inline-flex items-center gap-1 px-2 py-1 bg-purple-600 text-white rounded text-xs hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+													title="View FDP"
+												>
+													<Eye className="h-3 w-3" />
+													<span>View FDP</span>
+												</button>
+											</div>
+										</td>
+									</tr>
+								))
+							)}
+						</tbody>
+					</table>
+				</div>
+
+				{/* Pagination */}
+				{totalPages > 1 && (
+					<div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+						<div className="text-sm text-gray-700">
+							Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalRecords)} of {totalRecords} results
+						</div>
+						<div className="flex items-center gap-2">
+							<button
+								onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+								disabled={currentPage === 1}
+								className="px-3 py-1 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+							>
+								Previous
+							</button>
+							<span className="text-sm text-gray-700">
+								Page {currentPage} of {totalPages}
+							</span>
+							<button
+								onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+								disabled={currentPage === totalPages}
+								className="px-3 py-1 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+							>
+								Next
+							</button>
+						</div>
+					</div>
+				)}
+			</div>
+
+			{/* Family Members Modal */}
+			{showMembersModal && (
+				<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+					<div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+						{/* Modal Header */}
+						<div className="flex justify-between items-center px-6 py-4 border-b border-gray-200">
+							<div>
+								<h2 className="text-2xl font-bold text-gray-900">Family Members</h2>
+								<p className="text-sm text-gray-600 mt-1">Form Number: {selectedFormNumber}</p>
+							</div>
+							<button
+								onClick={closeMembersModal}
+								className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+							>
+								<X className="h-5 w-5 text-gray-500" />
+							</button>
+						</div>
+
+						{/* Modal Body */}
+						<div className="flex-1 overflow-y-auto p-6">
+							{loadingMembers ? (
+								<div className="flex items-center justify-center py-12">
+									<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
+									<span className="ml-3 text-gray-600">Loading family members...</span>
+								</div>
+							) : familyMembers.length === 0 ? (
+								<div className="text-center py-12 text-gray-500">
+									No family members found for this form number.
+								</div>
+							) : (
+								<div className="overflow-x-auto">
+									<table className="min-w-full divide-y divide-gray-200">
+										<thead className="bg-gray-50">
+											<tr>
+												<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+													Member No
+												</th>
+												<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+													Full Name
+												</th>
+												<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+													B-Form/CNIC
+												</th>
+												<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+													Relationship
+												</th>
+												<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+													Gender
+												</th>
+												<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+													Date of Birth
+												</th>
+												<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+													Monthly Income
+												</th>
+												<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+													Actions
+												</th>
+											</tr>
+										</thead>
+										<tbody className="bg-white divide-y divide-gray-200">
+											{familyMembers.map((member, index) => {
+												// Check if this is the first member (Self, -01)
+												const isSelf = member.MemberNo?.endsWith("-01") || member.Relationship?.toLowerCase() === "self";
+												
+												// Calculate age from Date of Birth
+												const age = calculateAge(member.DOBMonth, member.DOBYear);
+												const isAdult = age !== null && age >= 18;
+												
+												// Hide all buttons if Income Level is "Level +1" or "Level 0"
+												const hideAllButtons = selectedFamilyIncomeLevel === "Level +1" || selectedFamilyIncomeLevel === "Level 0";
+												
+												return (
+													<tr key={index} className="hover:bg-gray-50">
+														<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+															{member.MemberNo || "-"}
+														</td>
+														<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+															{member.FullName || "-"}
+														</td>
+														<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
+															{member.BFormOrCNIC || "-"}
+														</td>
+														<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
+															{member.Relationship || "-"}
+														</td>
+														<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
+															{member.Gender || "-"}
+														</td>
+														<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
+															{formatDate(member.DOBMonth, member.DOBYear)}
+														</td>
+														<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
+															{formatCurrency(member.MonthlyIncome)}
+														</td>
 														<td className="px-4 py-3 whitespace-nowrap text-sm">
-															<button
-																onClick={() => familyId && fetchFamilyMembers(familyId)}
-																disabled={isLoading || !familyId}
-																className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium ${
-																	isExpanded
-																		? "bg-gray-600 text-white hover:bg-gray-700"
-																		: "bg-[#0b4d2b] text-white hover:bg-[#0a3d22]"
-																}`}
-															>
-																<Users className="h-3 w-3" />
-																{isExpanded ? "Hide Members" : "Show Members"}
-															</button>
-														</td>
-														<td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
-															{familyId || "N/A"}
-														</td>
-														<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-															{family.PROGRAM || "N/A"}
-														</td>
-														<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-															{family.AREA || "N/A"}
-														</td>
-														<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-															{family.REGIONAL_COUNCIL || "N/A"}
-														</td>
-														<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-															{family.LOCAL_COUNCIL || "N/A"}
-														</td>
-														<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-															{family.JAMAT_KHANA || "N/A"}
-														</td>
-														<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-															{family.HEAD_NAME || "N/A"}
-														</td>
-														<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-															{family.CNIC || "N/A"}
-														</td>
-														<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-															{family.CONTACT || "N/A"}
-														</td>
-														<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-															{family.PER_CAPITA_INCOME ? family.PER_CAPITA_INCOME.toLocaleString() : "N/A"}
-														</td>
-														<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-															{family.TOTAL_FAMILY_MEMBER || "N/A"}
-														</td>
-														<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-															{family.AREA_TYPE || "N/A"}
+															<div className="flex flex-wrap gap-2">
+																{hideAllButtons ? (
+																	<span className="text-xs text-gray-500 italic">No support available (Income Level {selectedFamilyIncomeLevel})</span>
+																) : (
+																	<>
+																		{/* Feasibility Study - Show only if age >= 18 */}
+																		{isAdult && (
+																			<button
+																		onClick={() => {
+																			// Navigate to Feasibility Study page
+																			const params = new URLSearchParams({
+																				formNumber: selectedFormNumber || "",
+																				memberNo: member.MemberNo || "",
+																			});
+																			if (member.FullName) {
+																				params.append("memberName", member.FullName);
+																			}
+																				router.push(`/dashboard/family-development-plan/feasibility-study?${params.toString()}`);
+																			}}
+																			className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
+																		>
+																			Feasibility Study
+																		</button>
+																		)}
+																		{/* FDP Economic - Show only if age >= 18 */}
+																		{isAdult && (
+																			<button
+																		onClick={() => {
+																			// Navigate to FDP Economic page
+																			const params = new URLSearchParams({
+																				formNumber: selectedFormNumber || "",
+																				memberNo: member.MemberNo || "",
+																			});
+																			if (member.FullName) {
+																				params.append("memberName", member.FullName);
+																			}
+																				router.push(`/dashboard/family-development-plan/fdp-economic?${params.toString()}`);
+																			}}
+																			className="px-3 py-1.5 bg-green-600 text-white text-xs rounded-md hover:bg-green-700 transition-colors"
+																		>
+																			FDP Economic
+																		</button>
+																		)}
+																		{/* Education Support - Show only if age < 18 */}
+																		{!isAdult && (
+																			<button
+																		onClick={() => {
+																			// Navigate to Education Support page
+																			const params = new URLSearchParams({
+																				formNumber: selectedFormNumber || "",
+																				memberNo: member.MemberNo || "",
+																			});
+																			if (member.FullName) {
+																				params.append("memberName", member.FullName);
+																			}
+																				router.push(`/dashboard/family-development-plan/education-support?${params.toString()}`);
+																			}}
+																			className="px-3 py-1.5 bg-purple-600 text-white text-xs rounded-md hover:bg-purple-700 transition-colors"
+																		>
+																			Education Support
+																		</button>
+																		)}
+																		<button
+																			onClick={() => {
+																				// Navigate to Health Support page
+																				const params = new URLSearchParams({
+																					formNumber: selectedFormNumber || "",
+																					memberNo: member.MemberNo || "",
+																				});
+																				if (member.FullName) {
+																					params.append("memberName", member.FullName);
+																				}
+																				router.push(`/dashboard/family-development-plan/health-support?${params.toString()}`);
+																			}}
+																			className="px-3 py-1.5 bg-red-600 text-white text-xs rounded-md hover:bg-red-700 transition-colors"
+																		>
+																			Health Support
+																		</button>
+																		{isSelf && (
+																			<>
+																				{/* Housing Support - Show only for Urban and Peri-Urban */}
+																				{(selectedFamilyAreaType === "Urban" || selectedFamilyAreaType === "Peri-Urban") && (
+																					<button
+																						onClick={() => {
+																							// Navigate to Housing Support page (family level, only for -01, Urban/Peri-Urban)
+																							const params = new URLSearchParams({
+																								formNumber: selectedFormNumber || "",
+																								memberNo: member.MemberNo || "",
+																							});
+																							if (member.FullName) {
+																								params.append("memberName", member.FullName);
+																							}
+																							router.push(`/dashboard/family-development-plan/housing-support?${params.toString()}`);
+																						}}
+																						className="px-3 py-1.5 bg-orange-600 text-white text-xs rounded-md hover:bg-orange-700 transition-colors"
+																					>
+																						Housing Support
+																					</button>
+																				)}
+																				{/* Food Support - Show only for Poverty Levels -3 and -4 */}
+																				{(selectedFamilyIncomeLevel === "Level -3" || selectedFamilyIncomeLevel === "Level -4") && (
+																					<button
+																						onClick={() => {
+																							// Navigate to Food Support page (family level, only for -01, Poverty Levels -3 and -4)
+																							const params = new URLSearchParams({
+																								formNumber: selectedFormNumber || "",
+																								memberNo: member.MemberNo || "",
+																							});
+																							if (member.FullName) {
+																								params.append("memberName", member.FullName);
+																							}
+																							router.push(`/dashboard/family-development-plan/food-support?${params.toString()}`);
+																						}}
+																						className="px-3 py-1.5 bg-yellow-600 text-white text-xs rounded-md hover:bg-yellow-700 transition-colors"
+																					>
+																						Food Support
+																					</button>
+																				)}
+																			</>
+																		)}
+																	</>
+																)}
+															</div>
 														</td>
 													</tr>
-													{/* Expanded Members Row */}
-													{isExpanded && (
-														<tr>
-															<td colSpan={13} className="px-0 py-0 bg-gray-50">
-																<div className="p-4">
-																	<div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-																		<div className="px-4 py-3 bg-gray-100 border-b border-gray-200">
-																			<h3 className="text-lg font-semibold text-gray-900">
-																				Family Members - {familyId}
-																			</h3>
-																		</div>
-																		{isLoading ? (
-																			<div className="flex items-center justify-center py-8">
-																				<div className="text-center">
-																					<div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
-																					<p className="mt-2 text-sm text-gray-600">Loading members...</p>
-																				</div>
-																			</div>
-																		) : members.length === 0 ? (
-																			<div className="text-center py-8 text-gray-500">
-																				No members found for this family.
-																			</div>
-																		) : (
-																			<div className="overflow-x-auto">
-																				<table className="min-w-full divide-y divide-gray-200">
-																					<thead className="bg-gray-50">
-																						<tr>
-																							<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Member ID</th>
-																							<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Full Name</th>
-																							<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CNIC</th>
-																							<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Relation</th>
-																							<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gender</th>
-																							<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Age</th>
-																							<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Marital Status</th>
-																							<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Occupation</th>
-																							<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Education</th>
-																							<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Highest Qualification</th>
-																							<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Earning Source</th>
-																							<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Monthly Income</th>
-																						</tr>
-																					</thead>
-																					<tbody className="bg-white divide-y divide-gray-200">
-																						{members.map((member, memberIndex) => (
-																							<tr key={member.MEMBER_ID || memberIndex} className="hover:bg-gray-50">
-																								<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-																									{member.MEMBER_ID || "N/A"}
-																								</td>
-																								<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-																									{member.FULL_NAME || "N/A"}
-																								</td>
-																								<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-																									{member.CNIC || "N/A"}
-																								</td>
-																								<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-																									{member.RELATION || "N/A"}
-																								</td>
-																								<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-																									{member.GENDER || "N/A"}
-																								</td>
-																								<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-																									{member.AGE || "N/A"}
-																								</td>
-																								<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-																									{member.MARITAL_STATUS || "N/A"}
-																								</td>
-																								<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-																									{member.OCCUPATION || "N/A"}
-																								</td>
-																								<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-																									{member.CURRENT_EDUCATION || "N/A"}
-																								</td>
-																								<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-																									{member.HIGHEST_QLF || "N/A"}
-																								</td>
-																								<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-																									{member.EARNING_SOURCE || "N/A"}
-																								</td>
-																								<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-																									{member.MONTHLY_INCOME ? member.MONTHLY_INCOME.toLocaleString() : "N/A"}
-																								</td>
-																							</tr>
-																						))}
-																					</tbody>
-																				</table>
-																			</div>
-																		)}
-																	</div>
-																</div>
-															</td>
-														</tr>
-													)}
-												</Fragment>
-											);
-										})
-									)}
-								</tbody>
-							</table>
+												);
+											})}
+										</tbody>
+									</table>
+								</div>
+							)}
 						</div>
 
-						{/* Pagination */}
-						{totalPages > 1 && (
-							<div className="bg-gray-50 px-4 py-3 border-t border-gray-200">
-								<div className="flex items-center justify-between">
-									<div className="text-sm text-gray-700">
-										Showing <span className="font-medium">{startIndex + 1}</span> to{" "}
-										<span className="font-medium">
-											{Math.min(startIndex + itemsPerPage, filteredFamilies.length)}
-										</span>{" "}
-										of <span className="font-medium">{filteredFamilies.length}</span> results
-									</div>
-									<nav className="flex gap-2">
-										<button
-											onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-											disabled={currentPage === 1}
-											className="px-3 py-1 text-sm border border-gray-300 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
-										>
-											Previous
-										</button>
-										<button
-											onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-											disabled={currentPage === totalPages}
-											className="px-3 py-1 text-sm border border-gray-300 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
-										>
-											Next
-										</button>
-									</nav>
-								</div>
-							</div>
-						)}
-					</div>
-				)}
-			</div>
-
-			{/* Tabs Section Below Gridview */}
-			<div className="bg-white rounded-lg border border-gray-200 shadow-sm">
-				{/* Tabs Navigation */}
-				<div className="border-b border-gray-200 bg-gray-50">
-					<nav className="flex -mb-px overflow-x-auto">
-						{TAB_MENU_ITEMS.map((item) => (
+						{/* Modal Footer */}
+						<div className="px-6 py-4 border-t border-gray-200 flex justify-end">
 							<button
-								key={item.id}
-								onClick={() => setActiveTab(item.id)}
-								className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-									activeTab === item.id
-										? "border-[#0b4d2b] text-[#0b4d2b] bg-white"
-										: "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 hover:bg-gray-100"
-								}`}
+								onClick={closeMembersModal}
+								className="px-6 py-2 bg-[#0b4d2b] text-white rounded-md hover:bg-[#0a3d22] transition-colors"
 							>
-								{item.title}
+								Close
 							</button>
-						))}
-					</nav>
+						</div>
+					</div>
 				</div>
-
-				{/* Tab Content */}
-				<div className="p-6">
-					{TAB_MENU_ITEMS.map((item) => (
-						activeTab === item.id && (
-							<div key={item.id}>
-								<h3 className="text-lg font-semibold text-gray-900 mb-4">{item.title}</h3>
-								<div className="text-gray-600">
-									<p>Content for {item.title} will be displayed here.</p>
-								</div>
-							</div>
-						)
-					))}
-				</div>
-			</div>
-
+			)}
 		</div>
 	);
 }
 
+export default function FamilyDevelopmentPlanPage() {
+	return (
+		<Suspense
+			fallback={
+				<div className="flex items-center justify-center min-h-[60vh]">
+					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
+					<span className="ml-3 text-gray-600">Loading...</span>
+				</div>
+			}
+		>
+			<FamilyDevelopmentPlanPageContent />
+		</Suspense>
+	);
+}

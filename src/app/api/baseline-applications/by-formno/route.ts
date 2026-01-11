@@ -1,7 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPeDb } from "@/lib/db";
+import sql from "mssql";
 
 export const maxDuration = 120;
+
+// Helper function to find the correct table name
+async function findTableName(pool: sql.ConnectionPool): Promise<string> {
+	try {
+		const tableCheckQuery = `
+			SELECT TABLE_NAME
+			FROM INFORMATION_SCHEMA.TABLES
+			WHERE TABLE_SCHEMA = 'dbo'
+			AND (
+				TABLE_NAME = 'PE_Application_BasicInfo' 
+				OR TABLE_NAME = 'PE_ApplicationBasicInfo'
+				OR TABLE_NAME LIKE '%Application%Basic%'
+			)
+			ORDER BY 
+				CASE 
+					WHEN TABLE_NAME = 'PE_Application_BasicInfo' THEN 1
+					WHEN TABLE_NAME = 'PE_ApplicationBasicInfo' THEN 2
+					ELSE 3
+				END
+		`;
+		const tableCheckResult = await pool.request().query(tableCheckQuery);
+		
+		if (tableCheckResult.recordset.length > 0) {
+			return tableCheckResult.recordset[0].TABLE_NAME;
+		}
+	} catch (tableCheckError) {
+		console.error("Error checking table name:", tableCheckError);
+	}
+	
+	return "PE_Application_BasicInfo";
+}
 
 export async function GET(request: NextRequest) {
 	try {
@@ -16,17 +48,57 @@ export async function GET(request: NextRequest) {
 		}
 
 		const pool = await getPeDb();
+		const tableName = await findTableName(pool);
 
-		// Get application data from PE_ApplicationPerson
+		// Get application data from PE_Application_BasicInfo
 		const applicationRequest = pool.request();
 		applicationRequest.input("formNo", formNo);
 		const applicationQuery = `
 			SELECT TOP 1
-				[FormNo],
-				[TotalFamilyMembers],
-				[Remarks]
-			FROM [SJDA_Users].[dbo].[PE_ApplicationPerson]
-			WHERE [FormNo] = @formNo
+				[FormNumber],
+				[ApplicationDate],
+				[ReceivedByName],
+				[ReceivedByDate],
+				[Full_Name],
+				[DateOfBirth],
+				[CNICNumber],
+				[MotherTongue],
+				[ResidentialAddress],
+				[PrimaryContactNumber],
+				[SecondaryContactNumber],
+				[RegionalCommunity],
+				[LocalCommunity],
+				[CurrentCommunityCenter],
+				[PrimaryLocationSettlement],
+				[AreaOfOrigin],
+				[CreatedAt],
+				[UpdatedAt],
+				[HouseOwnershipStatus],
+				[HealthInsuranceProgram],
+				[MonthlyIncome_Remittance],
+				[MonthlyIncome_Rental],
+				[MonthlyIncome_OtherSources],
+				[Status],
+				[CurrentLevel],
+				[SubmittedAt],
+				[SubmittedBy],
+				[Locked],
+				[Land_Barren_Kanal],
+				[Land_Barren_Value_Rs],
+				[Land_Agriculture_Kanal],
+				[Land_Agriculture_Value_Rs],
+				[Livestock_Number],
+				[Livestock_Value_Rs],
+				[Fruit_Trees_Number],
+				[Fruit_Trees_Value_Rs],
+				[Vehicles_4W_Number],
+				[Vehicles_4W_Value_Rs],
+				[Motorcycle_2W_Number],
+				[Motorcycle_2W_Value_Rs],
+				[Intake_family_Income],
+				[Area_Type]
+			FROM [SJDA_Users].[dbo].[${tableName}]
+			WHERE [FormNumber] = @formNo
 		`;
 		const applicationResult = await applicationRequest.query(applicationQuery);
 		const applicationData = applicationResult.recordset[0];
@@ -38,140 +110,143 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		// Create application object without ApplicationId
+		// Create application object without ApplicationId (for backward compatibility)
 		const application = {
 			ApplicationId: null,
-			FormNo: applicationData.FormNo,
-			TotalFamilyMembers: applicationData.TotalFamilyMembers,
-			Remarks: applicationData.Remarks,
-			CreatedAt: null,
+			FormNo: applicationData.FormNumber,
+			TotalFamilyMembers: null, // Not in new table structure
+			Remarks: null, // Not in new table structure
+			CreatedAt: applicationData.CreatedAt,
+			UpdatedAt: applicationData.UpdatedAt,
 			CreatedBy: null
 		};
 
-		// Get family heads with lookup values - match using FormNo
-		const familyHeadsRequest = pool.request();
-		familyHeadsRequest.input("formNo", formNo);
-		const familyHeadsQuery = `
-			SELECT 
-				[FormNo],
-				[PersonRole],
-				[FullName],
-				[CNICNo],
-				[MotherTongue],
-				[ResidentialAddress],
-				[PrimaryContactNo],
-				[RegionalCouncil],
-				[LocalCouncil],
-				[CurrentJK],
-				[PrimaryLocationSettlement],
-				[AreaOfOrigin],
-				[HouseStatusName]
-			FROM [SJDA_Users].[dbo].[PE_ApplicationPerson]
-			WHERE [FormNo] = @formNo
-		`;
-		const familyHeadsResult = await familyHeadsRequest.query(familyHeadsQuery);
-		// Add ApplicationId as null since PE_Application doesn't exist
-		const familyHeads = (familyHeadsResult.recordset || []).map((head: any) => ({
-			...head,
-			ApplicationId: null
-		}));
+		// Map the basic info record to a family head structure (for backward compatibility)
+		// The new table structure has all info in one record, so we'll treat it as a single family head
+		const familyHeads = [{
+			FormNo: applicationData.FormNumber,
+			ApplicationId: null,
+			PersonRole: "Head",
+			FullName: applicationData.Full_Name,
+			CNICNo: applicationData.CNICNumber,
+			MotherTongue: applicationData.MotherTongue,
+			ResidentialAddress: applicationData.ResidentialAddress,
+			PrimaryContactNo: applicationData.PrimaryContactNumber,
+			SecondaryContactNumber: applicationData.SecondaryContactNumber,
+			RegionalCouncil: applicationData.RegionalCommunity,
+			LocalCouncil: applicationData.LocalCommunity,
+			CurrentJK: applicationData.CurrentCommunityCenter,
+			PrimaryLocationSettlement: applicationData.PrimaryLocationSettlement,
+			AreaOfOrigin: applicationData.AreaOfOrigin,
+			HouseStatusName: applicationData.HouseOwnershipStatus || null,
+			// Additional fields from consolidated table
+			ApplicationDate: applicationData.ApplicationDate,
+			ReceivedByName: applicationData.ReceivedByName,
+			ReceivedByDate: applicationData.ReceivedByDate,
+			DateOfBirth: applicationData.DateOfBirth,
+			HealthInsuranceProgram: applicationData.HealthInsuranceProgram,
+			MonthlyIncome_Remittance: applicationData.MonthlyIncome_Remittance,
+			MonthlyIncome_Rental: applicationData.MonthlyIncome_Rental,
+			MonthlyIncome_OtherSources: applicationData.MonthlyIncome_OtherSources,
+			Intake_family_Income: applicationData.Intake_family_Income,
+			Area_Type: applicationData.Area_Type,
+			Status: applicationData.Status,
+			CurrentLevel: applicationData.CurrentLevel,
+			SubmittedAt: applicationData.SubmittedAt,
+			SubmittedBy: applicationData.SubmittedBy,
+			Locked: applicationData.Locked,
+			// Financial Assets
+			Land_Barren_Kanal: applicationData.Land_Barren_Kanal,
+			Land_Barren_Value_Rs: applicationData.Land_Barren_Value_Rs,
+			Land_Agriculture_Kanal: applicationData.Land_Agriculture_Kanal,
+			Land_Agriculture_Value_Rs: applicationData.Land_Agriculture_Value_Rs,
+			Livestock_Number: applicationData.Livestock_Number,
+			Livestock_Value_Rs: applicationData.Livestock_Value_Rs,
+			Fruit_Trees_Number: applicationData.Fruit_Trees_Number,
+			Fruit_Trees_Value_Rs: applicationData.Fruit_Trees_Value_Rs,
+			Vehicles_4W_Number: applicationData.Vehicles_4W_Number,
+			Vehicles_4W_Value_Rs: applicationData.Vehicles_4W_Value_Rs,
+			Motorcycle_2W_Number: applicationData.Motorcycle_2W_Number,
+			Motorcycle_2W_Value_Rs: applicationData.Motorcycle_2W_Value_Rs,
+		}];
 
-		// Get family members with lookup values - match using FormNo
+		// Get family members - all fields are in PE_FamilyMember table
 		const familyMembersRequest = pool.request();
 		familyMembersRequest.input("formNo", formNo);
+		
 		const familyMembersQuery = `
 			SELECT 
-				fm.[FormNo],
-				fm.[MemberNo],
-				fm.[FullName],
-				fm.[BFormOrCNIC],
-				fm.[RelationshipId],
-				rel.[RelationshipName],
-				fm.[RelationshipOther],
-				fm.[GenderId],
-				gen.[GenderName],
-				fm.[MaritalStatusId],
-				ms.[MaritalStatusName],
-				fm.[DOBMonth],
-				fm.[DOBYear],
-				fm.[OccupationId],
-				occ.[OccupationName],
-				fm.[OccupationOther],
-				fm.[PrimaryLocation],
-				fm.[IsPrimaryEarner]
-			FROM [SJDA_Users].[dbo].[PE_FamilyMember] fm
-			LEFT JOIN [SJDA_Users].[dbo].[PE_LU_Relationship] rel ON fm.[RelationshipId] = rel.[RelationshipId]
-			LEFT JOIN [SJDA_Users].[dbo].[PE_LU_Gender] gen ON fm.[GenderId] = gen.[GenderId]
-			LEFT JOIN [SJDA_Users].[dbo].[PE_LU_MaritalStatus] ms ON fm.[MaritalStatusId] = ms.[MaritalStatusId]
-			LEFT JOIN [SJDA_Users].[dbo].[PE_LU_PrimaryOccupation] occ ON fm.[OccupationId] = occ.[OccupationId]
-			WHERE fm.[FormNo] = @formNo
-			ORDER BY fm.[MemberNo]
+				[FormNo],
+				[MemberNo],
+				[FullName],
+				[BFormOrCNIC],
+				[Relationship] as RelationshipId,
+				[Relationship] as RelationshipName,
+				[Gender] as GenderId,
+				[Gender] as GenderName,
+				[MaritalStatus] as MaritalStatusId,
+				[MaritalStatus] as MaritalStatusName,
+				[DOBMonth],
+				[DOBYear],
+				[Occupation] as OccupationId,
+				[Occupation] as OccupationName,
+				[PrimaryLocation],
+				[IsPrimaryEarner],
+				[IsCurrentlyStudying],
+				[InstitutionType],
+				[CurrentClass],
+				[HighestQualification],
+				[IsCurrentlyEarning],
+				[EarningSource],
+				[SalariedWorkSector],
+				[WorkField],
+				[MonthlyIncome],
+				[JoblessDuration],
+				[ReasonNotEarning]
+			FROM [SJDA_Users].[dbo].[PE_FamilyMember]
+			WHERE [FormNo] = @formNo
+			ORDER BY [MemberNo]
 		`;
+		
 		const familyMembersResult = await familyMembersRequest.query(familyMembersQuery);
-		// Add ApplicationId as null since PE_Application doesn't exist
-		const familyMembers = (familyMembersResult.recordset || []).map((member: any) => ({
-			...member,
-			ApplicationId: null
+		
+		// Map the results to include education and livelihood as nested objects for backward compatibility
+		const enrichedFamilyMembers = (familyMembersResult.recordset || []).map((member: any) => ({
+			ApplicationId: null,
+			FormNo: member.FormNo,
+			MemberNo: member.MemberNo,
+			FullName: member.FullName,
+			BFormOrCNIC: member.BFormOrCNIC,
+			RelationshipId: member.RelationshipId || member.Relationship,
+			RelationshipName: member.RelationshipName || member.Relationship,
+			GenderId: member.GenderId || member.Gender,
+			GenderName: member.GenderName || member.Gender,
+			MaritalStatusId: member.MaritalStatusId || member.MaritalStatus,
+			MaritalStatusName: member.MaritalStatusName || member.MaritalStatus,
+			DOBMonth: member.DOBMonth,
+			DOBYear: member.DOBYear,
+			OccupationId: member.OccupationId || member.Occupation,
+			OccupationName: member.OccupationName || member.Occupation,
+			PrimaryLocation: member.PrimaryLocation,
+			IsPrimaryEarner: member.IsPrimaryEarner,
+			education: {
+				EducationID: null,
+				IsCurrentlyStudying: member.IsCurrentlyStudying,
+				InstitutionType: member.InstitutionType,
+				CurrentClass: member.CurrentClass,
+				HighestQualification: member.HighestQualification,
+			},
+			livelihood: {
+				LivelihoodID: null,
+				IsCurrentlyEarning: member.IsCurrentlyEarning,
+				EarningSource: member.EarningSource,
+				SalariedWorkSector: member.SalariedWorkSector,
+				WorkField: member.WorkField,
+				MonthlyIncome: member.MonthlyIncome,
+				JoblessDuration: member.JoblessDuration,
+				ReasonNotEarning: member.ReasonNotEarning,
+			},
 		}));
-
-		// Get education and livelihood data for each family member
-		// Since PE_Application doesn't exist, we'll use FormNo to match education and livelihood records
-		const enrichedFamilyMembers = await Promise.all(
-			familyMembers.map(async (member: any) => {
-				// Get education data - try to match by MemberNo and FormNo
-				const memberNo = member.MemberNo || "";
-				const educationRequest = pool.request();
-				educationRequest.input("formNo", formNo);
-				educationRequest.input("memberNo", memberNo);
-				const educationQuery = `
-					SELECT 
-						[EducationID],
-						[IsCurrentlyStudying],
-						[InstitutionType],
-						[InstitutionTypeOther],
-						[CurrentClass],
-						[CurrentClassOther],
-						[LastFormalQualification],
-						[LastFormalQualificationOther],
-						[HighestQualification],
-						[HighestQualificationOther]
-					FROM [SJDA_Users].[dbo].[PE_Education]
-					WHERE [MemberNo] = @memberNo
-				`;
-				const educationResult = await educationRequest.query(educationQuery);
-				const education = educationResult.recordset[0] || null;
-
-				// Get livelihood data - try to match by MemberNo and FormNo
-				const livelihoodRequest = pool.request();
-				livelihoodRequest.input("formNo", formNo);
-				livelihoodRequest.input("memberNo", memberNo);
-				const livelihoodQuery = `
-					SELECT 
-						[LivelihoodID],
-						[IsCurrentlyEarning],
-						[EarningSource],
-						[EarningSourceOther],
-						[SalariedWorkSector],
-						[SalariedWorkSectorOther],
-						[WorkField],
-						[WorkFieldOther],
-						[MonthlyIncome],
-						[JoblessDuration],
-						[ReasonNotEarning],
-						[ReasonNotEarningOther]
-					FROM [SJDA_Users].[dbo].[PE_Livelihood]
-					WHERE [MemberNo] = @memberNo
-				`;
-				const livelihoodResult = await livelihoodRequest.query(livelihoodQuery);
-				const livelihood = livelihoodResult.recordset[0] || null;
-
-				return {
-					...member,
-					education,
-					livelihood,
-				};
-			})
-		);
 
 		return NextResponse.json({
 			success: true,

@@ -1,290 +1,237 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { ArrowLeft, Plus, Edit2, Trash2, Save, X } from "lucide-react";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ArrowLeft, Loader2, FileText, Search } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
-type LocationHierarchy = {
-	LocationId: number;
-	RC: string;
-	LC: string;
-	JK: string;
+type BasicInfo = {
+	FormNumber: string;
+	ApplicationDate: string;
+	ReceivedByName: string;
+	ReceivedByDate: string;
+	Full_Name: string;
+	DateOfBirth: string;
+	CNICNumber: string;
+	MotherTongue: string;
+	ResidentialAddress: string;
+	PrimaryContactNumber: string;
+	SecondaryContactNumber: string;
+	RegionalCommunity: string;
+	LocalCommunity: string;
+	CurrentCommunityCenter: string;
+	PrimaryLocationSettlement: string;
+	AreaOfOrigin: string;
+	HouseOwnershipStatus: string;
+	HealthInsuranceProgram: string;
+	MonthlyIncome_Remittance: number | null;
+	MonthlyIncome_Rental: number | null;
+	MonthlyIncome_OtherSources: number | null;
+	// Financial Assets fields (now in same table)
+	Land_Barren_Kanal: number | string | null;
+	Land_Barren_Value_Rs: number | null;
+	Land_Agriculture_Kanal: number | string | null;
+	Land_Agriculture_Value_Rs: number | null;
+	Livestock_Number: number | string | null;
+	Livestock_Value_Rs: number | null;
+	Fruit_Trees_Number: number | string | null;
+	Fruit_Trees_Value_Rs: number | null;
+	Vehicles_4W_Number: number | string | null;
+	Vehicles_4W_Value_Rs: number | null;
+	Motorcycle_2W_Number: number | string | null;
+	Motorcycle_2W_Value_Rs: number | null;
+	Status: string | null;
+	CurrentLevel: string | null;
+	SubmittedAt: string | null;
+	SubmittedBy: string | null;
+	Locked: boolean | null;
+	CreatedAt: string;
+	UpdatedAt: string;
 };
 
-type LocationFormData = {
-	RC: string;
-	LC: string;
-	JK: string;
+type FinancialAssets = {
+	Family_ID: string;
+	Land_Barren_Kanal: number | null;
+	Land_Barren_Value_Rs: number | null;
+	Land_Agriculture_Kanal: number | null;
+	Land_Agriculture_Value_Rs: number | null;
+	Livestock_Number: number | null;
+	Livestock_Value_Rs: number | null;
+	Fruit_Trees_Number: number | null;
+	Fruit_Trees_Value_Rs: number | null;
+	Vehicles_4W_Number: number | null;
+	Vehicles_4W_Value_Rs: number | null;
+	Motorcycle_2W_Number: number | null;
+	Motorcycle_2W_Value_Rs: number | null;
+	Entry_Date: string;
+	Updated_Date: string;
 };
 
-export default function AddValuesPage() {
+type FamilyMember = {
+	FormNo: string;
+	MemberNo: string;
+	FullName: string;
+	BFormOrCNIC: string;
+	RelationshipId: number;
+	RelationshipOther: string | null;
+	GenderId: number;
+	MaritalStatusId: number;
+	DOBMonth: string;
+	DOBYear: string;
+	OccupationId: number | null;
+	OccupationOther: string | null;
+	PrimaryLocation: string;
+	IsPrimaryEarner: boolean | null;
+};
+
+function AddValuesPageContent() {
 	const router = useRouter();
+	const searchParams = useSearchParams();
 	const { userProfile } = useAuth();
-	const [locations, setLocations] = useState<LocationHierarchy[]>([]);
-	const [loading, setLoading] = useState(true);
-	const [saving, setSaving] = useState(false);
+	const [formNumber, setFormNumber] = useState<string>("");
+	const [basicInfo, setBasicInfo] = useState<BasicInfo | null>(null);
+	const [financialAssets, setFinancialAssets] = useState<FinancialAssets | null>(null);
+	const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
+	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
-	const [success, setSuccess] = useState<string | null>(null);
-	const [editingId, setEditingId] = useState<number | null>(null);
-	const [isSuperUser, setIsSuperUser] = useState(false);
-	const [checkingAccess, setCheckingAccess] = useState(true);
-	const [formData, setFormData] = useState<LocationFormData>({
-		RC: "",
-		LC: "",
-		JK: "",
-	});
-	const [editFormData, setEditFormData] = useState<LocationFormData>({
-		RC: "",
-		LC: "",
-		JK: "",
-	});
 
-	// Check if user is Super User
 	useEffect(() => {
-		if (typeof window === "undefined") return;
-		
-		// Check from userProfile first
-		if (userProfile?.supper_user !== null && userProfile?.supper_user !== undefined) {
-			const su = userProfile.supper_user;
-			const isSu =
-				su === 1 ||
-				su === "1" ||
-				su === true ||
-				su === "true" ||
-				su === "Yes" ||
-				su === "yes";
-			setIsSuperUser(isSu);
-			setCheckingAccess(false);
-			return;
+		const formNo = searchParams.get("formNo");
+		if (formNo) {
+			setFormNumber(formNo);
+			fetchData(formNo);
 		}
+	}, [searchParams]);
 
-		// Fallback to localStorage
+	const fetchData = async (formNo: string) => {
+		setLoading(true);
+		setError(null);
+
 		try {
-			const stored = localStorage.getItem("userData");
-			if (stored) {
-				const parsed = JSON.parse(stored);
-				const su = parsed.super_user;
-				const isSu =
-					su === 1 ||
-					su === "1" ||
-					su === true ||
-					su === "true" ||
-					su === "Yes" ||
-					su === "yes";
-				setIsSuperUser(isSu);
+			// Fetch Basic Info (now includes financial assets)
+			const basicInfoResponse = await fetch(`/api/baseline-applications/basic-info?formNumber=${encodeURIComponent(formNo)}`);
+			const basicInfoData = await basicInfoResponse.json();
+			
+			if (basicInfoData.success && basicInfoData.data) {
+				setBasicInfo(basicInfoData.data);
+				// Financial assets are now part of basicInfo, so set them from there
+				if (basicInfoData.data) {
+					setFinancialAssets({
+						Family_ID: basicInfoData.data.FormNumber,
+						Land_Barren_Kanal: basicInfoData.data.Land_Barren_Kanal,
+						Land_Barren_Value_Rs: basicInfoData.data.Land_Barren_Value_Rs,
+						Land_Agriculture_Kanal: basicInfoData.data.Land_Agriculture_Kanal,
+						Land_Agriculture_Value_Rs: basicInfoData.data.Land_Agriculture_Value_Rs,
+						Livestock_Number: basicInfoData.data.Livestock_Number,
+						Livestock_Value_Rs: basicInfoData.data.Livestock_Value_Rs,
+						Fruit_Trees_Number: basicInfoData.data.Fruit_Trees_Number,
+						Fruit_Trees_Value_Rs: basicInfoData.data.Fruit_Trees_Value_Rs,
+						Vehicles_4W_Number: basicInfoData.data.Vehicles_4W_Number,
+						Vehicles_4W_Value_Rs: basicInfoData.data.Vehicles_4W_Value_Rs,
+						Motorcycle_2W_Number: basicInfoData.data.Motorcycle_2W_Number,
+						Motorcycle_2W_Value_Rs: basicInfoData.data.Motorcycle_2W_Value_Rs,
+						Entry_Date: basicInfoData.data.CreatedAt || "",
+						Updated_Date: basicInfoData.data.UpdatedAt || "",
+					});
+				}
 			}
-		} catch {
-			// ignore localStorage errors
-		} finally {
-			setCheckingAccess(false);
-		}
-	}, [userProfile]);
 
-	useEffect(() => {
-		if (!checkingAccess && isSuperUser) {
-			fetchLocations();
-		}
-	}, [checkingAccess, isSuperUser]);
-
-	const fetchLocations = async () => {
-		try {
-			setLoading(true);
-			setError(null);
-			const response = await fetch("/api/location-hierarchy");
-			const data = await response.json();
-
-			if (data.success) {
-				setLocations(data.data || []);
-			} else {
-				setError(data.message || "Failed to fetch location hierarchy");
+			// Fetch Family Members
+			const membersResponse = await fetch(`/api/baseline-applications/family-members-data?formNumber=${encodeURIComponent(formNo)}`);
+			const membersData = await membersResponse.json();
+			
+			if (membersData.success && membersData.data) {
+				setFamilyMembers(membersData.data);
 			}
 		} catch (err: any) {
-			console.error("Error fetching locations:", err);
-			setError(err.message || "Error fetching location hierarchy");
+			console.error("Error fetching data:", err);
+			setError(err.message || "Failed to fetch data");
 		} finally {
 			setLoading(false);
 		}
 	};
 
-	const handleInputChange = (field: keyof LocationFormData, value: string) => {
-		setFormData((prev) => ({ ...prev, [field]: value }));
+	const handleSearch = () => {
+		if (formNumber.trim()) {
+			fetchData(formNumber.trim());
+		} else {
+			setError("Please enter a Form Number");
+		}
 	};
 
-	const handleEditInputChange = (field: keyof LocationFormData, value: string) => {
-		setEditFormData((prev) => ({ ...prev, [field]: value }));
-	};
-
-	const handleSubmit = async (e: React.FormEvent) => {
-		e.preventDefault();
-		setSaving(true);
-		setError(null);
-		setSuccess(null);
-
+	const formatDate = (dateString: string | null) => {
+		if (!dateString) return "N/A";
 		try {
-			if (!formData.RC || !formData.LC || !formData.JK) {
-				setError("All fields are required");
-				setSaving(false);
-				return;
-			}
-
-			const response = await fetch("/api/location-hierarchy", {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify(formData),
-			});
-
-			const data = await response.json();
-
-			if (data.success) {
-				setSuccess("Location hierarchy added successfully");
-				setFormData({ RC: "", LC: "", JK: "" });
-				fetchLocations();
-				setTimeout(() => setSuccess(null), 3000);
-			} else {
-				setError(data.message || "Failed to add location hierarchy");
-			}
-		} catch (err: any) {
-			console.error("Error adding location:", err);
-			setError(err.message || "Error adding location hierarchy");
-		} finally {
-			setSaving(false);
+			const date = new Date(dateString);
+			return date.toLocaleDateString();
+		} catch {
+			return dateString;
 		}
 	};
 
-	const handleEdit = (location: LocationHierarchy) => {
-		setEditingId(location.LocationId);
-		setEditFormData({
-			RC: location.RC,
-			LC: location.LC,
-			JK: location.JK,
-		});
+	const formatCurrency = (value: number | null) => {
+		if (value === null || value === undefined) return "N/A";
+		return `Rs. ${value.toLocaleString()}`;
 	};
 
-	const handleUpdate = async (locationId: number) => {
-		setSaving(true);
-		setError(null);
-		setSuccess(null);
-
-		try {
-			if (!editFormData.RC || !editFormData.LC || !editFormData.JK) {
-				setError("All fields are required");
-				setSaving(false);
-				return;
-			}
-
-			const response = await fetch("/api/location-hierarchy", {
-				method: "PUT",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify({
-					LocationId: locationId,
-					...editFormData,
-				}),
-			});
-
-			const data = await response.json();
-
-			if (data.success) {
-				setSuccess("Location hierarchy updated successfully");
-				setEditingId(null);
-				fetchLocations();
-				setTimeout(() => setSuccess(null), 3000);
-			} else {
-				setError(data.message || "Failed to update location hierarchy");
-			}
-		} catch (err: any) {
-			console.error("Error updating location:", err);
-			setError(err.message || "Error updating location hierarchy");
-		} finally {
-			setSaving(false);
-		}
+	const getRelationshipName = (id: number) => {
+		const relationships: { [key: number]: string } = {
+			1: "Self",
+			2: "Spouse (husband / wife)",
+			3: "Child",
+			4: "Parent",
+			5: "Sibling (sister / brother)",
+			6: "Stepchild (son / daughter)",
+			7: "Grandparent",
+			8: "Niece / nephew",
+			9: "Grandchild",
+			10: "Brother-in-law / sister-in-law",
+			11: "Daughter-in-law / son-in-law",
+			12: "Stepmother / father",
+			13: "Uncle / Aunt",
+			98: "Others",
+		};
+		return relationships[id] || `Unknown (${id})`;
 	};
 
-	const handleCancelEdit = () => {
-		setEditingId(null);
-		setEditFormData({ RC: "", LC: "", JK: "" });
+	const getGenderName = (id: number) => {
+		return id === 1 ? "Male" : id === 2 ? "Female" : `Unknown (${id})`;
 	};
 
-	const handleDelete = async (locationId: number) => {
-		if (!confirm("Are you sure you want to delete this location hierarchy?")) {
-			return;
-		}
-
-		setSaving(true);
-		setError(null);
-		setSuccess(null);
-
-		try {
-			const response = await fetch(`/api/location-hierarchy?locationId=${locationId}`, {
-				method: "DELETE",
-			});
-
-			const data = await response.json();
-
-			if (data.success) {
-				setSuccess("Location hierarchy deleted successfully");
-				fetchLocations();
-				setTimeout(() => setSuccess(null), 3000);
-			} else {
-				setError(data.message || "Failed to delete location hierarchy");
-			}
-		} catch (err: any) {
-			console.error("Error deleting location:", err);
-			setError(err.message || "Error deleting location hierarchy");
-		} finally {
-			setSaving(false);
-		}
+	const getMaritalStatusName = (id: number) => {
+		const statuses: { [key: number]: string } = {
+			1: "Single (never married)",
+			2: "Married",
+			3: "Separated (not divorced)",
+			4: "Divorced",
+			5: "Widow",
+			6: "Widower",
+		};
+		return statuses[id] || `Unknown (${id})`;
 	};
 
-	if (checkingAccess) {
+	const getOccupationName = (id: number | null) => {
+		if (!id) return "N/A";
+		const occupations: { [key: number]: string } = {
+			1: "Salaried (employment)",
+			2: "Business",
+			3: "Self-employed",
+			4: "Agriculture-Live Stock",
+			5: "Student",
+			6: "Unemployed",
+			7: "Home maker",
+			8: "Retired",
+			98: "Others",
+		};
+		return occupations[id] || `Unknown (${id})`;
+	};
+
+	if (loading && !basicInfo) {
 		return (
 			<div className="space-y-6">
 				<div className="flex items-center justify-center py-12">
-					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
-					<span className="ml-3 text-gray-600">Checking access...</span>
-				</div>
-			</div>
-		);
-	}
-
-	if (!isSuperUser) {
-		return (
-			<div className="space-y-6">
-				<div className="bg-red-50 border border-red-200 rounded-lg p-8 text-center">
-					<div className="max-w-md mx-auto">
-						<h2 className="text-2xl font-bold text-red-800 mb-4">Access Denied</h2>
-						<p className="text-red-600 mb-6">
-							You don't have permission to access this page.
-						</p>
-						<p className="text-sm text-red-500 mb-6">
-							This action requires Super User level access. Please contact your administrator if you believe this is an error.
-						</p>
-						<p className="text-xs text-gray-500 mb-6">
-							Restricted to Super User users only
-						</p>
-						<button
-							onClick={() => router.push("/dashboard/baseline-qol")}
-							className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
-						>
-							<ArrowLeft className="h-4 w-4" />
-							Back to QOL
-						</button>
-					</div>
-				</div>
-			</div>
-		);
-	}
-
-	if (loading) {
-		return (
-			<div className="space-y-6">
-				<div className="flex items-center justify-center py-12">
-					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
-					<span className="ml-3 text-gray-600">Loading...</span>
+					<Loader2 className="h-8 w-8 animate-spin text-[#0b4d2b]" />
+					<span className="ml-3 text-gray-600">Loading data...</span>
 				</div>
 			</div>
 		);
@@ -295,8 +242,8 @@ export default function AddValuesPage() {
 			{/* Header */}
 			<div className="flex items-center justify-between">
 				<div>
-					<h1 className="text-3xl font-bold text-gray-900">Add Values</h1>
-					<p className="text-gray-600 mt-2">Manage Regional Council, Local Council, and Jamat Khana</p>
+					<h1 className="text-3xl font-bold text-gray-900">Baseline Application Details</h1>
+					<p className="text-gray-600 mt-2">View family information, assets, and family members</p>
 				</div>
 				<button
 					onClick={() => router.push("/dashboard/baseline-qol")}
@@ -307,204 +254,307 @@ export default function AddValuesPage() {
 				</button>
 			</div>
 
-			{/* Success/Error Messages */}
-			{success && (
-				<div className="bg-green-50 border border-green-200 rounded-lg p-4">
-					<p className="text-green-800">{success}</p>
+			{/* Search Form */}
+			<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+				<div className="flex items-end gap-4">
+					<div className="flex-1">
+						<label className="block text-sm font-medium text-gray-700 mb-2">
+							Form Number
+						</label>
+						<input
+							type="text"
+							value={formNumber}
+							onChange={(e) => setFormNumber(e.target.value)}
+							onKeyPress={(e) => e.key === "Enter" && handleSearch()}
+							placeholder="Enter Form Number (e.g., PE-00001)"
+							className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+						/>
+					</div>
+					<button
+						onClick={handleSearch}
+						disabled={loading}
+						className="inline-flex items-center gap-2 px-6 py-2 bg-[#0b4d2b] text-white rounded-md hover:bg-[#0a3d22] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+					>
+						<Search className="h-4 w-4" />
+						{loading ? "Searching..." : "Search"}
+					</button>
 				</div>
-			)}
+			</div>
+
+			{/* Error Message */}
 			{error && (
 				<div className="bg-red-50 border border-red-200 rounded-lg p-4">
 					<p className="text-red-800">{error}</p>
 				</div>
 			)}
 
-			{/* Add Form */}
+			{/* Basic Information */}
+			{basicInfo && (
 			<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
-				<h2 className="text-xl font-bold text-gray-900 mb-6">Add New Location Hierarchy</h2>
-				<form onSubmit={handleSubmit} className="space-y-4">
-					<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+					<h2 className="text-xl font-bold text-gray-900 mb-6">Family Information (PE_Application_BasicInfo)</h2>
+					<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 						<div>
-							<label className="block text-sm font-medium text-gray-700 mb-2">
-								Regional Council (RC) <span className="text-red-500">*</span>
-							</label>
-							<input
-								type="text"
-								value={formData.RC}
-								onChange={(e) => handleInputChange("RC", e.target.value)}
-								required
-								className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-								placeholder="Enter Regional Council"
-							/>
+							<label className="block text-sm font-medium text-gray-700 mb-1">Form Number</label>
+							<p className="text-sm text-gray-900 font-semibold">{basicInfo.FormNumber}</p>
 						</div>
 						<div>
-							<label className="block text-sm font-medium text-gray-700 mb-2">
-								Local Council (LC) <span className="text-red-500">*</span>
-							</label>
-							<input
-								type="text"
-								value={formData.LC}
-								onChange={(e) => handleInputChange("LC", e.target.value)}
-								required
-								className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-								placeholder="Enter Local Council"
-							/>
+							<label className="block text-sm font-medium text-gray-700 mb-1">Application Date</label>
+							<p className="text-sm text-gray-900">{formatDate(basicInfo.ApplicationDate)}</p>
 						</div>
 						<div>
-							<label className="block text-sm font-medium text-gray-700 mb-2">
-								Jamat Khana (JK) <span className="text-red-500">*</span>
-							</label>
-							<input
-								type="text"
-								value={formData.JK}
-								onChange={(e) => handleInputChange("JK", e.target.value)}
-								required
-								className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-								placeholder="Enter Jamat Khana"
-							/>
+							<label className="block text-sm font-medium text-gray-700 mb-1">Received By Name</label>
+							<p className="text-sm text-gray-900">{basicInfo.ReceivedByName || "N/A"}</p>
 						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-1">Received By Date</label>
+							<p className="text-sm text-gray-900">{formatDate(basicInfo.ReceivedByDate)}</p>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+							<p className="text-sm text-gray-900">{basicInfo.Full_Name}</p>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
+							<p className="text-sm text-gray-900">{formatDate(basicInfo.DateOfBirth)}</p>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-1">CNIC Number</label>
+							<p className="text-sm text-gray-900">{basicInfo.CNICNumber || "N/A"}</p>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-1">Mother Tongue</label>
+							<p className="text-sm text-gray-900">{basicInfo.MotherTongue || "N/A"}</p>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-1">Residential Address</label>
+							<p className="text-sm text-gray-900">{basicInfo.ResidentialAddress || "N/A"}</p>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-1">Primary Contact Number</label>
+							<p className="text-sm text-gray-900">{basicInfo.PrimaryContactNumber || "N/A"}</p>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-1">Secondary Contact Number</label>
+							<p className="text-sm text-gray-900">{basicInfo.SecondaryContactNumber || "N/A"}</p>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-1">Regional Community</label>
+							<p className="text-sm text-gray-900">{basicInfo.RegionalCommunity || "N/A"}</p>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-1">Local Community</label>
+							<p className="text-sm text-gray-900">{basicInfo.LocalCommunity || "N/A"}</p>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-1">Current Community Center</label>
+							<p className="text-sm text-gray-900">{basicInfo.CurrentCommunityCenter || "N/A"}</p>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-1">Primary Location Settlement</label>
+							<p className="text-sm text-gray-900">{basicInfo.PrimaryLocationSettlement || "N/A"}</p>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-1">Area of Origin</label>
+							<p className="text-sm text-gray-900">{basicInfo.AreaOfOrigin || "N/A"}</p>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-1">House Ownership Status</label>
+							<p className="text-sm text-gray-900">{basicInfo.HouseOwnershipStatus || "N/A"}</p>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-1">Health Insurance Program</label>
+							<p className="text-sm text-gray-900">{basicInfo.HealthInsuranceProgram || "N/A"}</p>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-1">Monthly Income - Remittance</label>
+							<p className="text-sm text-gray-900">{formatCurrency(basicInfo.MonthlyIncome_Remittance)}</p>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-1">Monthly Income - Rental</label>
+							<p className="text-sm text-gray-900">{formatCurrency(basicInfo.MonthlyIncome_Rental)}</p>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-1">Monthly Income - Other Sources</label>
+							<p className="text-sm text-gray-900">{formatCurrency(basicInfo.MonthlyIncome_OtherSources)}</p>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-1">Created At</label>
+							<p className="text-sm text-gray-900">{formatDate(basicInfo.CreatedAt)}</p>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-1">Updated At</label>
+							<p className="text-sm text-gray-900">{formatDate(basicInfo.UpdatedAt)}</p>
+						</div>
+						{basicInfo.Status && (
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+								<p className="text-sm text-gray-900">{basicInfo.Status}</p>
+							</div>
+						)}
+						{basicInfo.CurrentLevel && (
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1">Current Level</label>
+								<p className="text-sm text-gray-900">{basicInfo.CurrentLevel}</p>
+							</div>
+						)}
+						{basicInfo.SubmittedAt && (
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1">Submitted At</label>
+								<p className="text-sm text-gray-900">{formatDate(basicInfo.SubmittedAt)}</p>
+							</div>
+						)}
+						{basicInfo.SubmittedBy && (
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1">Submitted By</label>
+								<p className="text-sm text-gray-900">{basicInfo.SubmittedBy}</p>
+							</div>
+						)}
+						{basicInfo.Locked !== null && (
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1">Locked</label>
+								<p className="text-sm text-gray-900">{basicInfo.Locked ? "Yes" : "No"}</p>
+							</div>
+						)}
 					</div>
-					<div className="flex justify-end">
-						<button
-							type="submit"
-							disabled={saving}
-							className="inline-flex items-center gap-2 px-4 py-2 bg-[#0b4d2b] text-white rounded-md hover:bg-[#0a3d22] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-						>
-							<Plus className="h-4 w-4" />
-							{saving ? "Adding..." : "Add Location"}
-						</button>
-					</div>
-				</form>
-			</div>
-
-			{/* Locations Table */}
-			<div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-				<div className="px-6 py-4 border-b border-gray-200">
-					<h2 className="text-xl font-bold text-gray-900">Location Hierarchy List</h2>
 				</div>
+			)}
+
+			{/* Financial Assets */}
+			{financialAssets && (
+				<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+					<h2 className="text-xl font-bold text-gray-900 mb-6">Financial Assets (PE_Application_BasicInfo)</h2>
+					<div className="overflow-x-auto">
+						<table className="min-w-full border border-gray-300">
+							<thead className="bg-gray-50">
+								<tr>
+									<th className="border border-gray-300 px-4 py-3 text-left text-sm font-medium text-gray-700">Particulars</th>
+									<th className="border border-gray-300 px-4 py-3 text-left text-sm font-medium text-gray-700">Number/Kanal</th>
+									<th className="border border-gray-300 px-4 py-3 text-left text-sm font-medium text-gray-700">Approx. Value (Rs.)</th>
+								</tr>
+							</thead>
+							<tbody className="bg-white">
+								<tr>
+									<td className="border border-gray-300 px-4 py-2 text-sm text-gray-700">Land-Barren (Kanal)</td>
+									<td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">{financialAssets.Land_Barren_Kanal || "N/A"}</td>
+									<td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">{formatCurrency(financialAssets.Land_Barren_Value_Rs)}</td>
+								</tr>
+								<tr>
+									<td className="border border-gray-300 px-4 py-2 text-sm text-gray-700">Land-Agriculture (Kanal)</td>
+									<td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">{financialAssets.Land_Agriculture_Kanal || "N/A"}</td>
+									<td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">{formatCurrency(financialAssets.Land_Agriculture_Value_Rs)}</td>
+								</tr>
+								<tr>
+									<td className="border border-gray-300 px-4 py-2 text-sm text-gray-700">Livestock</td>
+									<td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">{financialAssets.Livestock_Number || "N/A"}</td>
+									<td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">{formatCurrency(financialAssets.Livestock_Value_Rs)}</td>
+								</tr>
+								<tr>
+									<td className="border border-gray-300 px-4 py-2 text-sm text-gray-700">Fruit Trees</td>
+									<td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">{financialAssets.Fruit_Trees_Number || "N/A"}</td>
+									<td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">{formatCurrency(financialAssets.Fruit_Trees_Value_Rs)}</td>
+								</tr>
+								<tr>
+									<td className="border border-gray-300 px-4 py-2 text-sm text-gray-700">Vehicles (4-wheeler)</td>
+									<td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">{financialAssets.Vehicles_4W_Number || "N/A"}</td>
+									<td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">{formatCurrency(financialAssets.Vehicles_4W_Value_Rs)}</td>
+								</tr>
+								<tr>
+									<td className="border border-gray-300 px-4 py-2 text-sm text-gray-700">Motorcycle (2-wheeler)</td>
+									<td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">{financialAssets.Motorcycle_2W_Number || "N/A"}</td>
+									<td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">{formatCurrency(financialAssets.Motorcycle_2W_Value_Rs)}</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
+					<div className="mt-4 text-sm text-gray-600">
+						<p><strong>Entry Date:</strong> {formatDate(financialAssets.Entry_Date)}</p>
+						<p><strong>Updated Date:</strong> {formatDate(financialAssets.Updated_Date)}</p>
+			</div>
+				</div>
+			)}
+
+			{/* Family Members */}
+			{familyMembers.length > 0 && (
+				<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+					<h2 className="text-xl font-bold text-gray-900 mb-6">Family Members (PE_FamilyMember)</h2>
 				<div className="overflow-x-auto">
-					<table className="min-w-full divide-y divide-gray-200">
+						<table className="min-w-full border border-gray-300">
 						<thead className="bg-gray-50">
 							<tr>
-								<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									Location ID
-								</th>
-								<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									Regional Council (RC)
-								</th>
-								<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									Local Council (LC)
-								</th>
-								<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									Jamat Khana (JK)
-								</th>
-								<th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-									Actions
-								</th>
+									<th className="border border-gray-300 px-4 py-3 text-left text-sm font-medium text-gray-700">Member No</th>
+									<th className="border border-gray-300 px-4 py-3 text-left text-sm font-medium text-gray-700">Full Name</th>
+									<th className="border border-gray-300 px-4 py-3 text-left text-sm font-medium text-gray-700">Relationship</th>
+									<th className="border border-gray-300 px-4 py-3 text-left text-sm font-medium text-gray-700">Gender</th>
+									<th className="border border-gray-300 px-4 py-3 text-left text-sm font-medium text-gray-700">Marital Status</th>
+									<th className="border border-gray-300 px-4 py-3 text-left text-sm font-medium text-gray-700">Date of Birth</th>
+									<th className="border border-gray-300 px-4 py-3 text-left text-sm font-medium text-gray-700">CNIC/B-form</th>
+									<th className="border border-gray-300 px-4 py-3 text-left text-sm font-medium text-gray-700">Occupation</th>
+									<th className="border border-gray-300 px-4 py-3 text-left text-sm font-medium text-gray-700">Primary Location</th>
+									<th className="border border-gray-300 px-4 py-3 text-left text-sm font-medium text-gray-700">Primary Earner</th>
 							</tr>
 						</thead>
 						<tbody className="bg-white divide-y divide-gray-200">
-							{locations.length === 0 ? (
-								<tr>
-									<td colSpan={5} className="px-6 py-8 text-center text-gray-500">
-										No location hierarchy records found
+								{familyMembers.map((member, index) => (
+									<tr key={index} className="hover:bg-gray-50">
+										<td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">{member.MemberNo}</td>
+										<td className="border border-gray-300 px-4 py-2 text-sm text-gray-900 font-medium">{member.FullName}</td>
+										<td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">
+											{getRelationshipName(member.RelationshipId)}
+											{member.RelationshipOther && ` (${member.RelationshipOther})`}
 									</td>
-								</tr>
-							) : (
-								locations.map((location) => (
-									<tr key={location.LocationId} className="hover:bg-gray-50">
-										{editingId === location.LocationId ? (
-											<>
-												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
-													{location.LocationId}
+										<td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">{getGenderName(member.GenderId)}</td>
+										<td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">{getMaritalStatusName(member.MaritalStatusId)}</td>
+										<td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">
+											{member.DOBMonth && member.DOBYear ? `${member.DOBMonth}/${member.DOBYear}` : "N/A"}
 												</td>
-												<td className="px-6 py-4 whitespace-nowrap">
-													<input
-														type="text"
-														value={editFormData.RC}
-														onChange={(e) => handleEditInputChange("RC", e.target.value)}
-														className="w-full rounded-md border border-gray-300 px-3 py-1 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-													/>
+										<td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">{member.BFormOrCNIC || "N/A"}</td>
+										<td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">
+											{getOccupationName(member.OccupationId)}
+											{member.OccupationOther && ` (${member.OccupationOther})`}
 												</td>
-												<td className="px-6 py-4 whitespace-nowrap">
-													<input
-														type="text"
-														value={editFormData.LC}
-														onChange={(e) => handleEditInputChange("LC", e.target.value)}
-														className="w-full rounded-md border border-gray-300 px-3 py-1 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-													/>
+										<td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">{member.PrimaryLocation || "N/A"}</td>
+										<td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">
+											{member.IsPrimaryEarner ? (
+												<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+													Yes
+												</span>
+											) : (
+												<span className="text-gray-500">No</span>
+											)}
 												</td>
-												<td className="px-6 py-4 whitespace-nowrap">
-													<input
-														type="text"
-														value={editFormData.JK}
-														onChange={(e) => handleEditInputChange("JK", e.target.value)}
-														className="w-full rounded-md border border-gray-300 px-3 py-1 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-													/>
-												</td>
-												<td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-													<div className="flex justify-end gap-2">
-														<button
-															onClick={() => handleUpdate(location.LocationId)}
-															disabled={saving}
-															className="inline-flex items-center gap-1 px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-														>
-															<Save className="h-3 w-3" />
-															Save
-														</button>
-														<button
-															onClick={handleCancelEdit}
-															disabled={saving}
-															className="inline-flex items-center gap-1 px-3 py-1 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-														>
-															<X className="h-3 w-3" />
-															Cancel
-														</button>
-													</div>
-												</td>
-											</>
-										) : (
-											<>
-												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
-													{location.LocationId}
-												</td>
-												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-													{location.RC}
-												</td>
-												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-													{location.LC}
-												</td>
-												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-													{location.JK}
-												</td>
-												<td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-													<div className="flex justify-end gap-2">
-														<button
-															onClick={() => handleEdit(location)}
-															className="inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-														>
-															<Edit2 className="h-3 w-3" />
-															Edit
-														</button>
-														<button
-															onClick={() => handleDelete(location.LocationId)}
-															disabled={saving}
-															className="inline-flex items-center gap-1 px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-														>
-															<Trash2 className="h-3 w-3" />
-															Delete
-														</button>
-													</div>
-												</td>
-											</>
-										)}
 									</tr>
-								))
-							)}
+								))}
 						</tbody>
 					</table>
+					</div>
+					<div className="mt-4 text-sm text-gray-600">
+						<p><strong>Total Members:</strong> {familyMembers.length}</p>
+					</div>
+				</div>
+			)}
+
+			{/* No Data Message */}
+			{!loading && !basicInfo && !financialAssets && familyMembers.length === 0 && formNumber && (
+				<div className="bg-yellow-50 border border-yellow-200 rounded-lg p-8 text-center">
+					<p className="text-yellow-800">No data found for Form Number: <strong>{formNumber}</strong></p>
+					<p className="text-sm text-yellow-600 mt-2">Please check the Form Number and try again.</p>
+			</div>
+			)}
+		</div>
+	);
+}
+
+export default function AddValuesPage() {
+	return (
+		<Suspense fallback={
+			<div className="space-y-6">
+				<div className="flex items-center justify-center py-12">
+					<Loader2 className="h-8 w-8 animate-spin text-[#0b4d2b]" />
+					<span className="ml-3 text-gray-600">Loading...</span>
 				</div>
 			</div>
-		</div>
+		}>
+			<AddValuesPageContent />
+		</Suspense>
 	);
 }

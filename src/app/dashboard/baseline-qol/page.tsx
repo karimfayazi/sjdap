@@ -11,10 +11,7 @@ type BaselineApplication = {
 	FormNo: string | null;
 	PersonRole: string | null;
 	CNICNo: string | null;
-	MotherTongue: string | null;
-	ResidentialAddress: string | null;
 	PrimaryContactNo: string | null;
-	CurrentJK: string | null;
 	LocalCouncil: string | null;
 	PrimaryLocationSettlement: string | null;
 	AreaOfOrigin: string | null;
@@ -39,10 +36,13 @@ export default function BaselineQOLPage() {
 		formNo: "",
 		cnicNo: "",
 		primaryContactNo: "",
-		currentJK: "",
 		localCouncil: "",
 		fullName: "",
 		regionalCouncil: "",
+		createdDate: "",
+		createdTime: "",
+		updatedDate: "",
+		updatedTime: "",
 	});
 	const [deleteConfirm, setDeleteConfirm] = useState<{
 		show: boolean;
@@ -53,6 +53,7 @@ export default function BaselineQOLPage() {
 	});
 	const [deleting, setDeleting] = useState(false);
 	const [isSuperUser, setIsSuperUser] = useState(false);
+	const [loadAll, setLoadAll] = useState(false);
 	const itemsPerPage = 50;
 
 	// Check if user is Super User
@@ -93,24 +94,33 @@ export default function BaselineQOLPage() {
 		}
 	}, [userProfile]);
 
-	const fetchApplications = async () => {
+	const fetchApplications = async (fetchAll: boolean = false) => {
 		try {
 			setLoading(true);
 			setError(null);
 			
-			const params = new URLSearchParams({
-				page: currentPage.toString(),
-				limit: itemsPerPage.toString(),
-			});
+			const params = new URLSearchParams();
+
+			// If fetching all, use a very large limit, otherwise use pagination
+			if (fetchAll || loadAll) {
+				params.append("page", "1");
+				params.append("limit", "999999"); // Very large number to get all records
+			} else {
+				params.append("page", currentPage.toString());
+				params.append("limit", itemsPerPage.toString());
+			}
 
 			// Add filter parameters
 			if (filters.formNo) params.append("formNo", filters.formNo);
 			if (filters.cnicNo) params.append("cnicNo", filters.cnicNo);
 			if (filters.primaryContactNo) params.append("primaryContactNo", filters.primaryContactNo);
-			if (filters.currentJK) params.append("currentJK", filters.currentJK);
 			if (filters.localCouncil) params.append("localCouncil", filters.localCouncil);
 			if (filters.fullName) params.append("fullName", filters.fullName);
 			if (filters.regionalCouncil) params.append("regionalCouncil", filters.regionalCouncil);
+			if (filters.createdDate) params.append("createdDate", filters.createdDate);
+			if (filters.createdTime) params.append("createdTime", filters.createdTime);
+			if (filters.updatedDate) params.append("updatedDate", filters.updatedDate);
+			if (filters.updatedTime) params.append("updatedTime", filters.updatedTime);
 
 			const response = await fetch(`/api/baseline-applications?${params.toString()}`);
 			const data = await response.json();
@@ -119,19 +129,20 @@ export default function BaselineQOLPage() {
 				setApplications(data.data || []);
 				setTotalRecords(data.total || 0);
 			} else {
-				setError(data.message || "Failed to fetch applications");
+				setError(data.message || "Failed to fetch baseline applications");
 			}
 		} catch (err: any) {
 			console.error("Error fetching baseline applications:", err);
-			setError(err.message || "Error fetching applications");
+			setError(err.message || "Error fetching baseline applications");
 		} finally {
 			setLoading(false);
 		}
 	};
 
 	useEffect(() => {
-		fetchApplications();
-	}, [currentPage, filters]);
+		fetchApplications(loadAll);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [currentPage, filters, loadAll]);
 
 	const handleFilterChange = (key: string, value: string) => {
 		setFilters((prev) => ({ ...prev, [key]: value }));
@@ -143,10 +154,13 @@ export default function BaselineQOLPage() {
 			formNo: "",
 			cnicNo: "",
 			primaryContactNo: "",
-			currentJK: "",
 			localCouncil: "",
 			fullName: "",
 			regionalCouncil: "",
+			createdDate: "",
+			createdTime: "",
+			updatedDate: "",
+			updatedTime: "",
 		});
 		setCurrentPage(1);
 	};
@@ -186,34 +200,51 @@ export default function BaselineQOLPage() {
 		setDeleteConfirm({ show: false, formNo: null });
 	};
 
-	const exportToCSV = () => {
+	const exportToCSV = async () => {
 		try {
-			if (applications.length === 0) {
+			// Fetch all applications for export
+			setLoading(true);
+			const params = new URLSearchParams({
+				page: "1",
+				limit: "999999", // Very large number to get all records
+			});
+
+			// Add filter parameters if any are set
+			if (filters.formNo) params.append("formNo", filters.formNo);
+			if (filters.cnicNo) params.append("cnicNo", filters.cnicNo);
+			if (filters.primaryContactNo) params.append("primaryContactNo", filters.primaryContactNo);
+			if (filters.localCouncil) params.append("localCouncil", filters.localCouncil);
+			if (filters.fullName) params.append("fullName", filters.fullName);
+			if (filters.regionalCouncil) params.append("regionalCouncil", filters.regionalCouncil);
+			if (filters.createdDate) params.append("createdDate", filters.createdDate);
+			if (filters.createdTime) params.append("createdTime", filters.createdTime);
+			if (filters.updatedDate) params.append("updatedDate", filters.updatedDate);
+			if (filters.updatedTime) params.append("updatedTime", filters.updatedTime);
+
+			const response = await fetch(`/api/baseline-applications?${params.toString()}`);
+			const data = await response.json();
+
+			if (!data.success || !data.data || data.data.length === 0) {
 				alert("No data to export");
+				setLoading(false);
 				return;
 			}
 
+			const allApplications = data.data;
+
 			const headers = [
 				"FormNo",
-				"PersonRole",
 				"CNICNo",
-				"MotherTongue",
-				"ResidentialAddress",
 				"PrimaryContactNo",
-				"CurrentJK",
 				"LocalCouncil",
-				"PrimaryLocationSettlement",
-				"AreaOfOrigin",
 				"FullName",
 				"RegionalCouncil",
-				"HouseStatusName",
 				"TotalFamilyMembers",
-				"Remarks",
 			];
 			const csvRows = [];
 			csvRows.push(headers.join(","));
 
-			applications.forEach((app) => {
+			allApplications.forEach((app: BaselineApplication) => {
 				const row = headers.map((header) => {
 					const value = app[header as keyof BaselineApplication];
 					if (value === null || value === undefined) return "";
@@ -236,7 +267,7 @@ export default function BaselineQOLPage() {
 			
 			const date = new Date();
 			const dateStr = date.toISOString().split('T')[0];
-			link.setAttribute("download", `QOL_Applications_${dateStr}.csv`);
+			link.setAttribute("download", `Baseline_Applications_${dateStr}.csv`);
 			
 			link.style.visibility = "hidden";
 			document.body.appendChild(link);
@@ -244,9 +275,16 @@ export default function BaselineQOLPage() {
 			document.body.removeChild(link);
 			
 			setTimeout(() => URL.revokeObjectURL(url), 100);
+			
+			// Refresh the current view after export
+			if (!loadAll) {
+				await fetchApplications();
+			}
 		} catch (error) {
 			console.error("Export error:", error);
 			alert("Failed to export data. Please try again.");
+		} finally {
+			setLoading(false);
 		}
 	};
 
@@ -255,20 +293,12 @@ export default function BaselineQOLPage() {
 		const search = searchTerm.toLowerCase();
 		return (
 			(app.FormNo && String(app.FormNo).toLowerCase().includes(search)) ||
-			(app.PersonRole && String(app.PersonRole).toLowerCase().includes(search)) ||
 			(app.CNICNo && String(app.CNICNo).toLowerCase().includes(search)) ||
-			(app.MotherTongue && String(app.MotherTongue).toLowerCase().includes(search)) ||
-			(app.ResidentialAddress && String(app.ResidentialAddress).toLowerCase().includes(search)) ||
 			(app.PrimaryContactNo && String(app.PrimaryContactNo).toLowerCase().includes(search)) ||
-			(app.CurrentJK && String(app.CurrentJK).toLowerCase().includes(search)) ||
 			(app.LocalCouncil && String(app.LocalCouncil).toLowerCase().includes(search)) ||
-			(app.PrimaryLocationSettlement && String(app.PrimaryLocationSettlement).toLowerCase().includes(search)) ||
-			(app.AreaOfOrigin && String(app.AreaOfOrigin).toLowerCase().includes(search)) ||
 			(app.FullName && String(app.FullName).toLowerCase().includes(search)) ||
 			(app.RegionalCouncil && String(app.RegionalCouncil).toLowerCase().includes(search)) ||
-			(app.HouseStatusName && String(app.HouseStatusName).toLowerCase().includes(search)) ||
-			(app.TotalFamilyMembers && String(app.TotalFamilyMembers).toLowerCase().includes(search)) ||
-			(app.Remarks && String(app.Remarks).toLowerCase().includes(search))
+			(app.TotalFamilyMembers && String(app.TotalFamilyMembers).toLowerCase().includes(search))
 		);
 	});
 
@@ -288,7 +318,7 @@ export default function BaselineQOLPage() {
 
 	// Show access denied if user doesn't have permission
 	if (hasAccess === false) {
-		return <SectionAccessDenied sectionName={sectionName} requiredPermission="QOL" />;
+		return <SectionAccessDenied sectionName={sectionName} requiredPermission="BaselineQOL" />;
 	}
 
 	if (loading) {
@@ -296,13 +326,13 @@ export default function BaselineQOLPage() {
 			<div className="space-y-6">
 				<div className="flex justify-between items-center">
 					<div>
-					<h1 className="text-3xl font-bold text-gray-900">QOL</h1>
-					<p className="text-gray-600 mt-2">Quality of Life Assessment</p>
+						<h1 className="text-3xl font-bold text-gray-900">Baseline</h1>
+						<p className="text-gray-600 mt-2">Quality of Life Baseline Assessment</p>
 					</div>
 				</div>
 				<div className="flex items-center justify-center py-12">
 					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
-					<span className="ml-3 text-gray-600">Loading applications...</span>
+					<span className="ml-3 text-gray-600">Loading baseline applications...</span>
 				</div>
 			</div>
 		);
@@ -313,8 +343,8 @@ export default function BaselineQOLPage() {
 			<div className="space-y-6">
 				<div className="flex justify-between items-center">
 					<div>
-					<h1 className="text-3xl font-bold text-gray-900">QOL</h1>
-					<p className="text-gray-600 mt-2">Quality of Life Assessment</p>
+						<h1 className="text-3xl font-bold text-gray-900">Baseline</h1>
+						<p className="text-gray-600 mt-2">Quality of Life Baseline Assessment</p>
 					</div>
 				</div>
 				<div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
@@ -335,18 +365,32 @@ export default function BaselineQOLPage() {
 			{/* Header */}
 			<div className="flex justify-between items-center">
 				<div>
-					<h1 className="text-3xl font-bold text-gray-900">QOL</h1>
+					<h1 className="text-3xl font-bold text-gray-900">Baseline</h1>
 					<p className="text-gray-600 mt-2">
 						PE Application Management
 					</p>
 				</div>
 				<div className="flex items-center gap-3">
 					<button
-						onClick={fetchApplications}
+						onClick={() => fetchApplications()}
 						className="inline-flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
 					>
 						<RefreshCw className="h-4 w-4" />
 						Refresh
+					</button>
+					<button
+						onClick={() => {
+							setLoadAll(!loadAll);
+							setCurrentPage(1);
+							fetchApplications(!loadAll);
+						}}
+						className={`inline-flex items-center gap-2 px-4 py-2 rounded-md transition-colors ${
+							loadAll 
+								? "bg-blue-600 text-white hover:bg-blue-700" 
+								: "bg-blue-100 text-blue-700 hover:bg-blue-200"
+						}`}
+					>
+						{loadAll ? "Show Paginated" : "Load All"}
 					</button>
 					<button
 						onClick={() => router.push("/dashboard/baseline-qol/add")}
@@ -356,19 +400,12 @@ export default function BaselineQOLPage() {
 						Add Application
 					</button>
 					<button
-						onClick={() => router.push("/dashboard/baseline-qol/add-values")}
-						className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-					>
-						<Plus className="h-4 w-4" />
-						Add Values
-					</button>
-					<button
 						onClick={exportToCSV}
-						disabled={applications.length === 0}
+						disabled={loading}
 						className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
 					>
 						<Download className="h-4 w-4" />
-						Export CSV
+						Export All CSV
 					</button>
 				</div>
 			</div>
@@ -383,7 +420,10 @@ export default function BaselineQOLPage() {
 					<div>
 						<p className="text-sm font-medium text-gray-600 mb-2">Showing</p>
 						<p className="text-3xl font-bold text-[#0b4d2b]">
-							{((currentPage - 1) * itemsPerPage + 1).toLocaleString()} - {Math.min(currentPage * itemsPerPage, totalRecords).toLocaleString()}
+							{loadAll 
+								? `${applications.length.toLocaleString()} (All)` 
+								: `${((currentPage - 1) * itemsPerPage + 1).toLocaleString()} - ${Math.min(currentPage * itemsPerPage, totalRecords).toLocaleString()}`
+							}
 						</p>
 					</div>
 				</div>
@@ -443,18 +483,6 @@ export default function BaselineQOLPage() {
 					</div>
 					<div>
 						<label className="block text-sm font-medium text-gray-700 mb-2">
-							Current JK
-						</label>
-						<input
-							type="text"
-							value={filters.currentJK}
-							onChange={(e) => handleFilterChange("currentJK", e.target.value)}
-							className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-							placeholder="Filter by Current JK"
-						/>
-					</div>
-					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-2">
 							Local Council
 						</label>
 						<input
@@ -490,7 +518,69 @@ export default function BaselineQOLPage() {
 						/>
 					</div>
 				</div>
-				<div className="flex justify-end">
+				{/* Date/Time Filters */}
+				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t border-gray-200">
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-2">
+							Created Date
+						</label>
+						<input
+							type="date"
+							value={filters.createdDate}
+							onChange={(e) => handleFilterChange("createdDate", e.target.value)}
+							className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+						/>
+					</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-2">
+							Created Time
+						</label>
+						<input
+							type="time"
+							value={filters.createdTime}
+							onChange={(e) => handleFilterChange("createdTime", e.target.value)}
+							className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+						/>
+					</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-2">
+							Updated Date
+						</label>
+						<input
+							type="date"
+							value={filters.updatedDate}
+							onChange={(e) => handleFilterChange("updatedDate", e.target.value)}
+							className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+						/>
+					</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-2">
+							Updated Time
+						</label>
+						<input
+							type="time"
+							value={filters.updatedTime}
+							onChange={(e) => handleFilterChange("updatedTime", e.target.value)}
+							className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+						/>
+					</div>
+				</div>
+				<div className="flex justify-between items-center">
+					<div className="flex gap-2">
+						<button
+							onClick={() => {
+								setFilters({
+									...filters,
+									createdDate: "2026-01-10",
+									createdTime: "23:00",
+								});
+								setCurrentPage(1);
+							}}
+							className="inline-flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors text-sm"
+						>
+							Filter: Jan 10, 2026 11:00 PM
+						</button>
+					</div>
 					<button
 						onClick={clearFilters}
 						className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
@@ -511,31 +601,13 @@ export default function BaselineQOLPage() {
 									Form No
 								</th>
 								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									Person Role
-								</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
 									CNIC No
-								</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									Mother Tongue
-								</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									Residential Address
 								</th>
 								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
 									Primary Contact No
 								</th>
 								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									Current JK
-								</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
 									Local Council
-								</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									Primary Location Settlement
-								</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									Area Of Origin
 								</th>
 								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
 									Full Name
@@ -544,13 +616,7 @@ export default function BaselineQOLPage() {
 									Regional Council
 								</th>
 								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									House Status Name
-								</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
 									Total Family Members
-								</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									Remarks
 								</th>
 								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
 									Actions
@@ -560,7 +626,7 @@ export default function BaselineQOLPage() {
 						<tbody className="bg-white divide-y divide-gray-200">
 							{filteredApplications.length === 0 ? (
 								<tr>
-									<td colSpan={16} className="px-4 py-8 text-center text-gray-500">
+									<td colSpan={8} className="px-4 py-8 text-center text-gray-500">
 										No records found
 									</td>
 								</tr>
@@ -571,31 +637,13 @@ export default function BaselineQOLPage() {
 											{app.FormNo ?? "N/A"}
 										</td>
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-											{app.PersonRole ?? "N/A"}
-										</td>
-										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
 											{app.CNICNo ?? "N/A"}
-										</td>
-										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-											{app.MotherTongue ?? "N/A"}
-										</td>
-										<td className="px-4 py-3 text-sm text-gray-900 max-w-xs truncate">
-											{app.ResidentialAddress ?? "N/A"}
 										</td>
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
 											{app.PrimaryContactNo ?? "N/A"}
 										</td>
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-											{app.CurrentJK ?? "N/A"}
-										</td>
-										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
 											{app.LocalCouncil ?? "N/A"}
-										</td>
-										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-											{app.PrimaryLocationSettlement ?? "N/A"}
-										</td>
-										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-											{app.AreaOfOrigin ?? "N/A"}
 										</td>
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
 											{app.FullName ?? "N/A"}
@@ -604,13 +652,7 @@ export default function BaselineQOLPage() {
 											{app.RegionalCouncil ?? "N/A"}
 										</td>
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-											{app.HouseStatusName ?? "N/A"}
-										</td>
-										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
 											{app.TotalFamilyMembers ?? "N/A"}
-										</td>
-										<td className="px-4 py-3 text-sm text-gray-900 max-w-xs truncate">
-											{app.Remarks ?? "N/A"}
 										</td>
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
 											<div className="flex items-center gap-2">
@@ -645,7 +687,7 @@ export default function BaselineQOLPage() {
 				</div>
 
 				{/* Pagination */}
-				{totalPages > 1 && (
+				{!loadAll && totalPages > 1 && (
 					<div className="bg-gray-50 px-4 py-3 flex items-center justify-between border-t border-gray-200">
 						<div className="flex-1 flex justify-between sm:hidden">
 							<button

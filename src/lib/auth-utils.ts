@@ -1,5 +1,6 @@
 /**
  * Utility functions for authentication and authorization
+ * These functions are client-safe and can be used in both client and server components
  */
 
 /**
@@ -35,8 +36,43 @@ export function normalizePermission(value: any): boolean {
  * Handles all possible variations: "Yes", "yes", "YES", 1, true, "1", "true", etc.
  * 
  * IMPORTANT: Super users have FULL ACCESS to ALL sections regardless of individual permissions
+ * 
+ * Database values that grant Super User access:
+ * - Number: 1
+ * - String: "1", "Yes", "yes", "YES", "true", "True", "TRUE"
+ * - Boolean: true
+ * 
+ * @param supperUserValue - The Supper_User field value from database (can be 1, "Yes", true, etc.)
+ * @returns true if user is Super User, false otherwise
  */
 export function isSuperUser(supperUserValue: string | boolean | number | null | undefined): boolean {
 	return normalizePermission(supperUserValue);
+}
+
+/**
+ * Check if a user is an admin user (user_id = "admin")
+ * Admin users have FULL ACCESS to ALL pages and sections
+ * 
+ * @param username - The username/user_id to check
+ * @returns true if username is "admin" (case-insensitive), false otherwise
+ */
+export function isAdminUser(username: string | null | undefined): boolean {
+	if (!username) return false;
+	return username.toLowerCase() === 'admin';
+}
+
+/**
+ * Check if a user has full access (either admin user or super user)
+ * This is the main function to use for access control checks
+ * 
+ * @param username - The username/user_id to check
+ * @param supperUserValue - The Supper_User field value from database
+ * @returns true if user is admin or super user, false otherwise
+ */
+export function hasFullAccess(
+	username: string | null | undefined,
+	supperUserValue: string | boolean | number | null | undefined
+): boolean {
+	return isAdminUser(username) || isSuperUser(supperUserValue);
 }
 

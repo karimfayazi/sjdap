@@ -34,7 +34,6 @@ function EditSWBFamilyContent() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const cnic = searchParams.get("cnic");
-	const familyId = searchParams.get("familyId");
 	const { userProfile } = useAuth();
 	const { hasAccess, loading: accessLoading, sectionName } = useSectionAccess("SWB_Families");
 
@@ -82,8 +81,8 @@ function EditSWBFamilyContent() {
 	// Fetch existing data
 	useEffect(() => {
 		const fetchFamilyData = async () => {
-			if (!cnic || !familyId) {
-				setError("Missing CNIC or Family ID in the URL.");
+			if (!cnic) {
+				setError("Missing CNIC in the URL.");
 				setLoading(false);
 				return;
 			}
@@ -92,7 +91,7 @@ function EditSWBFamilyContent() {
 				setLoading(true);
 				setError(null);
 
-				const response = await fetch(`/api/swb-families?cnic=${encodeURIComponent(cnic)}&familyId=${encodeURIComponent(familyId)}`);
+				const response = await fetch(`/api/swb-families?cnic=${encodeURIComponent(cnic)}`);
 				const data = await response.json();
 
 				if (data.success && data.swbFamily) {
@@ -131,6 +130,23 @@ function EditSWBFamilyContent() {
 							setFamilyHead(headData.headName || "Not Found");
 						}
 					}
+
+					// If Regional Council is set, fetch Local Council and Jamat Khana options
+					if (family.Regional_Council) {
+						try {
+							setLoadingLocations(true);
+							const locationResponse = await fetch(`/api/swb-families?getOptions=true&regionalCouncil=${encodeURIComponent(family.Regional_Council)}`);
+							const locationData = await locationResponse.json();
+							if (locationData.success) {
+								setLocalCouncils(locationData.localCouncils || []);
+								setJamatKhanas(locationData.jamatKhanas || []);
+							}
+						} catch (err) {
+							console.error("Error fetching locations:", err);
+						} finally {
+							setLoadingLocations(false);
+						}
+					}
 				} else {
 					setError(data.message || "SWB family record not found.");
 				}
@@ -143,7 +159,7 @@ function EditSWBFamilyContent() {
 		};
 
 		fetchFamilyData();
-	}, [cnic, familyId]);
+	}, [cnic]);
 
 	useEffect(() => {
 		const fetchDropdownOptions = async () => {
@@ -332,7 +348,7 @@ function EditSWBFamilyContent() {
 				submitData.Economic_Support_Amount = "";
 			}
 
-			const response = await fetch(`/api/swb-families?cnic=${encodeURIComponent(originalCnic)}&familyId=${encodeURIComponent(originalFamilyId)}`, {
+			const response = await fetch(`/api/swb-families?cnic=${encodeURIComponent(originalCnic)}`, {
 				method: "PUT",
 				headers: {
 					"Content-Type": "application/json",
@@ -501,74 +517,47 @@ function EditSWBFamilyContent() {
 					<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 						<div>
 							<label className="block text-sm font-medium text-gray-700 mb-1">Regional Council</label>
-							<select
+							<input
+								type="text"
 								name="Regional_Council"
-								value={formData.Regional_Council}
-								onChange={handleInputChange}
-								disabled={loadingOptions}
-								className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-							>
-								<option value="">Select Regional Council</option>
-								{regionalCouncils.map((rc) => (
-									<option key={rc} value={rc}>{rc}</option>
-								))}
-							</select>
+								value={formData.Regional_Council || ""}
+								readOnly
+								className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 cursor-not-allowed text-gray-700"
+								placeholder="Select Regional Council"
+							/>
 						</div>
 						<div>
 							<label className="block text-sm font-medium text-gray-700 mb-1">Local Council</label>
-							<select
+							<input
+								type="text"
 								name="Local_Council"
-								value={formData.Local_Council}
-								onChange={handleInputChange}
-								disabled={loadingOptions || loadingLocations || !formData.Regional_Council}
-								className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
-							>
-								<option value="">
-									{!formData.Regional_Council 
-										? "Select Regional Council first" 
-										: loadingLocations 
-										? "Loading..." 
-										: "Select Local Council"}
-								</option>
-								{localCouncils.map((lc) => (
-									<option key={lc} value={lc}>{lc}</option>
-								))}
-							</select>
+								value={formData.Local_Council || ""}
+								readOnly
+								className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 cursor-not-allowed text-gray-700"
+								placeholder="Select Local Council"
+							/>
 						</div>
 						<div>
 							<label className="block text-sm font-medium text-gray-700 mb-1">Jamat Khana</label>
-							<select
+							<input
+								type="text"
 								name="Jamat_Khana"
-								value={formData.Jamat_Khana}
-								onChange={handleInputChange}
-								disabled={loadingOptions || loadingLocations || !formData.Regional_Council}
-								className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
-							>
-								<option value="">
-									{!formData.Regional_Council 
-										? "Select Regional Council first" 
-										: loadingLocations 
-										? "Loading..." 
-										: "Select Jamat Khana"}
-								</option>
-								{jamatKhanas.map((jk) => (
-									<option key={jk} value={jk}>{jk}</option>
-								))}
-							</select>
+								value={formData.Jamat_Khana || ""}
+								readOnly
+								className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 cursor-not-allowed text-gray-700"
+								placeholder="Select Jamat Khana"
+							/>
 						</div>
 						<div>
 							<label className="block text-sm font-medium text-gray-700 mb-1">Programme</label>
-							<select
+							<input
+								type="text"
 								name="Programme"
-								value={formData.Programme}
-								onChange={handleInputChange}
-								className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-							>
-								<option value="">Select Programme</option>
-								{programmes.map((prog) => (
-									<option key={prog} value={prog}>{prog}</option>
-								))}
-							</select>
+								value={formData.Programme || ""}
+								readOnly
+								className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 cursor-not-allowed text-gray-700"
+								placeholder="Select Programme"
+							/>
 						</div>
 					</div>
 				</div>

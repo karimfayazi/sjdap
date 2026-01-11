@@ -42,6 +42,11 @@ export default function SectionAccessDenied({
 							Required Permission: <span className="font-semibold text-gray-700">{requiredPermission}</span>
 						</p>
 					)}
+					{permissionValue !== undefined && (
+						<p className="text-xs text-gray-400 mt-1">
+							Current Value: <span className="font-mono">{formatPermissionValue(permissionValue)}</span> ({typeof permissionValue})
+						</p>
+					)}
 				</div>
 				
 				<div className="bg-gradient-to-br from-red-50 to-orange-50 border-2 border-red-200 rounded-xl p-6 mb-8 shadow-md">
@@ -115,6 +120,8 @@ export default function SectionAccessDenied({
 		</div>
 	);
 }
+
+
 
 
 

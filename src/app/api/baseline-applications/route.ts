@@ -167,11 +167,47 @@ export async function GET(request: NextRequest) {
 		// Get next Form No
 		if (action === "getNextFormNo") {
 			const pool = await getPeDb();
+			
+			// Helper function to find the correct table name
+			async function findTableName(pool: sql.ConnectionPool): Promise<string> {
+				try {
+					const tableCheckQuery = `
+						SELECT TABLE_NAME
+						FROM INFORMATION_SCHEMA.TABLES
+						WHERE TABLE_SCHEMA = 'dbo'
+						AND (
+							TABLE_NAME = 'PE_Application_BasicInfo' 
+							OR TABLE_NAME = 'PE_ApplicationBasicInfo'
+							OR TABLE_NAME LIKE '%Application%Basic%'
+							OR TABLE_NAME LIKE '%PE_Application%'
+						)
+						ORDER BY 
+							CASE 
+								WHEN TABLE_NAME = 'PE_Application_BasicInfo' THEN 1
+								WHEN TABLE_NAME = 'PE_ApplicationBasicInfo' THEN 2
+								ELSE 3
+							END
+					`;
+					const tableCheckResult = await pool.request().query(tableCheckQuery);
+					
+					if (tableCheckResult.recordset.length > 0) {
+						return tableCheckResult.recordset[0].TABLE_NAME;
+					}
+				} catch (tableCheckError) {
+					console.error("Error checking table name:", tableCheckError);
+				}
+				
+				// Default fallback
+				return "PE_Application_BasicInfo";
+			}
+			
+			const tableName = await findTableName(pool);
+			
 			const formNoQuery = `
-				SELECT [FormNo]
-				FROM [SJDA_Users].[dbo].[PE_Application]
-				WHERE [FormNo] LIKE 'PE-%'
-				ORDER BY [ApplicationId] DESC
+				SELECT [FormNumber]
+				FROM [SJDA_Users].[dbo].[${tableName}]
+				WHERE [FormNumber] LIKE 'PE-%'
+				ORDER BY [FormNumber] DESC
 			`;
 
 			const result = await pool.request().query(formNoQuery);
@@ -179,11 +215,13 @@ export async function GET(request: NextRequest) {
 			let maxNum = 0;
 
 			if (result.recordset && result.recordset.length > 0) {
-				// Find the maximum number from all FormNo values
+				// Find the maximum number from all FormNumber values
 				for (const row of result.recordset) {
-					const formNo = row.FormNo;
+					const formNo = row.FormNumber;
 					if (formNo && formNo.startsWith('PE-')) {
-						const num = parseInt(formNo.substring(3));
+						// Extract number after "PE-"
+						const numStr = formNo.substring(3);
+						const num = parseInt(numStr);
 						if (!isNaN(num) && num > maxNum) {
 							maxNum = num;
 						}
@@ -191,6 +229,7 @@ export async function GET(request: NextRequest) {
 				}
 				
 				if (maxNum > 0) {
+					// Increment and pad with zeros to 5 digits
 					nextFormNo = `PE-${(maxNum + 1).toString().padStart(5, '0')}`;
 				}
 			}
@@ -201,17 +240,47 @@ export async function GET(request: NextRequest) {
 			});
 		}
 
-		// Get data from PE_ApplicationPerson
+		// Get data from PE_Application_BasicInfo
 		const pool = await getPeDb();
+		
+		// Helper function to find the correct table name
+		async function findTableName(pool: sql.ConnectionPool): Promise<string> {
+			try {
+				const tableCheckQuery = `
+					SELECT TABLE_NAME
+					FROM INFORMATION_SCHEMA.TABLES
+					WHERE TABLE_SCHEMA = 'dbo'
+					AND (
+						TABLE_NAME = 'PE_Application_BasicInfo' 
+						OR TABLE_NAME = 'PE_ApplicationBasicInfo'
+						OR TABLE_NAME LIKE '%Application%Basic%'
+					)
+					ORDER BY 
+						CASE 
+							WHEN TABLE_NAME = 'PE_Application_BasicInfo' THEN 1
+							WHEN TABLE_NAME = 'PE_ApplicationBasicInfo' THEN 2
+							ELSE 3
+						END
+				`;
+				const tableCheckResult = await pool.request().query(tableCheckQuery);
+				
+				if (tableCheckResult.recordset.length > 0) {
+					return tableCheckResult.recordset[0].TABLE_NAME;
+				}
+			} catch (tableCheckError) {
+				console.error("Error checking table name:", tableCheckError);
+			}
+			
+			return "PE_Application_BasicInfo";
+		}
+
+		const tableName = await findTableName(pool);
 		
 		// Get filter parameters
 		const page = parseInt(searchParams.get("page") || "1");
 		const limit = parseInt(searchParams.get("limit") || "50");
 		const offset = (page - 1) * limit;
 		const formNoFilter = (searchParams.get("formNo") || "").trim();
-		const personRoleFilter = (searchParams.get("personRole") || "").trim();
-		const dobMonthFilter = (searchParams.get("dobMonth") || "").trim();
-		const dobYearFilter = (searchParams.get("dobYear") || "").trim();
 		const cnicNoFilter = (searchParams.get("cnicNo") || "").trim();
 		const motherTongueFilter = (searchParams.get("motherTongue") || "").trim();
 		const residentialAddressFilter = (searchParams.get("residentialAddress") || "").trim();
@@ -222,88 +291,139 @@ export async function GET(request: NextRequest) {
 		const areaOfOriginFilter = (searchParams.get("areaOfOrigin") || "").trim();
 		const fullNameFilter = (searchParams.get("fullName") || "").trim();
 		const regionalCouncilFilter = (searchParams.get("regionalCouncil") || "").trim();
-		const houseStatusNameFilter = (searchParams.get("houseStatusName") || "").trim();
-		const totalFamilyMembersFilter = (searchParams.get("totalFamilyMembers") || "").trim();
-		const remarksFilter = (searchParams.get("remarks") || "").trim();
+		const createdDateFilter = (searchParams.get("createdDate") || "").trim();
+		const createdTimeFilter = (searchParams.get("createdTime") || "").trim();
+		const updatedDateFilter = (searchParams.get("updatedDate") || "").trim();
+		const updatedTimeFilter = (searchParams.get("updatedTime") || "").trim();
 
-		// Build WHERE clause for filters
+		// Build WHERE clause for filters (using correct column names with table alias)
 		const whereConditions: string[] = [];
 		
 		if (formNoFilter) {
-			whereConditions.push(`[FormNo] LIKE '%${formNoFilter.replace(/'/g, "''")}%'`);
-		}
-		if (personRoleFilter) {
-			whereConditions.push(`[PersonRole] LIKE '%${personRoleFilter.replace(/'/g, "''")}%'`);
-		}
-		if (dobMonthFilter) {
-			whereConditions.push(`[DOBMonth] LIKE '%${dobMonthFilter.replace(/'/g, "''")}%'`);
-		}
-		if (dobYearFilter) {
-			whereConditions.push(`[DOBYear] LIKE '%${dobYearFilter.replace(/'/g, "''")}%'`);
+			whereConditions.push(`app.[FormNumber] LIKE '%${formNoFilter.replace(/'/g, "''")}%'`);
 		}
 		if (cnicNoFilter) {
-			whereConditions.push(`[CNICNo] LIKE '%${cnicNoFilter.replace(/'/g, "''")}%'`);
+			whereConditions.push(`app.[CNICNumber] LIKE '%${cnicNoFilter.replace(/'/g, "''")}%'`);
 		}
 		if (motherTongueFilter) {
-			whereConditions.push(`[MotherTongue] LIKE '%${motherTongueFilter.replace(/'/g, "''")}%'`);
+			whereConditions.push(`app.[MotherTongue] LIKE '%${motherTongueFilter.replace(/'/g, "''")}%'`);
 		}
 		if (residentialAddressFilter) {
-			whereConditions.push(`[ResidentialAddress] LIKE '%${residentialAddressFilter.replace(/'/g, "''")}%'`);
+			whereConditions.push(`app.[ResidentialAddress] LIKE '%${residentialAddressFilter.replace(/'/g, "''")}%'`);
 		}
 		if (primaryContactNoFilter) {
-			whereConditions.push(`[PrimaryContactNo] LIKE '%${primaryContactNoFilter.replace(/'/g, "''")}%'`);
+			whereConditions.push(`app.[PrimaryContactNumber] LIKE '%${primaryContactNoFilter.replace(/'/g, "''")}%'`);
 		}
 		if (currentJKFilter) {
-			whereConditions.push(`[CurrentJK] LIKE '%${currentJKFilter.replace(/'/g, "''")}%'`);
+			whereConditions.push(`app.[CurrentCommunityCenter] LIKE '%${currentJKFilter.replace(/'/g, "''")}%'`);
 		}
 		if (localCouncilFilter) {
-			whereConditions.push(`[LocalCouncil] LIKE '%${localCouncilFilter.replace(/'/g, "''")}%'`);
+			whereConditions.push(`app.[LocalCommunity] LIKE '%${localCouncilFilter.replace(/'/g, "''")}%'`);
 		}
 		if (primaryLocationSettlementFilter) {
-			whereConditions.push(`[PrimaryLocationSettlement] LIKE '%${primaryLocationSettlementFilter.replace(/'/g, "''")}%'`);
+			whereConditions.push(`app.[PrimaryLocationSettlement] LIKE '%${primaryLocationSettlementFilter.replace(/'/g, "''")}%'`);
 		}
 		if (areaOfOriginFilter) {
-			whereConditions.push(`[AreaOfOrigin] LIKE '%${areaOfOriginFilter.replace(/'/g, "''")}%'`);
+			whereConditions.push(`app.[AreaOfOrigin] LIKE '%${areaOfOriginFilter.replace(/'/g, "''")}%'`);
 		}
 		if (fullNameFilter) {
-			whereConditions.push(`[FullName] LIKE '%${fullNameFilter.replace(/'/g, "''")}%'`);
+			whereConditions.push(`app.[Full_Name] LIKE '%${fullNameFilter.replace(/'/g, "''")}%'`);
 		}
 		if (regionalCouncilFilter) {
-			whereConditions.push(`[RegionalCouncil] LIKE '%${regionalCouncilFilter.replace(/'/g, "''")}%'`);
+			whereConditions.push(`app.[RegionalCommunity] LIKE '%${regionalCouncilFilter.replace(/'/g, "''")}%'`);
 		}
-		if (houseStatusNameFilter) {
-			whereConditions.push(`[HouseStatusName] LIKE '%${houseStatusNameFilter.replace(/'/g, "''")}%'`);
+		
+		// Date/Time filters for CreatedAt
+		if (createdDateFilter) {
+			if (createdTimeFilter) {
+				// Filter by specific date and time (within the same hour range)
+				// Format: YYYY-MM-DD HH:mm
+				const [hours, minutes] = createdTimeFilter.split(':');
+				const hourNum = parseInt(hours) || 0;
+				const nextHour = (hourNum + 1) % 24;
+				const nextHourStr = nextHour.toString().padStart(2, '0');
+				// Create start and end of the hour range
+				const startStr = `${createdDateFilter} ${hours.padStart(2, '0')}:00:00`;
+				// Handle next day if hour is 23
+				let endDate = createdDateFilter;
+				if (hourNum === 23) {
+					const date = new Date(createdDateFilter);
+					date.setDate(date.getDate() + 1);
+					endDate = date.toISOString().split('T')[0];
+				}
+				const endStr = `${endDate} ${nextHourStr}:00:00`;
+				whereConditions.push(`app.[CreatedAt] >= '${startStr.replace(/'/g, "''")}' AND app.[CreatedAt] < '${endStr.replace(/'/g, "''")}'`);
+			} else {
+				// Filter by date only
+				whereConditions.push(`CAST(app.[CreatedAt] AS DATE) = CAST('${createdDateFilter.replace(/'/g, "''")}' AS DATE)`);
+			}
 		}
-		if (totalFamilyMembersFilter) {
-			whereConditions.push(`[TotalFamilyMembers] LIKE '%${totalFamilyMembersFilter.replace(/'/g, "''")}%'`);
-		}
-		if (remarksFilter) {
-			whereConditions.push(`[Remarks] LIKE '%${remarksFilter.replace(/'/g, "''")}%'`);
+		
+		// Date/Time filters for UpdatedAt
+		if (updatedDateFilter) {
+			if (updatedTimeFilter) {
+				// Filter by specific date and time (within the same hour range)
+				// Format: YYYY-MM-DD HH:mm
+				const [hours, minutes] = updatedTimeFilter.split(':');
+				const hourNum = parseInt(hours) || 0;
+				const nextHour = (hourNum + 1) % 24;
+				const nextHourStr = nextHour.toString().padStart(2, '0');
+				// Create start and end of the hour range
+				const startStr = `${updatedDateFilter} ${hours.padStart(2, '0')}:00:00`;
+				// Handle next day if hour is 23
+				let endDate = updatedDateFilter;
+				if (hourNum === 23) {
+					const date = new Date(updatedDateFilter);
+					date.setDate(date.getDate() + 1);
+					endDate = date.toISOString().split('T')[0];
+				}
+				const endStr = `${endDate} ${nextHourStr}:00:00`;
+				whereConditions.push(`app.[UpdatedAt] >= '${startStr.replace(/'/g, "''")}' AND app.[UpdatedAt] < '${endStr.replace(/'/g, "''")}'`);
+			} else {
+				// Filter by date only
+				whereConditions.push(`CAST(app.[UpdatedAt] AS DATE) = CAST('${updatedDateFilter.replace(/'/g, "''")}' AS DATE)`);
+			}
 		}
 		
 		const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(" AND ")}` : "";
 
-		// Query to get data from PE_ApplicationPerson
+		// Query to get data from PE_Application_BasicInfo
+		// Using aliases to match expected column names from the frontend
+		// Count family members from PE_FamilyMember table
 		const query = `
 			SELECT 
-				[FormNo],
-				[PersonRole],
-				[CNICNo],
-				[MotherTongue],
-				[ResidentialAddress],
-				[PrimaryContactNo],
-				[CurrentJK],
-				[LocalCouncil],
-				[PrimaryLocationSettlement],
-				[AreaOfOrigin],
-				[FullName],
-				[RegionalCouncil],
-				[HouseStatusName],
-				[TotalFamilyMembers],
-				[Remarks]
-			FROM [SJDA_Users].[dbo].[PE_ApplicationPerson]
+				app.[FormNumber] as FormNo,
+				NULL as PersonRole,
+				app.[ApplicationDate],
+				app.[ReceivedByName],
+				app.[ReceivedByDate],
+				app.[Full_Name] as FullName,
+				app.[DateOfBirth],
+				app.[CNICNumber] as CNICNo,
+				app.[MotherTongue],
+				app.[ResidentialAddress],
+				app.[PrimaryContactNumber] as PrimaryContactNo,
+				app.[SecondaryContactNumber],
+				app.[RegionalCommunity] as RegionalCouncil,
+				app.[LocalCommunity] as LocalCouncil,
+				app.[CurrentCommunityCenter] as CurrentJK,
+				app.[PrimaryLocationSettlement],
+				app.[AreaOfOrigin],
+				NULL as HouseStatusName,
+				ISNULL(fm.MemberCount, 0) as TotalFamilyMembers,
+				NULL as Remarks,
+				app.[CreatedAt],
+				app.[UpdatedAt]
+			FROM [SJDA_Users].[dbo].[${tableName}] app
+			LEFT JOIN (
+				SELECT 
+					[FormNo],
+					COUNT(*) as MemberCount
+				FROM [SJDA_Users].[dbo].[PE_FamilyMember]
+				GROUP BY [FormNo]
+			) fm ON app.[FormNumber] = fm.[FormNo]
 			${whereClause}
-			ORDER BY [FormNo] DESC
+			ORDER BY app.[FormNumber] DESC
 			OFFSET ${offset} ROWS
 			FETCH NEXT ${limit} ROWS ONLY
 		`;
@@ -316,7 +436,7 @@ export async function GET(request: NextRequest) {
 		// Get total count with same filters
 		const countQuery = `
 			SELECT COUNT(*) as total 
-			FROM [SJDA_Users].[dbo].[PE_ApplicationPerson]
+			FROM [SJDA_Users].[dbo].[${tableName}] app
 			${whereClause}
 		`;
 		const countResult = await pool.request().query(countQuery);
@@ -492,8 +612,6 @@ export async function POST(request: NextRequest) {
 						educationRequest.input("InstitutionTypeOther", member.education.InstitutionTypeOther || null);
 						educationRequest.input("CurrentClass", member.education.CurrentClass || null);
 						educationRequest.input("CurrentClassOther", member.education.CurrentClassOther || null);
-						educationRequest.input("LastFormalQualification", member.education.LastFormalQualification || null);
-						educationRequest.input("LastFormalQualificationOther", member.education.LastFormalQualificationOther || null);
 						educationRequest.input("HighestQualification", member.education.HighestQualification || null);
 						educationRequest.input("HighestQualificationOther", member.education.HighestQualificationOther || null);
 						educationRequest.input("CreatedBy", createdBy);
@@ -501,11 +619,11 @@ export async function POST(request: NextRequest) {
 						await educationRequest.query(`
 							INSERT INTO [SJDA_Users].[dbo].[PE_Education]
 							([FamilyID], [MemberNo], [IsCurrentlyStudying], [InstitutionType], [InstitutionTypeOther],
-							 [CurrentClass], [CurrentClassOther], [LastFormalQualification], [LastFormalQualificationOther],
+							 [CurrentClass], [CurrentClassOther],
 							 [HighestQualification], [HighestQualificationOther], [CreatedBy])
 							VALUES 
 							(@FamilyID, @MemberNo, @IsCurrentlyStudying, @InstitutionType, @InstitutionTypeOther,
-							 @CurrentClass, @CurrentClassOther, @LastFormalQualification, @LastFormalQualificationOther,
+							 @CurrentClass, @CurrentClassOther,
 							 @HighestQualification, @HighestQualificationOther, @CreatedBy)
 						`);
 					}
@@ -637,13 +755,19 @@ export async function PUT(request: NextRequest) {
 				WHERE [FormNo] = @FormNo
 			`);
 
-			// Delete existing family heads
-			const deleteHeadsRequest = new sql.Request(transaction);
-			deleteHeadsRequest.input("FormNo", formNoValue);
-			await deleteHeadsRequest.query(`
-				DELETE FROM [SJDA_Users].[dbo].[PE_ApplicationPerson]
-				WHERE [FormNo] = @FormNo
-			`);
+			// Delete existing basic info record (if using PE_Application_BasicInfo)
+			// Note: This is for update operations - we'll delete and recreate
+			try {
+				const deleteBasicInfoRequest = new sql.Request(transaction);
+				deleteBasicInfoRequest.input("FormNumber", formNoValue);
+				await deleteBasicInfoRequest.query(`
+					DELETE FROM [SJDA_Users].[dbo].[PE_Application_BasicInfo]
+					WHERE [FormNumber] = @FormNumber
+				`);
+			} catch (err) {
+				// Table might not exist, continue
+				console.log("PE_Application_BasicInfo table may not exist for update");
+			}
 
 			// Insert updated family heads
 			if (Array.isArray(familyHeads)) {
@@ -711,19 +835,17 @@ export async function PUT(request: NextRequest) {
 						eduRequest.input("InstitutionTypeOther", member.education.InstitutionTypeOther || null);
 						eduRequest.input("CurrentClass", member.education.CurrentClass || null);
 						eduRequest.input("CurrentClassOther", member.education.CurrentClassOther || null);
-						eduRequest.input("LastFormalQualification", member.education.LastFormalQualification || null);
-						eduRequest.input("LastFormalQualificationOther", member.education.LastFormalQualificationOther || null);
 						eduRequest.input("HighestQualification", member.education.HighestQualification || null);
 						eduRequest.input("HighestQualificationOther", member.education.HighestQualificationOther || null);
 
 						await eduRequest.query(`
 							INSERT INTO [SJDA_Users].[dbo].[PE_Education]
 							([MemberNo], [IsCurrentlyStudying], [InstitutionType], [InstitutionTypeOther],
-							 [CurrentClass], [CurrentClassOther], [LastFormalQualification], [LastFormalQualificationOther],
+							 [CurrentClass], [CurrentClassOther],
 							 [HighestQualification], [HighestQualificationOther])
 							VALUES
 							(@MemberNo, @IsCurrentlyStudying, @InstitutionType, @InstitutionTypeOther,
-							 @CurrentClass, @CurrentClassOther, @LastFormalQualification, @LastFormalQualificationOther,
+							 @CurrentClass, @CurrentClassOther,
 							 @HighestQualification, @HighestQualificationOther)
 						`);
 					}
@@ -802,60 +924,118 @@ export async function DELETE(request: NextRequest) {
 
 		const pool = await getPeDb();
 		
-		// Get all MemberNos for this FormNo to ensure complete deletion
-		const getMemberNosRequest = pool.request();
-		getMemberNosRequest.input("formNo", formNo);
-		const memberNosQuery = `SELECT [MemberNo] FROM [SJDA_Users].[dbo].[PE_FamilyMember] WHERE [FormNo] = @formNo`;
-		const memberNosResult = await getMemberNosRequest.query(memberNosQuery);
-		const memberNos = memberNosResult.recordset.map((r: any) => r.MemberNo);
+		// Helper function to find the correct table name
+		async function findTableName(pool: sql.ConnectionPool): Promise<string> {
+			try {
+				const tableCheckQuery = `
+					SELECT TABLE_NAME
+					FROM INFORMATION_SCHEMA.TABLES
+					WHERE TABLE_SCHEMA = 'dbo'
+					AND (
+						TABLE_NAME = 'PE_Application_BasicInfo' 
+						OR TABLE_NAME = 'PE_ApplicationBasicInfo'
+						OR TABLE_NAME LIKE '%Application%Basic%'
+					)
+					ORDER BY 
+						CASE 
+							WHEN TABLE_NAME = 'PE_Application_BasicInfo' THEN 1
+							WHEN TABLE_NAME = 'PE_ApplicationBasicInfo' THEN 2
+							ELSE 3
+						END
+				`;
+				const tableCheckResult = await pool.request().query(tableCheckQuery);
+				
+				if (tableCheckResult.recordset.length > 0) {
+					return tableCheckResult.recordset[0].TABLE_NAME;
+				}
+			} catch (tableCheckError) {
+				console.error("Error checking table name:", tableCheckError);
+			}
+			
+			return "PE_Application_BasicInfo";
+		}
+
+		const tableName = await findTableName(pool);
+		
+		// Get all MemberNos for this FormNo to ensure complete deletion (if family members table exists)
+		let memberNos: string[] = [];
+		try {
+			const getMemberNosRequest = pool.request();
+			getMemberNosRequest.input("formNo", formNo);
+			const memberNosQuery = `SELECT [MemberNo] FROM [SJDA_Users].[dbo].[PE_FamilyMember] WHERE [FormNo] = @formNo`;
+			const memberNosResult = await getMemberNosRequest.query(memberNosQuery);
+			memberNos = memberNosResult.recordset.map((r: any) => r.MemberNo);
+		} catch (err) {
+			// Family members table might not exist or have data, continue with deletion
+			console.log("No family members found or table doesn't exist");
+		}
 
 		const dbRequest = pool.request();
 		(dbRequest as any).timeout = 120000;
 		dbRequest.input("formNo", formNo);
+		dbRequest.input("formNumber", formNo); // For PE_Application_BasicInfo table
 
-		// Delete PE_Livelihood records by MemberNo
+		// Delete PE_Livelihood records by MemberNo (if any exist)
 		if (memberNos.length > 0) {
 			for (const memberNo of memberNos) {
-				const deleteLivelihoodByMember = pool.request();
-				deleteLivelihoodByMember.input("memberNo", memberNo);
-				await deleteLivelihoodByMember.query(`
-					DELETE FROM [SJDA_Users].[dbo].[PE_Livelihood]
-					WHERE [MemberNo] = @memberNo
-				`);
+				try {
+					const deleteLivelihoodByMember = pool.request();
+					deleteLivelihoodByMember.input("memberNo", memberNo);
+					await deleteLivelihoodByMember.query(`
+						DELETE FROM [SJDA_Users].[dbo].[PE_Livelihood]
+						WHERE [MemberNo] = @memberNo
+					`);
+				} catch (err) {
+					console.log("Error deleting livelihood record:", err);
+				}
 			}
 		}
 
-		// Delete PE_Education records by MemberNo
+		// Delete PE_Education records by MemberNo (if any exist)
 		if (memberNos.length > 0) {
 			for (const memberNo of memberNos) {
-				const deleteEducationByMember = pool.request();
-				deleteEducationByMember.input("memberNo", memberNo);
-				await deleteEducationByMember.query(`
-					DELETE FROM [SJDA_Users].[dbo].[PE_Education]
-					WHERE [MemberNo] = @memberNo
-				`);
+				try {
+					const deleteEducationByMember = pool.request();
+					deleteEducationByMember.input("memberNo", memberNo);
+					await deleteEducationByMember.query(`
+						DELETE FROM [SJDA_Users].[dbo].[PE_Education]
+						WHERE [MemberNo] = @memberNo
+					`);
+				} catch (err) {
+					console.log("Error deleting education record:", err);
+				}
 			}
 		}
 
-		// Delete PE_FamilyMember records by FormNo
-		await dbRequest.query(`
-			DELETE FROM [SJDA_Users].[dbo].[PE_FamilyMember]
-			WHERE [FormNo] = @formNo
+		// Delete PE_FamilyMember records by FormNo (if table exists)
+		try {
+			await dbRequest.query(`
+				DELETE FROM [SJDA_Users].[dbo].[PE_FamilyMember]
+				WHERE [FormNo] = @formNo
+			`);
+		} catch (err) {
+			console.log("Error deleting family members (table may not exist):", err);
+		}
+
+		// Delete PE_Application_BasicInfo record by FormNumber
+		const deleteBasicInfoRequest = pool.request();
+		deleteBasicInfoRequest.input("formNumber", formNo);
+		const deleteBasicInfoResult = await deleteBasicInfoRequest.query(`
+			DELETE FROM [SJDA_Users].[dbo].[${tableName}]
+			WHERE [FormNumber] = @formNumber
 		`);
 
-		// Delete PE_ApplicationPerson records by FormNo
-		const deletePersonResult = await dbRequest.query(`
-			DELETE FROM [SJDA_Users].[dbo].[PE_ApplicationPerson]
-			WHERE [FormNo] = @formNo
-		`);
+		// Delete PE_Application record by FormNo (if exists - for backward compatibility)
+		try {
+			await dbRequest.query(`
+				DELETE FROM [SJDA_Users].[dbo].[PE_Application]
+				WHERE [FormNo] = @formNo
+			`);
+		} catch (err) {
+			console.log("Error deleting PE_Application record (table may not exist):", err);
+		}
 
-		// Delete PE_Application record by FormNo (if exists)
-		await dbRequest.query(`
-			DELETE FROM [SJDA_Users].[dbo].[PE_Application]
-			WHERE [FormNo] = @formNo
-		`);
-
-		if (deletePersonResult.rowsAffected[0] === 0) {
+		if (deleteBasicInfoResult.rowsAffected[0] === 0) {
 			return NextResponse.json(
 				{ success: false, message: "Application not found" },
 				{ status: 404 }
@@ -864,7 +1044,7 @@ export async function DELETE(request: NextRequest) {
 
 		return NextResponse.json({
 			success: true,
-			message: "Family and all related records deleted successfully",
+			message: "Application and all related records deleted successfully",
 		});
 	} catch (error: any) {
 		console.error("Error deleting application:", error);

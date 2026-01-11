@@ -181,9 +181,10 @@ export default function AddLoanRecordPage() {
         // Check if user has loan access (access_loans = 1 or "Yes")
         const userHasLoanAccess = checkLoanAccess(accessLoansValue);
 
-        // Also check if user is super user (has full access)
+        // Also check if user is admin or super user (has full access)
+        const isAdmin = userProfile?.username && userProfile.username.toLowerCase() === 'admin';
         const supperUserValue = userProfile?.supper_user;
-        const userIsSuperUser = isSuperUser(supperUserValue);
+        const userIsSuperUser = isAdmin || isSuperUser(supperUserValue);
 
         // Debug logging
         if (typeof window !== "undefined") {

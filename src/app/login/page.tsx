@@ -24,10 +24,22 @@ export default function LoginPage() {
 				body: JSON.stringify({ email, password }),
 			});
 			
-			const data = await res.json().catch(() => ({}));
+			let data;
+			try {
+				data = await res.json();
+			} catch (parseError) {
+				// If JSON parsing fails, use default error message
+				setError("Login failed - Invalid response from server");
+				setLoading(false);
+				return;
+			}
 			
 			if (!res.ok) {
-				throw new Error(data?.message || "Login failed");
+				// Handle error response gracefully without throwing
+				const errorMessage = data?.message || "Login failed";
+				setError(errorMessage);
+				setLoading(false);
+				return;
 			}
 			
 			// Store user data in localStorage for fallback
@@ -61,10 +73,10 @@ export default function LoginPage() {
 			}
 			
 		} catch (e: unknown) {
-			console.error("Login error:", e); // Debug log
-			const errorMessage = e instanceof Error ? e.message : "Login failed";
+			// Only catch network errors or unexpected errors
+			console.error("Login error:", e);
+			const errorMessage = e instanceof Error ? e.message : "An unexpected error occurred. Please try again.";
 			setError(errorMessage);
-		} finally {
 			setLoading(false);
 		}
 	}

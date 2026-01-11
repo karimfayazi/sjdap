@@ -41,35 +41,6 @@ export async function GET(request: NextRequest) {
 			);
 		}
 		
-		// Get SWB_Families field value - try exact name first, then case-insensitive lookup
-		// Based on SQL: [SWB_Families] from [SJDA_Users].[dbo].[Table_User]
-		let swbFamiliesValue = (user as any).SWB_Families;
-		let swbFieldKey = 'SWB_Families';
-		
-		// If not found with exact name, try case-insensitive lookup
-		if (swbFamiliesValue === undefined) {
-			swbFieldKey = Object.keys(user).find(key => 
-				key.toLowerCase() === 'swb_families' || 
-				key.toLowerCase() === 'swbfamilies'
-			) || 'SWB_Families';
-			swbFamiliesValue = swbFieldKey ? (user as any)[swbFieldKey] : null;
-		}
-		
-		// Get BaselineQOL field value - try exact name first, then case-insensitive lookup
-		// Based on SQL: [BaselineQOL] from [SJDA_Users].[dbo].[Table_User]
-		let baselineQOLValue = (user as any).BaselineQOL;
-		let baselineQOLFieldKey = 'BaselineQOL';
-		
-		// If not found with exact name, try case-insensitive lookup
-		if (baselineQOLValue === undefined) {
-			baselineQOLFieldKey = Object.keys(user).find(key => 
-				key.toLowerCase() === 'baselineqol' || 
-				key.toLowerCase() === 'baseline_qol' ||
-				key.toLowerCase() === 'baseline-qol'
-			) || 'BaselineQOL';
-			baselineQOLValue = baselineQOLFieldKey ? (user as any)[baselineQOLFieldKey] : null;
-		}
-		
 		// Debug logging for specific user
 		if (userId === 'barkat.ebrahim@sjdap.org') {
 			console.log('=== DATABASE RAW DATA FOR barkat.ebrahim@sjdap.org ===');
@@ -77,42 +48,13 @@ export async function GET(request: NextRequest) {
 			console.log('access_loans field exists?', 'access_loans' in user);
 			console.log('access_loans value:', user.access_loans);
 			console.log('access_loans type:', typeof user.access_loans);
-			console.log('SWB_Families field key:', swbFieldKey);
-			console.log('SWB_Families value:', swbFamiliesValue);
 			console.log('=========================================================');
 		}
-		
-		// Comprehensive debug logging for SWB_Families - check all possible field name variations
-		console.log('=== COMPREHENSIVE SWB_Families FIELD CHECK ===');
-		console.log('All user field keys:', Object.keys(user));
-		console.log('Checking for SWB_Families variations:');
-		console.log('  - SWB_Families:', (user as any).SWB_Families, 'exists:', 'SWB_Families' in user);
-		console.log('  - swb_families:', (user as any).swb_families, 'exists:', 'swb_families' in user);
-		console.log('  - SWB_FAMILIES:', (user as any).SWB_FAMILIES, 'exists:', 'SWB_FAMILIES' in user);
-		console.log('  - Swb_Families:', (user as any).Swb_Families, 'exists:', 'Swb_Families' in user);
-		console.log(`  - Found field with key: "${swbFieldKey}", value:`, swbFamiliesValue);
-		if (!swbFieldKey || swbFamiliesValue === undefined) {
-			console.log('  - WARNING: SWB_Families field may not exist or is undefined!');
-		}
-		console.log('================================================');
-		
-		// Comprehensive debug logging for BaselineQOL - check all possible field name variations
-		console.log('=== COMPREHENSIVE BaselineQOL FIELD CHECK ===');
-		console.log('Checking for BaselineQOL variations:');
-		console.log('  - BaselineQOL:', (user as any).BaselineQOL, 'exists:', 'BaselineQOL' in user);
-		console.log('  - baselineqol:', (user as any).baselineqol, 'exists:', 'baselineqol' in user);
-		console.log('  - BASELINEQOL:', (user as any).BASELINEQOL, 'exists:', 'BASELINEQOL' in user);
-		console.log('  - Baseline_QOL:', (user as any).Baseline_QOL, 'exists:', 'Baseline_QOL' in user);
-		console.log(`  - Found field with key: "${baselineQOLFieldKey}", value:`, baselineQOLValue, `(type: ${typeof baselineQOLValue})`);
-		console.log('  - Normalized value:', normalizePermissionForAPI(baselineQOLValue));
-		if (!baselineQOLFieldKey || baselineQOLValue === undefined) {
-			console.log('  - WARNING: BaselineQOL field may not exist or is undefined!');
-		}
-		console.log('================================================');
 
 		// Map database fields to UserProfile type
 		// Handle Supper_User field - it might be stored as bit (0/1), string ('Yes'/'No'), or boolean
 		// Preserve original value but normalize to "Yes"/"No" for consistency
+		// IMPORTANT: Users with Supper_User=1 (or "Yes"/true) get FULL ACCESS to ALL sections
 		let supperUserValue: string | boolean | number | null = null;
 		if (user.Supper_User !== null && user.Supper_User !== undefined) {
 			// Check if it's already a string (preserve it, but trim whitespace)
@@ -131,6 +73,7 @@ export async function GET(request: NextRequest) {
 			} else if (typeof user.Supper_User === 'boolean') {
 				supperUserValue = user.Supper_User ? 'Yes' : 'No';
 			} else if (typeof user.Supper_User === 'number') {
+				// Handle Supper_User=1 (number) from database - this grants Super User access
 				supperUserValue = user.Supper_User === 1 ? 'Yes' : 'No';
 			} else {
 				// For any other type, convert to string and normalize
@@ -139,6 +82,41 @@ export async function GET(request: NextRequest) {
 			}
 		}
 		
+		// Debug logging for admin user - log all permission fields
+		if (userId && userId.toLowerCase() === 'admin') {
+			console.log('=== ADMIN USER PROFILE DEBUG ===');
+			console.log('Supper_User:', {
+				original: user.Supper_User,
+				normalized: supperUserValue,
+				type: typeof user.Supper_User
+			});
+			console.log('Section Permissions:', {
+				BaselineQOL: (user as any).BaselineQOL,
+				Dashboard: (user as any).Dashboard,
+				PowerBI: (user as any).PowerBI,
+				Family_Development_Plan: (user as any).Family_Development_Plan,
+				Family_Approval_CRC: (user as any).Family_Approval_CRC,
+				Family_Income: (user as any).Family_Income,
+				ROP: (user as any).ROP,
+				Setting: (user as any).Setting,
+				Other: (user as any).Other,
+				SWB_Families: (user as any).SWB_Families,
+			});
+			console.log('Finance Permissions:', {
+				access_loans: {
+					original: user.access_loans,
+					normalized: accessLoansValue,
+					type: typeof user.access_loans
+				},
+				bank_account: {
+					original: user.bank_account,
+					normalized: bankAccountValue,
+					type: typeof user.bank_account
+				},
+			});
+			console.log('===============================');
+		}
+
 		// Handle access_loans field - normalize to 0/1 for consistency
 		let accessLoansValue: number = 0;
 		if (user.access_loans !== null && user.access_loans !== undefined) {
@@ -159,6 +137,15 @@ export async function GET(request: NextRequest) {
 			} else {
 				accessLoansValue = 0;
 			}
+		}
+		
+		// Additional logging for specific user
+		if (user.USER_ID === 'barkat.ebrahim@sjdap.org') {
+			console.log('=== DEBUGGING USER: barkat.ebrahim@sjdap.org ===');
+			console.log('Raw access_loans from DB:', user.access_loans);
+			console.log('Type of access_loans:', typeof user.access_loans);
+			console.log('Normalized accessLoansValue:', accessLoansValue);
+			console.log('==============================================');
 		}
 
 		// Handle bank_account field - normalize to 0/1
@@ -185,128 +172,24 @@ export async function GET(request: NextRequest) {
 
 		// Helper function to normalize permission values (1/0, true/false, "Yes"/"No" -> boolean)
 		// Returns true if permission granted (1, "Yes", true), false if denied (0, "No", false), null if not set
-		// IMPORTANT: This function handles SWB_Families = 1 or true to grant access
-		const normalizePermissionForAPI = (value: any): boolean | null => {
+		const normalizePermission = (value: any): boolean | null => {
 			if (value === null || value === undefined) return null;
-			
-			// Handle boolean: true -> true, false -> false
-			if (typeof value === 'boolean') {
-				return value === true;
-			}
-			
-			// Handle number: 1 -> true, anything else -> false
-			if (typeof value === 'number') {
-				return value === 1;
-			}
-			
-			// Handle string: normalize and check
+			if (typeof value === 'boolean') return value;
+			if (typeof value === 'number') return value === 1;
 			if (typeof value === 'string') {
 				const lower = value.toLowerCase().trim();
-				// Grant access for: "yes", "1", "true"
-				if (lower === 'yes' || lower === '1' || lower === 'true') {
-					return true;
-				}
-				// Deny access for: "no", "0", "false"
-				if (lower === 'no' || lower === '0' || lower === 'false') {
-					return false;
-				}
-				// Unknown string pattern -> return null (will be converted to false)
+				if (lower === 'yes' || lower === '1' || lower === 'true') return true;
+				if (lower === 'no' || lower === '0' || lower === 'false') return false;
+				// If it's a string but doesn't match known patterns, return null
 				return null;
 			}
-			
-			// Unknown type -> return null (will be converted to false)
 			return null;
 		};
 
-		// For super users, set all section permissions to true (they have access to everything)
-		// This ensures super users bypass all permission checks
+		// For super users (Supper_User=1, "Yes", or true), set all section permissions to true
+		// This ensures super users bypass all permission checks and have access to ALL pages
+		// Users with Supper_User=1 in the database will automatically get access to all sections
 		const isSuperUserValue = isSuperUser(supperUserValue);
-
-		// Debug logging for admin user - log all permission fields
-		if (userId && userId.toLowerCase() === 'admin') {
-			console.log('=== ADMIN USER PROFILE DEBUG ===');
-			console.log('Supper_User:', {
-				original: user.Supper_User,
-				normalized: supperUserValue,
-				type: typeof user.Supper_User
-			});
-			console.log('Section Permissions (RAW FROM DB):', {
-				BaselineQOL: { value: baselineQOLValue, type: typeof baselineQOLValue, normalized: normalizePermissionForAPI(baselineQOLValue) },
-				Dashboard: { value: (user as any).Dashboard, type: typeof (user as any).Dashboard },
-				PowerBI: { value: (user as any).PowerBI, type: typeof (user as any).PowerBI },
-				Family_Development_Plan: { value: (user as any).Family_Development_Plan, type: typeof (user as any).Family_Development_Plan },
-				Family_Approval_CRC: { value: (user as any).Family_Approval_CRC, type: typeof (user as any).Family_Approval_CRC },
-				Family_Income: { value: (user as any).Family_Income, type: typeof (user as any).Family_Income },
-				ROP: { value: (user as any).ROP, type: typeof (user as any).ROP },
-				Setting: { value: (user as any).Setting, type: typeof (user as any).Setting },
-				Other: { value: (user as any).Other, type: typeof (user as any).Other },
-				SWB_Families: { value: swbFamiliesValue, type: typeof swbFamiliesValue, normalized: normalizePermissionForAPI(swbFamiliesValue) },
-			});
-			console.log('Finance Permissions:', {
-				access_loans: {
-					original: user.access_loans,
-					normalized: accessLoansValue,
-					type: typeof user.access_loans
-				},
-				bank_account: {
-					original: user.bank_account,
-					normalized: bankAccountValue,
-					type: typeof user.bank_account
-				},
-			});
-			console.log('===============================');
-		}
-
-		// Additional logging for specific user
-		if (user.USER_ID === 'barkat.ebrahim@sjdap.org') {
-			console.log('=== DEBUGGING USER: barkat.ebrahim@sjdap.org ===');
-			console.log('Raw access_loans from DB:', user.access_loans);
-			console.log('Type of access_loans:', typeof user.access_loans);
-			console.log('Normalized accessLoansValue:', accessLoansValue);
-			console.log('Raw SWB_Families from DB:', swbFamiliesValue);
-			console.log('Type of SWB_Families:', typeof swbFamiliesValue);
-			console.log('Normalized SWB_Families:', normalizePermissionForAPI(swbFamiliesValue));
-			console.log('Raw BaselineQOL from DB:', baselineQOLValue);
-			console.log('Type of BaselineQOL:', typeof baselineQOLValue);
-			console.log('Normalized BaselineQOL:', normalizePermissionForAPI(baselineQOLValue));
-			console.log('==============================================');
-		}
-		
-		// Additional logging for admin user - BaselineQOL access
-		if (userId && userId.toLowerCase() === 'admin') {
-			console.log('=== ADMIN BaselineQOL ACCESS DEBUG ===');
-			console.log('Raw BaselineQOL from DB:', baselineQOLValue);
-			console.log('Field key:', baselineQOLFieldKey);
-			console.log('Type:', typeof baselineQOLValue);
-			console.log('Normalized:', normalizePermissionForAPI(baselineQOLValue));
-			console.log('Is Super User:', isSuperUserValue);
-			console.log('Final value:', isSuperUserValue ? true : (normalizePermissionForAPI(baselineQOLValue) ?? false));
-			console.log('=====================================');
-		}
-		
-		// Log SWB_Families for all users to debug - CRITICAL for access control
-		const swbNormalized = normalizePermissionForAPI(swbFamiliesValue);
-		const swbFinal = isSuperUserValue ? true : (swbNormalized ?? false);
-		console.log(`=== SWB_Families ACCESS CONTROL DEBUG for ${user.USER_ID} ===`);
-		console.log('Field key found:', swbFieldKey);
-		console.log('Raw SWB_Families from DB:', swbFamiliesValue, `(type: ${typeof swbFamiliesValue})`);
-		console.log('After normalization:', swbNormalized);
-		console.log('Is Super User:', isSuperUserValue);
-		console.log('FINAL SWB_Families value in userProfile:', swbFinal);
-		console.log(swbFinal ? '✅ ACCESS GRANTED' : '❌ ACCESS DENIED');
-		console.log('==================================================');
-		
-		// Log BaselineQOL for all users to debug - CRITICAL for access control
-		const baselineQOLNormalized = normalizePermissionForAPI(baselineQOLValue);
-		const baselineQOLFinal = isSuperUserValue ? true : (baselineQOLNormalized ?? false);
-		console.log(`=== BaselineQOL ACCESS CONTROL DEBUG for ${user.USER_ID} ===`);
-		console.log('Field key found:', baselineQOLFieldKey);
-		console.log('Raw BaselineQOL from DB:', baselineQOLValue, `(type: ${typeof baselineQOLValue})`);
-		console.log('After normalization:', baselineQOLNormalized);
-		console.log('Is Super User:', isSuperUserValue);
-		console.log('FINAL BaselineQOL value in userProfile:', baselineQOLFinal);
-		console.log(baselineQOLFinal ? '✅ ACCESS GRANTED' : '❌ ACCESS DENIED');
-		console.log('==================================================');
 		
 		const userProfile = {
 			username: user.USER_ID || "",
@@ -326,19 +209,16 @@ export async function GET(request: NextRequest) {
 			access_loans: isSuperUserValue ? 1 : accessLoansValue, // Super users have access to loans
 			bank_account: isSuperUserValue ? 1 : bankAccountValue, // Super users have access to bank accounts
 			// Super users get access to ALL sections (set to true), otherwise use normalized permissions
-			// Convert null to false for consistency (null means no permission, which is false)
-			BaselineQOL: isSuperUserValue ? true : (normalizePermissionForAPI(baselineQOLValue) ?? false),
-			Dashboard: isSuperUserValue ? true : (normalizePermissionForAPI((user as any).Dashboard) ?? false),
-			PowerBI: isSuperUserValue ? true : (normalizePermissionForAPI((user as any).PowerBI) ?? false),
-			Family_Development_Plan: isSuperUserValue ? true : (normalizePermissionForAPI((user as any).Family_Development_Plan) ?? false),
-			Family_Approval_CRC: isSuperUserValue ? true : (normalizePermissionForAPI((user as any).Family_Approval_CRC) ?? false),
-			Family_Income: isSuperUserValue ? true : (normalizePermissionForAPI((user as any).Family_Income) ?? false),
-			ROP: isSuperUserValue ? true : (normalizePermissionForAPI((user as any).ROP) ?? false),
-			Setting: isSuperUserValue ? true : (normalizePermissionForAPI((user as any).Setting) ?? false),
-			Other: isSuperUserValue ? true : (normalizePermissionForAPI((user as any).Other) ?? false),
-			// SWB_Families: If value is 1 or true, grant access. Super users always have access.
-			// normalizePermissionForAPI converts: 1 -> true, true -> true, 0/false/null -> false
-			SWB_Families: isSuperUserValue ? true : (normalizePermissionForAPI(swbFamiliesValue) ?? false),
+			BaselineQOL: isSuperUserValue ? true : normalizePermission((user as any).BaselineQOL),
+			Dashboard: isSuperUserValue ? true : normalizePermission((user as any).Dashboard),
+			PowerBI: isSuperUserValue ? true : normalizePermission((user as any).PowerBI),
+			Family_Development_Plan: isSuperUserValue ? true : normalizePermission((user as any).Family_Development_Plan),
+			Family_Approval_CRC: isSuperUserValue ? true : normalizePermission((user as any).Family_Approval_CRC),
+			Family_Income: isSuperUserValue ? true : normalizePermission((user as any).Family_Income),
+			ROP: isSuperUserValue ? true : normalizePermission((user as any).ROP),
+			Setting: isSuperUserValue ? true : normalizePermission((user as any).Setting),
+			Other: isSuperUserValue ? true : normalizePermission((user as any).Other),
+			SWB_Families: isSuperUserValue ? true : normalizePermission((user as any).SWB_Families),
 		};
 
 		return NextResponse.json({

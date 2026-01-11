@@ -32,13 +32,23 @@ export async function POST(request: NextRequest) {
 		}
 
 		// Check if account is active
+		// SPECIAL: Admin users (user_id = "admin") can login even if account is inactive
+		const isAdminUser = email && email.toLowerCase() === 'admin';
 		const isActive =
 			user.ACTIVE === 1 ||
 			user.ACTIVE === "1" ||
 			user.ACTIVE === true ||
 			user.ACTIVE === "true";
 
-		if (!isActive) {
+		// Log admin user login attempt
+		if (isAdminUser) {
+			console.log('=== ADMIN USER LOGIN ATTEMPT ===');
+			console.log('ACTIVE field value:', user.ACTIVE);
+			console.log('Bypassing inactive check for admin user');
+		}
+
+		// Allow admin users to bypass inactive check, otherwise check if account is active
+		if (!isAdminUser && !isActive) {
 			return NextResponse.json(
 				{ success: false, message: "Your Account is In-Active - Please contact Manager MIS" },
 				{ status: 403 }

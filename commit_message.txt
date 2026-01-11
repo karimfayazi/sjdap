@@ -1,0 +1,62 @@
+Implement comprehensive permission-based access control system
+
+Major Features:
+- Added enterprise-level access control across all dashboard sections
+- Implemented role-based permissions (Super Admin, access_loans, bank_account)
+- Created dedicated settings page for admin users only
+- Added section-specific access control for all major features
+
+Access Control Implementation:
+- Created utility modules: auth-utils, loan-access-utils, bank-access-utils
+- Implemented useSectionAccess hook for consistent permission checking
+- Added SectionAccessDenied component for better UX
+- Permission checks support multiple formats (0/1, Yes/No, true/false)
+
+Permission System:
+- BaselineQOL, Dashboard, PowerBI, Family_Development_Plan
+- Family_Approval_CRC, Family_Income, ROP, SWB_Families
+- access_loans (loan process pages), bank_account (bank info pages)
+- Setting & Other sections (Super Admin only)
+
+Settings Page Updates:
+- Admin-only access with Super User check
+- View/Add/Edit/Delete user management
+- Dedicated edit page for user permissions
+- All permission fields use 0/1 values consistently
+
+Loan Process Access:
+- Main loan process page with access_loans check
+- Add/Edit/View loan pages with permission control
+- No automatic redirects - shows access denied page
+- Fallback to localStorage for permission data
+
+Bank Information Access:
+- Add/View bank details pages with bank_account check
+- Super users bypass all permission checks
+- Consistent access control across all pages
+
+Baseline QOL Updates:
+- Removed DOBMonth and DOBYear fields
+- Removed ApplicationId dependency
+- Switched to FormNo-based operations
+- Removed Family Members section
+- Added proper access control checks
+
+API Updates:
+- Enhanced user-profile API with permission normalization
+- Updated login API to return all permission fields
+- Modified users API for CRUD operations with permissions
+- Updated baseline-applications APIs for FormNo usage
+
+Documentation:
+- Added TWILIO_SETUP.md for SMS/WhatsApp notifications
+- Added NOTIFICATION_SETUP.md for notification configuration
+
+Bug Fixes:
+- Fixed checkbox value handling (0/1 vs boolean)
+- Resolved database constraint issues with permission fields
+- Fixed URL encoding for user IDs with special characters
+- Corrected edit mode detection in baseline forms
+
+This update establishes a complete, enterprise-grade permission system
+that ensures secure access control across the entire application.

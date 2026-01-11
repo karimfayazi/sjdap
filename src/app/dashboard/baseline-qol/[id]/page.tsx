@@ -58,8 +58,6 @@ type ApplicationDetails = {
 			InstitutionTypeOther: string;
 			CurrentClass: string;
 			CurrentClassOther: string;
-			LastFormalQualification: string;
-			LastFormalQualificationOther: string;
 			HighestQualification: string;
 			HighestQualificationOther: string;
 		} | null;
@@ -301,8 +299,6 @@ export default function ApplicationDetailsPage() {
 						['Institution Type Other', member.education.InstitutionTypeOther],
 						['Current Class', member.education.CurrentClass],
 						['Current Class Other', member.education.CurrentClassOther],
-						['Last Formal Qualification', member.education.LastFormalQualification],
-						['Last Formal Qualification Other', member.education.LastFormalQualificationOther],
 						['Highest Qualification', member.education.HighestQualification],
 						['Highest Qualification Other', member.education.HighestQualificationOther],
 					];

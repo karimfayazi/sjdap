@@ -212,46 +212,10 @@ export async function POST(request: NextRequest) {
 			);
 		}
 
-		// Check if user has bank_account permission
-		const userPool = await getDb();
-		const userResult = await userPool
-			.request()
-			.input("user_id", userId)
-			.query(
-				"SELECT TOP(1) [bank_account] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
-			);
-
-		const user = userResult.recordset?.[0];
-
-		if (!user) {
-			return NextResponse.json(
-				{ success: false, message: "User not found" },
-				{ status: 404 }
-			);
-		}
-
-		// Check if bank_account is "Yes" (case-insensitive)
-		const bankAccount = user.bank_account;
-		const hasPermission = 
-			bankAccount === "Yes" || 
-			bankAccount === "yes" || 
-			bankAccount === 1 || 
-			bankAccount === "1";
-
-		if (!hasPermission) {
-			return NextResponse.json(
-				{ 
-					success: false, 
-					message: "Access denied. You do not have permission to add bank information. Bank account access is required." 
-				},
-				{ status: 403 }
-			);
-		}
-
-		// Get the bank data from request body
-		const bankData = await request.json();
+		// ALL USERS CAN ADD - NO PERMISSION CHECKS
 
 		// Get user's full name to set as MENTOR
+		const userPool = await getDb();
 		const userFullNameResult = await userPool
 			.request()
 			.input("user_id", userId)
@@ -394,40 +358,45 @@ export async function PUT(request: NextRequest) {
 			);
 		}
 
-		// Check if user has bank_account permission
-		const userPool = await getDb();
-		const userResult = await userPool
-			.request()
-			.input("user_id", userId)
-			.query(
-				"SELECT TOP(1) [bank_account], [USER_FULL_NAME] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
-			);
+		// Check if user is Super User - Super Users can bypass all permission checks
+		const isSuperUser = await checkSuperUserFromDb(userId);
+		
+		// If not Super User, check for specific permissions (bank_account)
+		if (!isSuperUser) {
+			const userPool = await getDb();
+			const userResult = await userPool
+				.request()
+				.input("user_id", userId)
+				.query(
+					"SELECT TOP(1) [bank_account], [USER_FULL_NAME] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
+				);
 
-		const user = userResult.recordset?.[0];
+			const user = userResult.recordset?.[0];
 
-		if (!user) {
-			return NextResponse.json(
-				{ success: false, message: "User not found" },
-				{ status: 404 }
-			);
-		}
+			if (!user) {
+				return NextResponse.json(
+					{ success: false, message: "User not found" },
+					{ status: 404 }
+				);
+			}
 
-		// Check if bank_account is "Yes" (case-insensitive)
-		const bankAccount = user.bank_account;
-		const hasPermission = 
-			bankAccount === "Yes" || 
-			bankAccount === "yes" || 
-			bankAccount === 1 || 
-			bankAccount === "1";
+			// Check if bank_account is "Yes" (case-insensitive)
+			const bankAccount = user.bank_account;
+			const hasPermission = 
+				bankAccount === "Yes" || 
+				bankAccount === "yes" || 
+				bankAccount === 1 || 
+				bankAccount === "1";
 
-		if (!hasPermission) {
-			return NextResponse.json(
-				{ 
-					success: false, 
-					message: "Access denied. You do not have permission to update bank information. Bank account access is required." 
-				},
-				{ status: 403 }
-			);
+			if (!hasPermission) {
+				return NextResponse.json(
+					{ 
+						success: false, 
+						message: "Access denied. You do not have permission to update bank information. Bank account access is required." 
+					},
+					{ status: 403 }
+				);
+			}
 		}
 
 		// Get the bank data from request body
@@ -550,40 +519,45 @@ export async function DELETE(request: NextRequest) {
 			);
 		}
 
-		// Check if user has bank_account permission
-		const userPool = await getDb();
-		const userResult = await userPool
-			.request()
-			.input("user_id", userId)
-			.query(
-				"SELECT TOP(1) [bank_account] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
-			);
+		// Check if user is Super User - Super Users can bypass all permission checks
+		const isSuperUser = await checkSuperUserFromDb(userId);
+		
+		// If not Super User, check for specific permissions (bank_account)
+		if (!isSuperUser) {
+			const userPool = await getDb();
+			const userResult = await userPool
+				.request()
+				.input("user_id", userId)
+				.query(
+					"SELECT TOP(1) [bank_account] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
+				);
 
-		const user = userResult.recordset?.[0];
+			const user = userResult.recordset?.[0];
 
-		if (!user) {
-			return NextResponse.json(
-				{ success: false, message: "User not found" },
-				{ status: 404 }
-			);
-		}
+			if (!user) {
+				return NextResponse.json(
+					{ success: false, message: "User not found" },
+					{ status: 404 }
+				);
+			}
 
-		// Check if bank_account is "Yes" (case-insensitive)
-		const bankAccount = user.bank_account;
-		const hasPermission = 
-			bankAccount === "Yes" || 
-			bankAccount === "yes" || 
-			bankAccount === 1 || 
-			bankAccount === "1";
+			// Check if bank_account is "Yes" (case-insensitive)
+			const bankAccount = user.bank_account;
+			const hasPermission = 
+				bankAccount === "Yes" || 
+				bankAccount === "yes" || 
+				bankAccount === 1 || 
+				bankAccount === "1";
 
-		if (!hasPermission) {
-			return NextResponse.json(
-				{ 
-					success: false, 
-					message: "Access denied. You do not have permission to delete bank information. Bank account access is required." 
-				},
-				{ status: 403 }
-			);
+			if (!hasPermission) {
+				return NextResponse.json(
+					{ 
+						success: false, 
+						message: "Access denied. You do not have permission to delete bank information. Bank account access is required." 
+					},
+					{ status: 403 }
+				);
+			}
 		}
 
 		// Get the family ID and account number from query params

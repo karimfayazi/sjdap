@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getFdpDb } from "@/lib/db";
+import { getFdpDb, getDb } from "@/lib/db";
 
 // Increase timeout for this route to 120 seconds
 export const maxDuration = 120;
@@ -143,6 +143,8 @@ export async function POST(request: NextRequest) {
 				{ status: 401 }
 			);
 		}
+
+		// ALL USERS CAN ADD - NO PERMISSION CHECKS
 
 		const data = await request.json();
 

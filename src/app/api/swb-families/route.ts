@@ -24,16 +24,16 @@ export async function GET(request: NextRequest) {
 
 		const searchParams = request.nextUrl.searchParams;
 		
-		// Check if requesting a single record by CNIC and Family ID
+		// Check if requesting a single record by CNIC only
 		if (!searchParams.get("getOptions") && !searchParams.get("getFamilyHead")) {
 			const cnicForSingle = searchParams.get("cnic");
 			const familyIdForSingle = searchParams.get("familyId");
-			if (cnicForSingle && familyIdForSingle) {
-					const pool = await getBaselineDb();
+			if (cnicForSingle) {
+				const pool = await getBaselineDb();
 				const request_query = pool.request();
 				(request_query as any).timeout = 120000;
 
-				const singleRecordQuery = `
+				let singleRecordQuery = `
 					SELECT TOP 1
 						[CNIC],
 						[Received_Application],
@@ -57,11 +57,18 @@ export async function GET(request: NextRequest) {
 						[Economic_Support_Amount],
 						[update_date]
 					FROM [SJDA_BASELINEDB].[dbo].[SWB_Cases]
-					WHERE [CNIC] = @cnic AND [FAMILY_ID] = @familyId
+					WHERE [CNIC] = @cnic
 				`;
 
+				// If familyId is also provided, use it for more specific lookup
+				if (familyIdForSingle) {
+					singleRecordQuery += ` AND [FAMILY_ID] = @familyId`;
+					request_query.input("familyId", familyIdForSingle);
+				}
+
+				singleRecordQuery += ` ORDER BY [update_date] DESC`;
+
 				request_query.input("cnic", cnicForSingle);
-				request_query.input("familyId", familyIdForSingle);
 				const result = await request_query.query(singleRecordQuery);
 
 				if (result.recordset && result.recordset.length > 0) {
@@ -515,19 +522,18 @@ export async function PUT(request: NextRequest) {
 		const swbData = await request.json();
 		const searchParams = request.nextUrl.searchParams;
 		const originalCnic = searchParams.get("cnic");
-		const originalFamilyId = searchParams.get("familyId");
 
-		if (!originalCnic || !originalFamilyId) {
+		if (!originalCnic) {
 			return NextResponse.json(
-				{ success: false, message: "CNIC and Family ID are required to identify the record" },
+				{ success: false, message: "CNIC is required to identify the record" },
 				{ status: 400 }
 			);
 		}
 
 		// Validate required fields
-		if (!swbData.CNIC || !swbData.FAMILY_ID) {
+		if (!swbData.CNIC) {
 			return NextResponse.json(
-				{ success: false, message: "CNIC and Family ID are required" },
+				{ success: false, message: "CNIC is required" },
 				{ status: 400 }
 			);
 		}
@@ -560,11 +566,10 @@ export async function PUT(request: NextRequest) {
 				[Social_Support_Amount] = @Social_Support_Amount,
 				[Economic_Support_Amount] = @Economic_Support_Amount,
 				[update_date] = GETDATE()
-			WHERE [CNIC] = @Original_CNIC AND [FAMILY_ID] = @Original_FAMILY_ID
+			WHERE [CNIC] = @Original_CNIC
 		`;
 
 		request_query.input("Original_CNIC", originalCnic);
-		request_query.input("Original_FAMILY_ID", originalFamilyId);
 		request_query.input("CNIC", swbData.CNIC);
 		request_query.input("Received_Application", swbData.Received_Application || null);
 		request_query.input("BTS_Number", swbData.BTS_Number || null);

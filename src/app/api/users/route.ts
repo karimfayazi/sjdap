@@ -205,28 +205,7 @@ export async function POST(request: NextRequest) {
 
 		const pool = await getDb();
 
-		// Check permissions of current user (must be admin or super user)
-		const permResult = await pool
-			.request()
-			.input("current_user_id", currentUserId)
-			.query(
-				"SELECT TOP(1) [USER_TYPE], [Supper_User] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @current_user_id"
-			);
-
-		const permUser = permResult.recordset?.[0];
-		const isAdmin = permUser?.USER_TYPE?.toLowerCase() === "admin";
-		const isSuperUser =
-			permUser?.Supper_User === 1 ||
-			permUser?.Supper_User === "1" ||
-			permUser?.Supper_User === true ||
-			permUser?.Supper_User === "true";
-
-		if (!isAdmin && !isSuperUser) {
-			return NextResponse.json(
-				{ success: false, message: "Access denied. Only Admin or Super User can create users." },
-				{ status: 403 }
-			);
-		}
+		// ALL USERS CAN CREATE USERS - NO PERMISSION CHECKS
 
 		const data = await request.json();
 
