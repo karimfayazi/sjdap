@@ -128,7 +128,7 @@ export async function GET(request: NextRequest) {
 			return "Level -4";
 		};
 
-		const baselineIncomeLevel = calculatePovertyLevel(baselinePerCapita, areaType, selfSufficiencyIncomePerCapita);
+		const baselineIncomeLevel = calculatePovertyLevel(baselinePerCapita, areaType);
 
 		// Fetch all FDP Economic Development interventions
 		const economicQuery = `

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { getBaselineDb } from "@/lib/db";
+import { checkSuperUserFromDb } from "@/lib/auth-server-utils";
 
 // Increase timeout for this route to 120 seconds
 export const maxDuration = 120;
@@ -232,6 +233,9 @@ export async function POST(request: NextRequest) {
 			);
 		}
 
+		// Get the bank data from request body
+		const bankData = await request.json();
+
 		// Validate required fields
 		if (!bankData.familyId || !bankData.bankName || !bankData.accountHolderName || !bankData.accountNumber) {
 			return NextResponse.json(
@@ -240,8 +244,44 @@ export async function POST(request: NextRequest) {
 			);
 		}
 
-		// Insert into database
+		// Check if Bank Account Number already exists
 		const pool = await getDb();
+		const accountCheckRequest = pool.request();
+		accountCheckRequest.input("ACCOUNT_NO", bankData.accountNumber.trim());
+		const accountCheckQuery = `
+			SELECT [FAMILY_ID], [ACCOUNT_NO]
+			FROM [SJDA_Tracking_System].[dbo].[Table_BANK_INFORMATION]
+			WHERE LTRIM(RTRIM([ACCOUNT_NO])) = LTRIM(RTRIM(@ACCOUNT_NO))
+		`;
+		const accountCheckResult = await accountCheckRequest.query(accountCheckQuery);
+
+		if (accountCheckResult.recordset.length > 0) {
+			return NextResponse.json(
+				{ success: false, message: "This Bank Account is already used. Please use a different account number." },
+				{ status: 400 }
+			);
+		}
+
+		// Check if CNIC already exists (if provided)
+		if (bankData.cnic && bankData.cnic.trim() !== "") {
+			const cnicCheckRequest = pool.request();
+			cnicCheckRequest.input("CNIC", bankData.cnic.trim());
+			const cnicCheckQuery = `
+				SELECT [FAMILY_ID], [CNIC]
+				FROM [SJDA_Tracking_System].[dbo].[Table_BANK_INFORMATION]
+				WHERE LTRIM(RTRIM([CNIC])) = LTRIM(RTRIM(@CNIC))
+			`;
+			const cnicCheckResult = await cnicCheckRequest.query(cnicCheckQuery);
+
+			if (cnicCheckResult.recordset.length > 0) {
+				return NextResponse.json(
+					{ success: false, message: "This CNIC is already used. Please use a different CNIC number." },
+					{ status: 400 }
+				);
+			}
+		}
+
+		// Insert into database
 		const insertQuery = `
 			INSERT INTO [SJDA_Tracking_System].[dbo].[Table_BANK_INFORMATION]
 			(

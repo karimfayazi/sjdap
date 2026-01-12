@@ -293,7 +293,7 @@ function ViewSWBFamilyContent() {
 		]);
 
 		// Add footer to all pages
-		const totalPages = doc.getNumberOfPages();
+		const totalPages = (doc as any).internal.getNumberOfPages();
 		for (let i = 1; i <= totalPages; i++) {
 			doc.setPage(i);
 			addFooter(i, totalPages);

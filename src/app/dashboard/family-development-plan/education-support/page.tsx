@@ -64,6 +64,10 @@ type EducationSupportFormData = {
 	BaselineSchoolType: string;
 	TransferredToSchoolType: string;
 	TransferredToClassLevel: string;
+	
+	// Approval and Remarks
+	ApprovalStatus: string;
+	Remarks: string;
 };
 
 type FamilyMember = {
@@ -133,6 +137,8 @@ function EducationSupportContent() {
 		BaselineSchoolType: "",
 		TransferredToSchoolType: "",
 		TransferredToClassLevel: "",
+		ApprovalStatus: "Pending",
+		Remarks: "",
 	});
 
 	const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
@@ -467,6 +473,8 @@ function EducationSupportContent() {
 									BaselineSchoolType: existing.BaselineSchoolType || "",
 									TransferredToSchoolType: existing.TransferredToSchoolType || "",
 									TransferredToClassLevel: existing.TransferredToClassLevel || "",
+									ApprovalStatus: existing.ApprovalStatus || "Pending",
+									Remarks: existing.Remarks || "",
 								}));
 								setShowForm(true);
 							}
@@ -603,6 +611,7 @@ function EducationSupportContent() {
 					BaselineSchoolType: "",
 					TransferredToSchoolType: "",
 					TransferredToClassLevel: "",
+					Remarks: "",
 				}));
 				setSelectedRecordId(null);
 				setShowForm(false);
@@ -708,6 +717,7 @@ function EducationSupportContent() {
 									BaselineSchoolType: "",
 									TransferredToSchoolType: "",
 									TransferredToClassLevel: "",
+									Remarks: "",
 								}));
 							}}
 							className="px-4 py-2 bg-[#0b4d2b] text-white rounded-md hover:bg-[#0a3d22] transition-colors"
@@ -1338,6 +1348,32 @@ function EducationSupportContent() {
 								value={formatCurrency(formData.EduTotalPEContribution)}
 								readOnly
 								className="w-full rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-gray-600 cursor-not-allowed font-semibold"
+							/>
+						</div>
+					</div>
+				</div>
+
+				{/* Section 9: Approval Status and Remarks */}
+				<div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+					<h2 className="text-xl font-semibold text-gray-900 mb-4">9. Approval Status and Remarks</h2>
+					<div className="space-y-4">
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-2">Approval Status</label>
+							<input
+								type="text"
+								value={formData.ApprovalStatus}
+								readOnly
+								className="w-full rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-gray-600 cursor-not-allowed"
+							/>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-2">Remarks</label>
+							<textarea
+								value={formData.Remarks}
+								onChange={(e) => handleChange("Remarks", e.target.value)}
+								className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+								rows={4}
+								placeholder="Enter remarks here..."
 							/>
 						</div>
 					</div>

@@ -37,6 +37,7 @@ type HealthSupportFormData = {
 	
 	// Status
 	ApprovalStatus: string;
+	Remarks: string;
 };
 
 type FamilyMember = {
@@ -81,6 +82,7 @@ function HealthSupportContent() {
 		BeneficiaryAge: 0,
 		BeneficiaryGender: "",
 		ApprovalStatus: "Pending",
+		Remarks: "",
 	});
 
 	const [loading, setLoading] = useState(true);
@@ -297,7 +299,7 @@ function HealthSupportContent() {
 									age = parseInt(record.BeneficiaryAge) || 0;
 								} else if (record.BeneficiaryID) {
 									// Try to find member and calculate age from DOB
-									const member = members.find((m: FamilyMember) => m.MemberNo === record.BeneficiaryID);
+									const member = familyMembers.find((m: FamilyMember) => m.MemberNo === record.BeneficiaryID);
 									if (member && member.DOBMonth && member.DOBYear) {
 										age = calculateAge(member.DOBMonth, member.DOBYear);
 									}
@@ -317,6 +319,7 @@ function HealthSupportContent() {
 									BeneficiaryAge: age,
 									BeneficiaryGender: record.BeneficiaryGender || "",
 									ApprovalStatus: record.ApprovalStatus || "Pending",
+									Remarks: record.Remarks || "",
 								}));
 							}
 						}
@@ -434,6 +437,7 @@ function HealthSupportContent() {
 					BeneficiaryAge: formData.BeneficiaryAge,
 					BeneficiaryGender: formData.BeneficiaryGender,
 					ApprovalStatus: formData.ApprovalStatus,
+					Remarks: formData.Remarks,
 				}),
 			});
 
@@ -464,6 +468,7 @@ function HealthSupportContent() {
 				HealthTotalFamilyContribution: 0,
 				HealthTotalPEContribution: 0,
 				ApprovalStatus: "Pending",
+				Remarks: "",
 				// Keep beneficiary info if memberNo is provided
 				BeneficiaryID: memberNo || prev.BeneficiaryID,
 				BeneficiaryName: memberName || prev.BeneficiaryName,
@@ -795,18 +800,30 @@ function HealthSupportContent() {
 							</div>
 						</div>
 
-						{/* Approval Status */}
-						<div>
-							<label className="block text-sm font-medium text-gray-700 mb-2">Approval Status</label>
-							<select
-								value={formData.ApprovalStatus}
-								onChange={(e) => handleChange("ApprovalStatus", e.target.value)}
-								className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-							>
-								<option value="Pending">Pending</option>
-								<option value="Approved">Approved</option>
-								<option value="Rejected">Rejected</option>
-							</select>
+						{/* Approval Status and Remarks */}
+						<div className="border-t pt-6">
+							<h3 className="text-lg font-semibold text-gray-900 mb-4">Approval Status and Remarks</h3>
+							<div className="space-y-4">
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-2">Approval Status</label>
+									<input
+										type="text"
+										value={formData.ApprovalStatus}
+										readOnly
+										className="w-full rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-gray-600 cursor-not-allowed"
+									/>
+								</div>
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-2">Remarks</label>
+									<textarea
+										value={formData.Remarks}
+										onChange={(e) => handleChange("Remarks", e.target.value)}
+										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+										rows={4}
+										placeholder="Enter remarks here..."
+									/>
+								</div>
+							</div>
 						</div>
 
 						{/* Form Actions */}

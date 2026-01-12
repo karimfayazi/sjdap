@@ -309,6 +309,25 @@ export async function POST(request: NextRequest) {
 			);
 		}
 
+		// Check if CNIC already exists (if provided)
+		if (body.CNICNumber && body.CNICNumber.trim() !== "") {
+			const cnicCheckRequest = pool.request();
+			cnicCheckRequest.input("CNICNumber", body.CNICNumber.trim());
+			const cnicCheckQuery = `
+				SELECT [FormNumber], [CNICNumber]
+				FROM [SJDA_Users].[dbo].[${tableName}]
+				WHERE LTRIM(RTRIM([CNICNumber])) = LTRIM(RTRIM(@CNICNumber))
+			`;
+			const cnicCheckResult = await cnicCheckRequest.query(cnicCheckQuery);
+
+			if (cnicCheckResult.recordset.length > 0) {
+				return NextResponse.json(
+					{ success: false, message: "This CNIC is already used. Please use a different CNIC number." },
+					{ status: 400 }
+				);
+			}
+		}
+
 		// Insert new record
 		const insertRequest = pool.request();
 		insertRequest.input("FormNumber", body.FormNumber);

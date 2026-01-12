@@ -110,6 +110,7 @@ const getNavigationGroups = (userSection?: string | null, isLoading?: boolean): 
 							{ label: "Baseline Approval", href: "/dashboard/approval-section/baseline-approval" },
 							{ label: "Family Development Plan Approval", href: "/dashboard/approval-section/family-development-plan-approval" },
 							{ label: "Intervention Approval", href: "/dashboard/approval-section/intervention-approval" },
+							{ label: "Bank Account Approval", href: "/dashboard/approval-section/bank-account-approval" },
 						]
 					},
 					{ label: "Logout", href: "/logout", icon: LogOut },
@@ -160,6 +161,7 @@ const getNavigationGroups = (userSection?: string | null, isLoading?: boolean): 
 						{ label: "Baseline Approval", href: "/dashboard/approval-section/baseline-approval" },
 						{ label: "Family Development Plan Approval", href: "/dashboard/approval-section/family-development-plan-approval" },
 						{ label: "Intervention Approval", href: "/dashboard/approval-section/intervention-approval" },
+						{ label: "Bank Account Approval", href: "/dashboard/approval-section/bank-account-approval" },
 					]
 				},
 				{

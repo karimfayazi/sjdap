@@ -147,7 +147,7 @@ function ProfileTab() {
 						<label className="block text-sm font-medium text-gray-700 mb-2">User ID</label>
 										<input
 											type="text"
-							value={userProfile?.user_id || ""}
+							value={userProfile?.username || ""}
 							disabled
 							className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm bg-gray-50 cursor-not-allowed"
 										/>
@@ -156,7 +156,7 @@ function ProfileTab() {
 						<label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
 										<input
 											type="text"
-							value={userProfile?.user_full_name || ""}
+							value={userProfile?.full_name || ""}
 							disabled
 							className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm bg-gray-50 cursor-not-allowed"
 										/>

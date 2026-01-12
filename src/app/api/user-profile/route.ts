@@ -102,19 +102,6 @@ export async function GET(request: NextRequest) {
 				Other: (user as any).Other,
 				SWB_Families: (user as any).SWB_Families,
 			});
-			console.log('Finance Permissions:', {
-				access_loans: {
-					original: user.access_loans,
-					normalized: accessLoansValue,
-					type: typeof user.access_loans
-				},
-				bank_account: {
-					original: user.bank_account,
-					normalized: bankAccountValue,
-					type: typeof user.bank_account
-				},
-			});
-			console.log('===============================');
 		}
 
 		// Handle access_loans field - normalize to 0/1 for consistency

@@ -156,13 +156,13 @@ function ActualInterventionDetailContent() {
 									Section
 								</th>
 								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									Status
-								</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
 									Category
 								</th>
 								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
 									Main Intervention
+								</th>
+								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+									Status
 								</th>
 								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
 									Type
@@ -198,13 +198,13 @@ function ActualInterventionDetailContent() {
 											{intervention.Section || "N/A"}
 										</td>
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-											{intervention.InterventionStatus || "N/A"}
-										</td>
-										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
 											{intervention.InterventionCategory || "N/A"}
 										</td>
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
 											{intervention.MainIntervention || "N/A"}
+										</td>
+										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+											{intervention.InterventionStatus || "N/A"}
 										</td>
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
 											{intervention.InterventionType || "N/A"}

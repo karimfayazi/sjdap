@@ -571,11 +571,7 @@ function ApplicationDetailsContent() {
 		// Helper function to add a new page if needed
 		const checkPageBreak = (requiredSpace: number = 10) => {
 			if (yPos + requiredSpace > pageHeight - margin) {
-				pdf.addPage({
-					orientation: 'landscape',
-					unit: 'mm',
-					format: 'a4'
-				});
+				pdf.addPage('a4', 'landscape');
 				yPos = margin;
 				return true;
 			}
@@ -1264,17 +1260,22 @@ function ApplicationDetailsContent() {
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{member.OccupationName || member.OccupationId || "N/A"}</td>
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{member.PrimaryLocation || "N/A"}</td>
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-											{member.IsPrimaryEarner === true || member.IsPrimaryEarner === "Yes" || member.IsPrimaryEarner === "1" ? "Yes" : 
-											 member.IsPrimaryEarner === false || member.IsPrimaryEarner === "No" || member.IsPrimaryEarner === "0" ? "No" : "N/A"}
+											{member.IsPrimaryEarner === true || String(member.IsPrimaryEarner) === "Yes" || String(member.IsPrimaryEarner) === "1" ? "Yes" : 
+											 member.IsPrimaryEarner === false || String(member.IsPrimaryEarner) === "No" || String(member.IsPrimaryEarner) === "0" ? "No" : "N/A"}
 										</td>
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{member.education?.IsCurrentlyStudying || "N/A"}</td>
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{member.education?.InstitutionType || "N/A"}</td>
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{member.education?.CurrentClass || "N/A"}</td>
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{member.education?.HighestQualification || "N/A"}</td>
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-											{member.livelihood?.IsCurrentlyEarning === true || member.livelihood?.IsCurrentlyEarning === "Yes" || member.livelihood?.IsCurrentlyEarning === "1" ? "Yes" :
-											 member.livelihood?.IsCurrentlyEarning === false || member.livelihood?.IsCurrentlyEarning === "No" || member.livelihood?.IsCurrentlyEarning === "0" ? "No" :
-											 member.livelihood?.IsCurrentlyEarning || "N/A"}
+											{(() => {
+												const earning = member.livelihood?.IsCurrentlyEarning;
+												if (!earning) return "N/A";
+												const earningStr = String(earning).toLowerCase();
+												if (earningStr === "yes" || earningStr === "1" || earningStr === "true") return "Yes";
+												if (earningStr === "no" || earningStr === "0" || earningStr === "false") return "No";
+												return String(earning);
+											})()}
 										</td>
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{member.livelihood?.EarningSource || "N/A"}</td>
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{member.livelihood?.SalariedWorkSector || "N/A"}</td>

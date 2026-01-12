@@ -13,6 +13,10 @@ export async function POST(request: NextRequest) {
 		// Input parameters
 		sqlRequest.input("FamilyID", sql.VarChar, body.FamilyID);
 		sqlRequest.input("MaxSocialSupportAmount", sql.Decimal(18, 2), body.MaxSocialSupportAmount || null);
+		
+		// Check if Regular Support is selected
+		const isRegularSupport = body.EducationInterventionType === "Regular Support";
+		
 		// Set one-time admission costs to 0 if Regular Support is selected
 		const oneTimeCost = isRegularSupport ? 0 : (body.EduOneTimeAdmissionTotalCost || 0);
 		const oneTimeFamily = isRegularSupport ? 0 : (body.EduOneTimeAdmissionFamilyContribution || 0);
@@ -37,7 +41,6 @@ export async function POST(request: NextRequest) {
 		sqlRequest.input("BeneficiaryAge", sql.Int, body.BeneficiaryAge || null);
 		sqlRequest.input("BeneficiaryGender", sql.VarChar, body.BeneficiaryGender || null);
 		sqlRequest.input("EducationInterventionType", sql.VarChar, body.EducationInterventionType);
-		const isRegularSupport = body.EducationInterventionType === "Regular Support";
 		sqlRequest.input("RegularSupport", sql.Bit, isRegularSupport || body.RegularSupport || false);
 		sqlRequest.input("BaselineReasonNotStudying", sql.NVarChar, isRegularSupport ? null : (body.BaselineReasonNotStudying || null));
 		sqlRequest.input("AdmittedToSchoolType", sql.VarChar, body.AdmittedToSchoolType || null);

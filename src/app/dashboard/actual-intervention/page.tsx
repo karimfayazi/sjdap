@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, XCircle } from "lucide-react";
+import { Eye, XCircle, CreditCard } from "lucide-react";
 
 type FamilyRecord = {
 	FormNumber: string;
@@ -101,6 +101,10 @@ export default function ActualInterventionPage() {
 
 	const handleInterventionClick = (formNumber: string, interventionType: string, memberId: string) => {
 		router.push(`/dashboard/actual-intervention/${encodeURIComponent(formNumber)}/add?type=${interventionType}&memberId=${encodeURIComponent(memberId)}`);
+	};
+
+	const handleBankAccountClick = (formNumber: string, memberId: string) => {
+		router.push(`/dashboard/actual-intervention/bank-account?formNumber=${encodeURIComponent(formNumber)}&memberId=${encodeURIComponent(memberId)}`);
 	};
 
 	const formatDateOfBirth = (month: number | null, year: number | null): string => {
@@ -329,13 +333,23 @@ export default function ActualInterventionPage() {
 																		{interventions.economic || interventions.education || interventions.food || interventions.habitat ? (
 																			<div className="flex flex-wrap gap-2">
 																				{interventions.economic && (
-																					<button
-																						type="button"
-																						onClick={() => selectedFormNumber && handleInterventionClick(selectedFormNumber, "economic", member.MemberNo)}
-																						className="inline-flex items-center rounded-md px-3 py-1.5 text-xs font-semibold bg-blue-500 text-white shadow-sm hover:bg-blue-600 transition-colors cursor-pointer"
-																					>
-																						Economic
-																					</button>
+																					<>
+																						<button
+																							type="button"
+																							onClick={() => selectedFormNumber && handleInterventionClick(selectedFormNumber, "economic", member.MemberNo)}
+																							className="inline-flex items-center rounded-md px-3 py-1.5 text-xs font-semibold bg-blue-500 text-white shadow-sm hover:bg-blue-600 transition-colors cursor-pointer"
+																						>
+																							Economic
+																						</button>
+																						<button
+																							type="button"
+																							onClick={() => selectedFormNumber && handleBankAccountClick(selectedFormNumber, member.MemberNo)}
+																							className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-semibold bg-indigo-500 text-white shadow-sm hover:bg-indigo-600 transition-colors cursor-pointer"
+																						>
+																							<CreditCard className="h-3 w-3" />
+																							Bank Account
+																						</button>
+																					</>
 																				)}
 																				{interventions.education && (
 																					<button
