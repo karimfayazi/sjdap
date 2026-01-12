@@ -706,11 +706,11 @@ function FamilyDevelopmentPlanPageContent() {
 																	<span className="text-xs text-gray-500 italic">No support available (Income Level {selectedFamilyIncomeLevel})</span>
 																) : (
 																	<>
-																		{/* Feasibility Study - Show only if age >= 18 */}
+																		{/* Feasibility Plan - Show only if age >= 18 */}
 																		{isAdult && (
 																			<button
 																		onClick={() => {
-																			// Navigate to Feasibility Study page
+																			// Navigate to Feasibility Plan page
 																			const params = new URLSearchParams({
 																				formNumber: selectedFormNumber || "",
 																				memberNo: member.MemberNo || "",
@@ -722,7 +722,7 @@ function FamilyDevelopmentPlanPageContent() {
 																			}}
 																			className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
 																		>
-																			Feasibility Study
+																			Feasibility Plan
 																		</button>
 																		)}
 																		{/* FDP Economic - Show only if age >= 18 */}

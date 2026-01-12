@@ -24,6 +24,7 @@ import {
     Wallet,
     Folder,
     Clock,
+    Trash2,
 } from "lucide-react";
 
 type SidebarProps = {
@@ -101,6 +102,16 @@ const getNavigationGroups = (userSection?: string | null, isLoading?: boolean): 
 				divider: true,
 				items: [
 					{ label: "Baseline", href: "/dashboard/baseline-qol", icon: BarChart3 },
+					{ label: "Setting", href: "/dashboard/settings", icon: Settings },
+					{
+						label: "Approval Section",
+						icon: CheckCircle,
+						subItems: [
+							{ label: "Baseline Approval", href: "/dashboard/approval-section/baseline-approval" },
+							{ label: "Family Development Plan Approval", href: "/dashboard/approval-section/family-development-plan-approval" },
+							{ label: "Intervention Approval", href: "/dashboard/approval-section/intervention-approval" },
+						]
+					},
 					{ label: "Logout", href: "/logout", icon: LogOut },
 				],
 			},
@@ -143,10 +154,20 @@ const getNavigationGroups = (userSection?: string | null, isLoading?: boolean): 
 			items: [
 				{ label: "Setting", href: "/dashboard/settings", icon: Settings },
 				{
+					label: "Approval Section",
+					icon: CheckCircle,
+					subItems: [
+						{ label: "Baseline Approval", href: "/dashboard/approval-section/baseline-approval" },
+						{ label: "Family Development Plan Approval", href: "/dashboard/approval-section/family-development-plan-approval" },
+						{ label: "Intervention Approval", href: "/dashboard/approval-section/intervention-approval" },
+					]
+				},
+				{
 					label: "Others",
 					icon: Folder,
 					subItems: [
 						{ label: "ROP Update", href: "/dashboard/others/rop-update" },
+						{ label: "Delete All", href: "/dashboard/others/delete-all" },
 					]
 				},
 				{ label: "Logout", href: "/logout", icon: LogOut },

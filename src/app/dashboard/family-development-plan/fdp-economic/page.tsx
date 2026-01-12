@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, Suspense, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Save, AlertCircle } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -64,12 +64,27 @@ type BaselineData = {
 
 type FeasibilityData = {
 	FDP_ID: number;
+	FamilyID?: string;
+	MemberID?: string;
+	MemberName?: string;
 	PlanCategory: string;
 	TotalInvestmentRequired: number;
 	CostPerParticipant: number;
 	InvestmentFromPEProgram: number;
 	TotalSalesRevenue: number;
 	CurrentBaselineIncome: number;
+	FeasibilityType: string;
+	ApprovalStatus: string;
+	InvestmentRationale?: string;
+	MarketBusinessAnalysis?: string;
+	TotalDirectCosts?: number;
+	TotalIndirectCosts?: number;
+	NetProfitLoss?: number;
+	PrimaryIndustry?: string;
+	SubField?: string;
+	Trade?: string;
+	CourseTitle?: string;
+	TrainingInstitution?: string;
 };
 
 function FDPEconomicContent() {
@@ -129,6 +144,11 @@ function FDPEconomicContent() {
 	const [selectedRecordId, setSelectedRecordId] = useState<number | null>(null);
 	const [totalMemberPEInvestment, setTotalMemberPEInvestment] = useState<number>(0);
 	const [memberFeasibilityLimit, setMemberFeasibilityLimit] = useState<number | null>(null);
+	const [selectedFeasibilityId, setSelectedFeasibilityId] = useState<string>("");
+	const [approvedFeasibilityStudies, setApprovedFeasibilityStudies] = useState<FeasibilityData[]>([]);
+	const [maxEconomicSupportAmount, setMaxEconomicSupportAmount] = useState<number>(500000); // Fixed at PKR 500,000
+	const [alreadyDefinedEconomicSupport, setAlreadyDefinedEconomicSupport] = useState<number>(0);
+	const [availableEconomicSupport, setAvailableEconomicSupport] = useState<number>(0);
 
 	// Calculate age from DOB
 	const calculateAge = (dobMonth: string | null, dobYear: string | null): number => {
@@ -276,6 +296,10 @@ function FDPEconomicContent() {
 						const allStudies = studies.filter((s: any) => s && (s.PlanCategory === "ECONOMIC" || s.PlanCategory === "SKILLS"));
 						setFeasibilityStudies(allStudies);
 						
+						// Filter only approved feasibility studies for the dropdown
+						const approvedStudies = allStudies.filter((s: any) => s && s.ApprovalStatus === "Approved");
+						setApprovedFeasibilityStudies(approvedStudies);
+						
 						// Calculate total Investment from PE Program from all ECONOMIC feasibility studies for this member
 						const economicStudies = studies.filter((s: any) => s && s.PlanCategory === "ECONOMIC");
 						const totalFeasibilityInvestment = economicStudies.reduce((sum: number, study: any) => {
@@ -332,7 +356,7 @@ function FDPEconomicContent() {
 									CurrentMonthlyIncome: existing.CurrentMonthlyIncome || 0,
 									IncrementalMonthlyIncome: existing.IncrementalMonthlyIncome || 0,
 									FeasibilityID: existing.FeasibilityID?.toString() || "",
-									ApprovalStatus: existing.ApprovalStatus || "Pending",
+									ApprovalStatus: "Pending", // Always set to Pending as it's read-only
 									ApprovalRemarks: existing.ApprovalRemarks || "",
 								}));
 								setShowForm(true);
@@ -359,6 +383,56 @@ function FDPEconomicContent() {
 
 		fetchData();
 	}, [formNumber, memberNo, isEditMode, fdpEconomicId]);
+
+	// Calculate total economic support already defined for the family
+	const totalDefinedEconomicSupport = useMemo(() => {
+		if (!formNumber) return 0;
+
+		// Sum all InvestmentFromPEProgram from all economic records for this family
+		// Exclude current record if editing
+		return fdpEconomicRecords.reduce((sum: number, record: any) => {
+			if (isEditMode && selectedRecordId !== null && record.FDP_EconomicID === selectedRecordId) {
+				return sum;
+			}
+			const investment = parseFloat(record.InvestmentFromPEProgram) || 0;
+			return sum + investment;
+		}, 0);
+	}, [formNumber, fdpEconomicRecords, isEditMode, selectedRecordId]);
+
+	useEffect(() => {
+		if (!formNumber) return;
+
+		const alreadyDefined = totalDefinedEconomicSupport;
+		// Available = Max - Already Defined (not including current form's value)
+		const available = Math.max(0, maxEconomicSupportAmount - alreadyDefined);
+
+		setAlreadyDefinedEconomicSupport(alreadyDefined);
+		setAvailableEconomicSupport(available);
+	}, [formNumber, totalDefinedEconomicSupport, maxEconomicSupportAmount]);
+
+	// Set selected feasibility when approved studies are loaded and we have a FeasibilityID
+	useEffect(() => {
+		if (formData.FeasibilityID && approvedFeasibilityStudies.length > 0) {
+			const feasibilityIdStr = formData.FeasibilityID.toString();
+			const isApproved = approvedFeasibilityStudies.some(f => f.FDP_ID.toString() === feasibilityIdStr);
+			if (isApproved && selectedFeasibilityId !== feasibilityIdStr) {
+				setSelectedFeasibilityId(feasibilityIdStr);
+				// Also update InterventionType if not already set
+				const selectedFeasibility = approvedFeasibilityStudies.find(f => f.FDP_ID.toString() === feasibilityIdStr);
+				if (selectedFeasibility && !formData.InterventionType) {
+					// Use FeasibilityType directly for Economic plans
+					let interventionType = selectedFeasibility.FeasibilityType || "";
+					// For Skills, use Employment
+					if (selectedFeasibility.PlanCategory === "SKILLS") {
+						interventionType = "Employment";
+					}
+					if (interventionType) {
+						setFormData(prev => ({ ...prev, InterventionType: interventionType }));
+					}
+				}
+			}
+		}
+	}, [approvedFeasibilityStudies, formData.FeasibilityID]);
 
 	// Auto-calculate fields
 	useEffect(() => {
@@ -565,6 +639,41 @@ function FDPEconomicContent() {
 		}
 	};
 
+	// Handler for Link Approved Feasibility dropdown
+	const handleApprovedFeasibilityChange = (feasibilityId: string) => {
+		setSelectedFeasibilityId(feasibilityId);
+		const selectedFeasibility = approvedFeasibilityStudies.find(f => f.FDP_ID.toString() === feasibilityId);
+		if (selectedFeasibility) {
+			// Map FeasibilityType to InterventionType - use FeasibilityType directly (Business, Agriculture, Livestock)
+			let interventionType = selectedFeasibility.FeasibilityType || "";
+			// For Skills, use Employment
+			if (selectedFeasibility.PlanCategory === "SKILLS") {
+				interventionType = "Employment";
+			}
+			
+			// For SKILLS, use CostPerParticipant as Investment Required; for ECONOMIC, use InvestmentFromPEProgram
+			const investmentRequired = selectedFeasibility.PlanCategory === "SKILLS" 
+				? (selectedFeasibility.CostPerParticipant || 0)
+				: (selectedFeasibility.InvestmentFromPEProgram || 0);
+			
+			setFormData(prev => ({
+				...prev,
+				FeasibilityID: feasibilityId,
+				InterventionType: interventionType,
+				InvestmentRequiredTotal: investmentRequired,
+				PlannedMonthlyIncome: selectedFeasibility.TotalSalesRevenue || 0,
+				CurrentMonthlyIncome: selectedFeasibility.CurrentBaselineIncome || prev.CurrentMonthlyIncome,
+			}));
+		} else if (!feasibilityId) {
+			// Clear selection
+			setFormData(prev => ({
+				...prev,
+				InterventionType: "",
+				FeasibilityID: "",
+			}));
+		}
+	};
+
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
 		setError(null);
@@ -743,7 +852,7 @@ function FDPEconomicContent() {
 						<ArrowLeft className="h-5 w-5 text-gray-600" />
 				</button>
 				<div>
-					<h1 className="text-3xl font-bold text-gray-900">Family Development Plan [FDP]</h1>
+					<h1 className="text-3xl font-bold text-gray-900">Economic Plan</h1>
 					<p className="text-gray-600 mt-2">
 						{formNumber && memberNo && (
 							<span>
@@ -954,6 +1063,35 @@ function FDPEconomicContent() {
 								className="w-full rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-gray-600 cursor-not-allowed"
 							/>
 						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-2">Max Economic Support Amount</label>
+							<input
+								type="text"
+								value={maxEconomicSupportAmount && maxEconomicSupportAmount > 0 
+									? `PKR ${maxEconomicSupportAmount.toLocaleString()}` 
+									: "-"}
+								readOnly
+								className="w-full rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-gray-600 cursor-not-allowed font-semibold"
+							/>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-2">Already Defined Economic Support</label>
+							<input
+								type="text"
+								value={`PKR ${alreadyDefinedEconomicSupport.toLocaleString()}`}
+								readOnly
+								className="w-full rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-gray-600 cursor-not-allowed"
+							/>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-2">Available Economic Support</label>
+							<input
+								type="text"
+								value={`PKR ${availableEconomicSupport.toLocaleString()}`}
+								readOnly
+								className={`w-full rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-gray-600 cursor-not-allowed font-semibold ${availableEconomicSupport < 0 ? 'text-red-600' : availableEconomicSupport === 0 ? 'text-orange-600' : 'text-green-600'}`}
+							/>
+						</div>
 					</div>
 				</div>
 
@@ -1018,20 +1156,61 @@ function FDPEconomicContent() {
 						</div>
 						<div>
 							<label className="block text-sm font-medium text-gray-700 mb-2">
-								Type of Intervention <span className="text-red-500">*</span>
+								Link Approved Feasibility
 							</label>
 							<select
-								value={formData.InterventionType}
-								onChange={(e) => handleChange("InterventionType", e.target.value)}
-								required
+								value={selectedFeasibilityId}
+								onChange={(e) => handleApprovedFeasibilityChange(e.target.value)}
 								className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
 							>
+								<option value="">Select Approved Feasibility</option>
+								{approvedFeasibilityStudies.map((study) => {
+									const investmentRequired = study.PlanCategory === "SKILLS" 
+										? (study.CostPerParticipant || 0)
+										: (study.TotalInvestmentRequired || 0);
+									const investmentFromPE = study.InvestmentFromPEProgram || 0;
+									
+									// Display feasibility type or course title for skills
+									const feasibilityTypeDisplay = study.PlanCategory === "SKILLS" 
+										? (study.CourseTitle || study.PrimaryIndustry || "Skills Development")
+										: (study.FeasibilityType || "Economic");
+									
+									const planCategoryDisplay = study.PlanCategory === "SKILLS" ? "Skills" : "Economic";
+									
+									return (
+										<option key={study.FDP_ID} value={study.FDP_ID.toString()}>
+											ID: {study.FDP_ID} - {feasibilityTypeDisplay} ({planCategoryDisplay}) | Investment Required (from Feasibility): PKR {investmentRequired.toLocaleString()} | Investment Required from PE Program: PKR {investmentFromPE.toLocaleString()}
+										</option>
+									);
+								})}
+							</select>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-2">
+								Type of Intervention <span className="text-red-500">*</span>
+							</label>
+							{selectedFeasibilityId ? (
+								<input
+									type="text"
+									value={formData.InterventionType}
+									readOnly
+									className="w-full rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-gray-600 cursor-not-allowed"
+								/>
+							) : (
+								<select
+									value={formData.InterventionType}
+									onChange={(e) => handleChange("InterventionType", e.target.value)}
+									required
+									className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+								>
 								<option value="">Select Type</option>
 								<option value="Employment">Employment</option>
+								<option value="Business">Business</option>
 								<option value="Micro Enterprise">Micro Enterprise</option>
 								<option value="Agriculture">Agriculture</option>
 								<option value="Livestock">Livestock</option>
-							</select>
+								</select>
+							)}
 						</div>
 						<div>
 							<label className="block text-sm font-medium text-gray-700 mb-2">Field of Investment</label>
@@ -1105,29 +1284,6 @@ function FDPEconomicContent() {
 					<h2 className="text-xl font-semibold text-gray-900 mb-4">3. Financial Information</h2>
 					<div className="space-y-4">
 						<div className="grid grid-cols-2 gap-4">
-							<div>
-								<label className="block text-sm font-medium text-gray-700 mb-2">Link Approved Feasibility</label>
-								<select
-									value={formData.FeasibilityID}
-									onChange={(e) => handleFeasibilityChange(e.target.value)}
-									className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-								>
-									<option value="">Select Feasibility Study</option>
-									{feasibilityStudies.map((study) => {
-										// For SKILLS, show CostPerParticipant; for ECONOMIC, show TotalInvestmentRequired
-										const investmentRequired = study.PlanCategory === "SKILLS" 
-											? (study.CostPerParticipant || 0)
-											: (study.TotalInvestmentRequired || 0);
-										const categoryLabel = study.PlanCategory === "SKILLS" ? "Skills Development" : "Economic";
-										
-										return (
-											<option key={study.FDP_ID} value={study.FDP_ID.toString()}>
-												Feasibility #{study.FDP_ID} ({categoryLabel}) - Investment Required (PKR): {formatCurrency(investmentRequired)}, Investment from PE Program: {formatCurrency(study.InvestmentFromPEProgram || 0)}
-											</option>
-										);
-									})}
-								</select>
-							</div>
 							<div>
 								<label className="block text-sm font-medium text-gray-700 mb-2">Investment Required (from Feasibility)</label>
 								<input
@@ -1282,15 +1438,12 @@ function FDPEconomicContent() {
 					<div className="grid grid-cols-2 gap-4">
 						<div>
 							<label className="block text-sm font-medium text-gray-700 mb-2">Approval Status</label>
-							<select
-								value={formData.ApprovalStatus}
-								onChange={(e) => handleChange("ApprovalStatus", e.target.value)}
-								className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-							>
-								<option value="Pending">Pending</option>
-								<option value="Approved">Approved</option>
-								<option value="Rejected">Rejected</option>
-							</select>
+							<input
+								type="text"
+								value="Pending"
+								readOnly
+								className="w-full rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-gray-600 cursor-not-allowed"
+							/>
 						</div>
 						<div>
 							<label className="block text-sm font-medium text-gray-700 mb-2">Approval Remarks</label>
