@@ -328,6 +328,33 @@ export async function POST(request: NextRequest) {
 			}
 		}
 
+		// Get current user information for SubmittedBy
+		const authCookie = request.cookies.get("auth");
+		let submittedBy = null;
+		
+		if (authCookie && authCookie.value) {
+			const userId = authCookie.value.split(":")[1];
+			if (userId) {
+				try {
+					const userPool = await getDb();
+					const userResult = await userPool
+						.request()
+						.input("user_id", userId)
+						.query(
+							"SELECT TOP(1) [USER_FULL_NAME], [USER_ID] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
+						);
+					
+					const user = userResult.recordset?.[0];
+					if (user) {
+						submittedBy = user.USER_FULL_NAME || user.USER_ID;
+					}
+				} catch (userError) {
+					console.error("Error fetching user info for SubmittedBy:", userError);
+					// Continue without SubmittedBy if there's an error
+				}
+			}
+		}
+
 		// Insert new record
 		const insertRequest = pool.request();
 		insertRequest.input("FormNumber", body.FormNumber);
@@ -350,6 +377,11 @@ export async function POST(request: NextRequest) {
 		insertRequest.input("Intake_family_Income", body.Intake_family_Income ? parseFloat(body.Intake_family_Income.toString()) : null);
 		insertRequest.input("HouseOwnershipStatus", body.HouseOwnershipStatus || null);
 		insertRequest.input("HealthInsuranceProgram", body.HealthInsuranceProgram || null);
+		
+		// Add SubmittedAt and SubmittedBy only for new records (first time save)
+		if (submittedBy) {
+			insertRequest.input("SubmittedBy", submittedBy);
+		}
 		// Parse income values - ensure they're numbers, default to 0
 		let remittanceValue = parseIncomeValue(body.MonthlyIncome_Remittance);
 		let rentalValue = parseIncomeValue(body.MonthlyIncome_Rental);
@@ -396,6 +428,10 @@ export async function POST(request: NextRequest) {
 		insertRequest.input("Motorcycle_2W_Number", body.Motorcycle_2W_Number || null);
 		insertRequest.input("Motorcycle_2W_Value_Rs", parseIncomeValue(body.Motorcycle_2W_Value_Rs));
 
+		// Build INSERT query with SubmittedAt and SubmittedBy (only for new records)
+		const submittedFields = submittedBy ? `[SubmittedAt], [SubmittedBy],` : '';
+		const submittedValues = submittedBy ? `GETDATE(), @SubmittedBy,` : '';
+		
 		const insertQuery = `
 			INSERT INTO [SJDA_Users].[dbo].[${tableName}]
 			(
@@ -434,6 +470,7 @@ export async function POST(request: NextRequest) {
 				[Vehicles_4W_Value_Rs],
 				[Motorcycle_2W_Number],
 				[Motorcycle_2W_Value_Rs],
+				${submittedFields}
 				[CreatedAt],
 				[UpdatedAt]
 			)
@@ -474,6 +511,7 @@ export async function POST(request: NextRequest) {
 				@Vehicles_4W_Value_Rs,
 				@Motorcycle_2W_Number,
 				@Motorcycle_2W_Value_Rs,
+				${submittedValues}
 				GETDATE(),
 				GETDATE()
 			)

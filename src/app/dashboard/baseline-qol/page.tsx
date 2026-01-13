@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Download, Search, RefreshCw, Plus, X, Eye, Edit2 } from "lucide-react";
+import { Download, RefreshCw, Plus, X, Eye, Edit2, Search } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useSectionAccess } from "@/hooks/useSectionAccess";
 import SectionAccessDenied from "@/components/SectionAccessDenied";
@@ -21,6 +21,8 @@ type BaselineApplication = {
 	HouseStatusName: string | null;
 	TotalFamilyMembers: string | number | null;
 	Remarks: string | null;
+	SubmittedBy: string | null;
+	ApprovalStatus: string | null;
 };
 
 
@@ -33,7 +35,6 @@ export default function BaselineQOLPage() {
 	const [error, setError] = useState<string | null>(null);
 	const [currentPage, setCurrentPage] = useState(1);
 	const [totalRecords, setTotalRecords] = useState(0);
-	const [searchTerm, setSearchTerm] = useState("");
 	const [filters, setFilters] = useState({
 		formNo: "",
 		cnicNo: "",
@@ -44,6 +45,7 @@ export default function BaselineQOLPage() {
 	});
 	const [isSuperUserState, setIsSuperUserState] = useState(false);
 	const itemsPerPage = 50;
+	const isInitialMount = useRef(true);
 
 
 	// Check if user is Super User using utility function
@@ -103,9 +105,25 @@ export default function BaselineQOLPage() {
 		}
 	};
 
+	// Initial load and page changes (no debounce)
 	useEffect(() => {
 		fetchApplications();
-	}, [currentPage, filters]);
+	}, [currentPage]);
+
+	// Debounce filter changes to avoid refreshing on every keystroke
+	useEffect(() => {
+		// Skip debounce on initial mount (initial load is handled by currentPage effect)
+		if (isInitialMount.current) {
+			isInitialMount.current = false;
+			return;
+		}
+
+		const timeoutId = setTimeout(() => {
+			fetchApplications();
+		}, 500); // Wait 500ms after user stops typing
+
+		return () => clearTimeout(timeoutId);
+	}, [filters]);
 
 	const handleFilterChange = (key: string, value: string) => {
 		setFilters((prev) => ({ ...prev, [key]: value }));
@@ -154,12 +172,14 @@ export default function BaselineQOLPage() {
 
 			const headers = [
 				"FormNo",
-				"CNICNo",
-				"PrimaryContactNo",
-				"LocalCouncil",
 				"FullName",
+				"CNICNo",
 				"RegionalCouncil",
+				"LocalCouncil",
+				"PrimaryContactNo",
 				"TotalFamilyMembers",
+				"SubmittedBy",
+				"ApprovalStatus",
 			];
 			const csvRows = [];
 			csvRows.push(headers.join(","));
@@ -206,19 +226,8 @@ export default function BaselineQOLPage() {
 		}
 	};
 
-	const filteredApplications = applications.filter((app) => {
-		if (!searchTerm) return true;
-		const search = searchTerm.toLowerCase();
-		return (
-			(app.FormNo && String(app.FormNo).toLowerCase().includes(search)) ||
-			(app.CNICNo && String(app.CNICNo).toLowerCase().includes(search)) ||
-			(app.PrimaryContactNo && String(app.PrimaryContactNo).toLowerCase().includes(search)) ||
-			(app.LocalCouncil && String(app.LocalCouncil).toLowerCase().includes(search)) ||
-			(app.FullName && String(app.FullName).toLowerCase().includes(search)) ||
-			(app.RegionalCouncil && String(app.RegionalCouncil).toLowerCase().includes(search)) ||
-			(app.TotalFamilyMembers && String(app.TotalFamilyMembers).toLowerCase().includes(search))
-		);
-	});
+	// No client-side filtering needed - all filtering is done server-side
+	const filteredApplications = applications;
 
 
 	const totalPages = Math.ceil(totalRecords / itemsPerPage);
@@ -316,124 +325,209 @@ export default function BaselineQOLPage() {
 			</div>
 
 			{/* Filters */}
-			<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-				<div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-					<input
-						type="text"
-						placeholder="Form No"
-						value={filters.formNo}
-						onChange={(e) => handleFilterChange("formNo", e.target.value)}
-						className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-					/>
-					<input
-						type="text"
-						placeholder="CNIC No"
-						value={filters.cnicNo}
-						onChange={(e) => handleFilterChange("cnicNo", e.target.value)}
-						className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-					/>
-					<input
-						type="text"
-						placeholder="Primary Contact"
-						value={filters.primaryContactNo}
-						onChange={(e) => handleFilterChange("primaryContactNo", e.target.value)}
-						className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-					/>
-					<input
-						type="text"
-						placeholder="Local Council"
-						value={filters.localCouncil}
-						onChange={(e) => handleFilterChange("localCouncil", e.target.value)}
-						className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-					/>
-					<input
-						type="text"
-						placeholder="Full Name"
-						value={filters.fullName}
-						onChange={(e) => handleFilterChange("fullName", e.target.value)}
-						className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-					/>
-					<input
-						type="text"
-						placeholder="Regional Council"
-						value={filters.regionalCouncil}
-						onChange={(e) => handleFilterChange("regionalCouncil", e.target.value)}
-						className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-					/>
+			<div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 shadow-md p-6">
+				<div className="mb-4">
+					<h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+						<Search className="h-5 w-5 text-[#0b4d2b]" />
+						Filter Options
+					</h3>
+					<p className="text-sm text-gray-600 mt-1">Use the filters below to search for specific applications</p>
 				</div>
-				<div className="mt-4 flex justify-end gap-2">
+				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-1">Form No</label>
+						<input
+							type="text"
+							placeholder="Enter Form No"
+							value={filters.formNo}
+							onChange={(e) => handleFilterChange("formNo", e.target.value)}
+							className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-30 focus:outline-none transition-all shadow-sm hover:shadow-md"
+						/>
+					</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-1">CNIC No</label>
+						<input
+							type="text"
+							placeholder="Enter CNIC No"
+							value={filters.cnicNo}
+							onChange={(e) => handleFilterChange("cnicNo", e.target.value)}
+							className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-30 focus:outline-none transition-all shadow-sm hover:shadow-md"
+						/>
+					</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+						<input
+							type="text"
+							placeholder="Enter Full Name"
+							value={filters.fullName}
+							onChange={(e) => handleFilterChange("fullName", e.target.value)}
+							className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-30 focus:outline-none transition-all shadow-sm hover:shadow-md"
+						/>
+					</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-1">Primary Contact</label>
+						<input
+							type="text"
+							placeholder="Enter Contact No"
+							value={filters.primaryContactNo}
+							onChange={(e) => handleFilterChange("primaryContactNo", e.target.value)}
+							className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-30 focus:outline-none transition-all shadow-sm hover:shadow-md"
+						/>
+					</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-1">Regional Council</label>
+						<input
+							type="text"
+							placeholder="Enter Regional Council"
+							value={filters.regionalCouncil}
+							onChange={(e) => handleFilterChange("regionalCouncil", e.target.value)}
+							className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-30 focus:outline-none transition-all shadow-sm hover:shadow-md"
+						/>
+					</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-1">Local Council</label>
+						<input
+							type="text"
+							placeholder="Enter Local Council"
+							value={filters.localCouncil}
+							onChange={(e) => handleFilterChange("localCouncil", e.target.value)}
+							className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-30 focus:outline-none transition-all shadow-sm hover:shadow-md"
+						/>
+					</div>
+				</div>
+				<div className="mt-6 flex justify-end gap-3">
 					<button
 						onClick={clearFilters}
-						className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
+						className="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-all shadow-sm hover:shadow-md flex items-center gap-2"
 					>
+						<X className="h-4 w-4" />
 						Clear Filters
 					</button>
 				</div>
 			</div>
 
-			{/* Search */}
-			<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-				<div className="relative">
-					<Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-					<input
-						type="text"
-						placeholder="Search applications..."
-						value={searchTerm}
-						onChange={(e) => setSearchTerm(e.target.value)}
-						className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-					/>
-				</div>
-			</div>
-
 			{/* Table */}
-			<div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+			<div className="bg-white rounded-lg border border-gray-200 shadow-lg overflow-hidden">
 				<div className="overflow-x-auto">
 					<table className="min-w-full divide-y divide-gray-200">
-						<thead className="bg-gray-50">
+						<thead className="bg-gradient-to-r from-[#0b4d2b] to-[#0a3d22]">
 							<tr>
-								<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Form No</th>
-								<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Full Name</th>
-								<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CNIC No</th>
-								<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Primary Contact</th>
-								<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Local Council</th>
-								<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Regional Council</th>
-								<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Members</th>
-								<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+								<th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">Form No</th>
+								<th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">Full Name [Head Name]</th>
+								<th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">CNIC No</th>
+								<th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">Regional Council</th>
+								<th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">Local Council</th>
+								<th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">Primary Contact</th>
+								<th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">Total Members</th>
+								<th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">Mentor</th>
+								<th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">Approval Status</th>
+								<th className="px-6 py-4 text-center text-xs font-semibold text-white uppercase tracking-wider">Actions</th>
 							</tr>
 						</thead>
 						<tbody className="bg-white divide-y divide-gray-200">
 							{filteredApplications.length === 0 ? (
 								<tr>
-									<td colSpan={8} className="px-6 py-4 text-center text-gray-500">
-										No applications found
+									<td colSpan={10} className="px-6 py-8 text-center text-gray-500">
+										<div className="flex flex-col items-center justify-center">
+											<Search className="h-12 w-12 text-gray-300 mb-2" />
+											<p className="text-lg font-medium">No applications found</p>
+											<p className="text-sm text-gray-400 mt-1">Try adjusting your filters or search terms</p>
+										</div>
 									</td>
 								</tr>
 							) : (
-								filteredApplications.map((app) => (
-									<tr key={app.FormNo} className="hover:bg-gray-50">
-										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{app.FormNo || "N/A"}</td>
-										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{app.FullName || "N/A"}</td>
-										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{app.CNICNo || "N/A"}</td>
-										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{app.PrimaryContactNo || "N/A"}</td>
-										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{app.LocalCouncil || "N/A"}</td>
-										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{app.RegionalCouncil || "N/A"}</td>
-										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{app.TotalFamilyMembers || "N/A"}</td>
-										<td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-											<div className="flex items-center gap-2">
+								filteredApplications.map((app, index) => (
+									<tr 
+										key={app.FormNo} 
+										className={`transition-colors ${
+											index % 2 === 0 
+												? "bg-white hover:bg-blue-50" 
+												: "bg-gray-50 hover:bg-blue-50"
+										}`}
+									>
+										<td className="px-6 py-4 whitespace-nowrap">
+											<span className="text-sm font-semibold text-gray-900">{app.FormNo || "N/A"}</span>
+										</td>
+										<td className="px-6 py-4">
+											<span className="text-sm font-medium text-gray-900">{app.FullName || "N/A"}</span>
+										</td>
+										<td className="px-6 py-4 whitespace-nowrap">
+											<span className="text-sm text-gray-700">{app.CNICNo || "N/A"}</span>
+										</td>
+										<td className="px-6 py-4">
+											<span className="text-sm text-gray-700">{app.RegionalCouncil || "N/A"}</span>
+										</td>
+										<td className="px-6 py-4">
+											<span className="text-sm text-gray-700">{app.LocalCouncil || "N/A"}</span>
+										</td>
+										<td className="px-6 py-4 whitespace-nowrap">
+											<span className="text-sm text-gray-700">{app.PrimaryContactNo || "N/A"}</span>
+										</td>
+										<td className="px-6 py-4 whitespace-nowrap text-center">
+											<span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
+												{app.TotalFamilyMembers || 0}
+											</span>
+										</td>
+										<td className="px-6 py-4">
+											<span className="text-sm font-medium text-indigo-700">{app.SubmittedBy || "N/A"}</span>
+										</td>
+										<td className="px-6 py-4 whitespace-nowrap">
+											{(() => {
+												const status = app.ApprovalStatus?.toLowerCase() || '';
+												const isApproved = status.includes('approve') || status === 'approved' || status === 'complete';
+												const isRejected = status.includes('reject') || status === 'rejected';
+												const isPending = !isApproved && !isRejected && (status === '' || status === 'pending' || !status);
+												
+												if (isApproved) {
+													return (
+														<span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
+															Approved
+														</span>
+													);
+												} else if (isRejected) {
+													return (
+														<span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-800 border border-red-200">
+															Rejected
+														</span>
+													);
+												} else {
+													return (
+														<span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+															Pending
+														</span>
+													);
+												}
+											})()}
+										</td>
+										<td className="px-6 py-4 whitespace-nowrap text-center">
+											<div className="flex items-center justify-center gap-2">
 												<button
 													onClick={() => router.push(`/dashboard/baseline-qol/view?formNo=${encodeURIComponent(app.FormNo || "")}`)}
-													className="text-[#0b4d2b] hover:text-[#0a3d22]"
+													className="p-2 text-[#0b4d2b] hover:bg-[#0b4d2b] hover:text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
+													title="View Details"
 												>
-													<Eye className="h-4 w-4" />
+													<Eye className="h-5 w-5" />
 												</button>
-												{isSuperUserState && (
-													<button
-														onClick={() => router.push(`/dashboard/baseline-qol/${app.FormNo}`)}
-														className="text-blue-600 hover:text-blue-800"
-													>
-														<Edit2 className="h-4 w-4" />
-													</button>
-												)}
+												{isSuperUserState && (() => {
+													const status = app.ApprovalStatus?.toLowerCase() || '';
+													const isApproved = status.includes('approve') || status === 'approved' || status === 'complete';
+													const isDisabled = isApproved;
+													
+													return (
+														<button
+															onClick={() => !isDisabled && router.push(`/dashboard/baseline-qol/add?formNo=${encodeURIComponent(app.FormNo || "")}`)}
+															disabled={isDisabled}
+															className={`p-2 rounded-lg transition-all duration-200 shadow-sm ${
+																isDisabled
+																	? 'text-gray-400 bg-gray-100 cursor-not-allowed opacity-50'
+																	: 'text-blue-600 hover:bg-blue-600 hover:text-white hover:shadow-md'
+															}`}
+															title={isDisabled ? "Cannot edit approved application" : "Edit"}
+														>
+															<Edit2 className="h-5 w-5" />
+														</button>
+													);
+												})()}
 											</div>
 										</td>
 									</tr>

@@ -22,10 +22,32 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		// Fetch baseline statistics
+		// Get user's full name to match with SubmittedBy
+		const userPool = await getPeDb();
+		const userResult = await userPool
+			.request()
+			.input("user_id", userId)
+			.query(
+				"SELECT TOP(1) [USER_FULL_NAME], [USER_ID] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
+			);
+
+		const user = userResult.recordset?.[0];
+		if (!user) {
+			return NextResponse.json(
+				{ success: false, message: "User not found" },
+				{ status: 404 }
+			);
+		}
+
+		const userFullName = user.USER_FULL_NAME;
+		const userName = user.USER_ID;
+
+		// Fetch baseline statistics filtered by SubmittedBy matching user's name or username
 		const pool = await getPeDb();
 		const sqlRequest = pool.request();
 		(sqlRequest as any).timeout = 120000;
+		sqlRequest.input("userFullName", userFullName);
+		sqlRequest.input("userName", userName);
 
 		const query = `
 			SELECT 
@@ -46,6 +68,7 @@ export async function GET(request: NextRequest) {
 					ELSE 0 
 				END) as RejectedFamilies
 			FROM [SJDA_Users].[dbo].[PE_Application_BasicInfo]
+			WHERE [SubmittedBy] = @userFullName OR [SubmittedBy] = @userName
 		`;
 
 		const result = await sqlRequest.query(query);

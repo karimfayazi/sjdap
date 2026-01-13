@@ -23,15 +23,37 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		// Fetch Intervention statistics
+		// Get user's full name to match with SubmittedBy
+		const userPool = await getPeDb();
+		const userResult = await userPool
+			.request()
+			.input("user_id", userId)
+			.query(
+				"SELECT TOP(1) [USER_FULL_NAME], [USER_ID] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
+			);
+
+		const user = userResult.recordset?.[0];
+		if (!user) {
+			return NextResponse.json(
+				{ success: false, message: "User not found" },
+				{ status: 404 }
+			);
+		}
+
+		const userFullName = user.USER_FULL_NAME;
+		const userName = user.USER_ID;
+
+		// Fetch Intervention statistics filtered by SubmittedBy
 		const pool = await getPeDb();
 		const sqlRequest = pool.request();
 		(sqlRequest as any).timeout = 120000;
+		sqlRequest.input("userFullName", userFullName);
+		sqlRequest.input("userName", userName);
 
 		const query = `
 			WITH FamilyStatus AS (
 				SELECT DISTINCT 
-					[FormNumber],
+					i1.[FormNumber],
 					CASE 
 						WHEN EXISTS (
 							SELECT 1 FROM [SJDA_Users].[dbo].[PE_Interventions] i2 
@@ -49,6 +71,8 @@ export async function GET(request: NextRequest) {
 						ELSE 'Pending'
 					END as ApprovalStatus
 				FROM [SJDA_Users].[dbo].[PE_Interventions] i1
+				INNER JOIN [SJDA_Users].[dbo].[PE_Application_BasicInfo] app ON i1.[FormNumber] = app.[FormNumber]
+				WHERE app.[SubmittedBy] = @userFullName OR app.[SubmittedBy] = @userName
 			)
 			SELECT 
 				COUNT(*) as TotalFamilies,

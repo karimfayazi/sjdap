@@ -74,7 +74,7 @@ export default function MasterLayout({
             <div className="mx-auto w-full max-w-none px-6 py-4 text-center text-white text-sm">
               <div className="flex items-center justify-between gap-2">
                 <span className="flex-1 text-center">
-                  &copy; 2025 SJDA - Silver Jubilee Development Agency, All rights reserved.
+                  &copy; {new Date().getFullYear()} SJDA - Silver Jubilee Development Agency, All rights reserved.
                 </span>
                 <button
                   onClick={async () => {

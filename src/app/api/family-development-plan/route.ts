@@ -6,6 +6,44 @@ export const maxDuration = 120;
 
 export async function GET(request: NextRequest) {
 	try {
+		// Auth check
+		const authCookie = request.cookies.get("auth");
+		if (!authCookie || !authCookie.value) {
+			return NextResponse.json(
+				{ success: false, message: "Unauthorized" },
+				{ status: 401 }
+			);
+		}
+
+		const userId = authCookie.value.split(":")[1];
+		if (!userId) {
+			return NextResponse.json(
+				{ success: false, message: "Invalid session" },
+				{ status: 401 }
+			);
+		}
+
+		const pool = await getPeDb();
+		
+		// Get user's full name to match with SubmittedBy
+		const userResult = await pool
+			.request()
+			.input("user_id", userId)
+			.query(
+				"SELECT TOP(1) [USER_FULL_NAME], [USER_ID] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
+			);
+
+		const user = userResult.recordset?.[0];
+		if (!user) {
+			return NextResponse.json(
+				{ success: false, message: "User not found" },
+				{ status: 404 }
+			);
+		}
+
+		const userFullName = user.USER_FULL_NAME;
+		const userName = user.USER_ID;
+
 		const { searchParams } = new URL(request.url);
 		
 		// Get filter parameters
@@ -17,11 +55,18 @@ export async function GET(request: NextRequest) {
 		const cnicNumberFilter = (searchParams.get("cnicNumber") || "").trim();
 		const regionalCommunityFilter = (searchParams.get("regionalCommunity") || "").trim();
 		const localCommunityFilter = (searchParams.get("localCommunity") || "").trim();
-
-		const pool = await getPeDb();
 		
 		// Build WHERE clause for filters
 		const whereConditions: string[] = [];
+		
+		// Filter by SubmittedBy matching user's name or username
+		if (userFullName && userName) {
+			whereConditions.push(`(app.[SubmittedBy] = @userFullName OR app.[SubmittedBy] = @userName)`);
+		} else if (userFullName) {
+			whereConditions.push(`app.[SubmittedBy] = @userFullName`);
+		} else if (userName) {
+			whereConditions.push(`app.[SubmittedBy] = @userName`);
+		}
 		
 		if (formNumberFilter) {
 			whereConditions.push(`app.[FormNumber] LIKE '%${formNumberFilter.replace(/'/g, "''")}%'`);
@@ -42,13 +87,17 @@ export async function GET(request: NextRequest) {
 		const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(" AND ")}` : "";
 
 		// Query to get total count
+		const countRequest = pool.request();
+		if (userFullName) countRequest.input("userFullName", userFullName);
+		if (userName) countRequest.input("userName", userName);
+		
 		const countQuery = `
 			SELECT COUNT(*) as Total
 			FROM [SJDA_Users].[dbo].[PE_Application_BasicInfo] app
 			${whereClause}
 		`;
 
-		const countResult = await pool.request().query(countQuery);
+		const countResult = await countRequest.query(countQuery);
 		const total = countResult.recordset[0]?.Total || 0;
 
 		// Query to get data with pagination - JOIN with PE_FamilyMember to count family members and calculate income
@@ -87,7 +136,12 @@ export async function GET(request: NextRequest) {
 			FETCH NEXT ${limit} ROWS ONLY
 		`;
 
-		const result = await pool.request().query(query);
+		// Execute query with user parameters
+		const dataRequest = pool.request();
+		if (userFullName) dataRequest.input("userFullName", userFullName);
+		if (userName) dataRequest.input("userName", userName);
+		
+		const result = await dataRequest.query(query);
 
 		// Calculate Income Level (Poverty Level) for each record
 		const recordsWithIncomeLevel = (result.recordset || []).map((record: any) => {

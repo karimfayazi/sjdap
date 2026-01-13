@@ -241,7 +241,43 @@ export async function GET(request: NextRequest) {
 		}
 
 		// Get data from PE_Application_BasicInfo
+		// Auth check
+		const authCookie = request.cookies.get("auth");
+		if (!authCookie || !authCookie.value) {
+			return NextResponse.json(
+				{ success: false, message: "Unauthorized" },
+				{ status: 401 }
+			);
+		}
+
+		const userId = authCookie.value.split(":")[1];
+		if (!userId) {
+			return NextResponse.json(
+				{ success: false, message: "Invalid session" },
+				{ status: 401 }
+			);
+		}
+
 		const pool = await getPeDb();
+		
+		// Get user's full name to match with SubmittedBy
+		const userResult = await pool
+			.request()
+			.input("user_id", userId)
+			.query(
+				"SELECT TOP(1) [USER_FULL_NAME], [USER_ID] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
+			);
+
+		const user = userResult.recordset?.[0];
+		if (!user) {
+			return NextResponse.json(
+				{ success: false, message: "User not found" },
+				{ status: 404 }
+			);
+		}
+
+		const userFullName = user.USER_FULL_NAME;
+		const userName = user.USER_ID;
 		
 		// Helper function to find the correct table name
 		async function findTableName(pool: sql.ConnectionPool): Promise<string> {
@@ -298,6 +334,15 @@ export async function GET(request: NextRequest) {
 
 		// Build WHERE clause for filters (using correct column names with table alias)
 		const whereConditions: string[] = [];
+		
+		// Filter by SubmittedBy matching user's name or username
+		if (userFullName && userName) {
+			whereConditions.push(`(app.[SubmittedBy] = @userFullName OR app.[SubmittedBy] = @userName)`);
+		} else if (userFullName) {
+			whereConditions.push(`app.[SubmittedBy] = @userFullName`);
+		} else if (userName) {
+			whereConditions.push(`app.[SubmittedBy] = @userName`);
+		}
 		
 		if (formNoFilter) {
 			whereConditions.push(`app.[FormNumber] LIKE '%${formNoFilter.replace(/'/g, "''")}%'`);
@@ -390,6 +435,17 @@ export async function GET(request: NextRequest) {
 		// Query to get data from PE_Application_BasicInfo
 		// Using aliases to match expected column names from the frontend
 		// Count family members from PE_FamilyMember table
+		const sqlRequest = pool.request();
+		(sqlRequest as any).timeout = 120000;
+		
+		// Use parameterized queries for user filtering
+		if (userFullName) {
+			sqlRequest.input("userFullName", userFullName);
+		}
+		if (userName) {
+			sqlRequest.input("userName", userName);
+		}
+		
 		const query = `
 			SELECT 
 				app.[FormNumber] as FormNo,
@@ -412,6 +468,8 @@ export async function GET(request: NextRequest) {
 				NULL as HouseStatusName,
 				ISNULL(fm.MemberCount, 0) as TotalFamilyMembers,
 				NULL as Remarks,
+				app.[SubmittedBy] as SubmittedBy,
+				app.[ApprovalStatus] as ApprovalStatus,
 				app.[CreatedAt],
 				app.[UpdatedAt]
 			FROM [SJDA_Users].[dbo].[${tableName}] app
@@ -430,16 +488,25 @@ export async function GET(request: NextRequest) {
 		
 		console.log("Executing query with filters:", whereClause);
 		
-		const result = await pool.request().query(query);
+		const result = await sqlRequest.query(query);
 		const records = result.recordset || [];
 		
 		// Get total count with same filters
+		const countRequest = pool.request();
+		(countRequest as any).timeout = 120000;
+		if (userFullName) {
+			countRequest.input("userFullName", userFullName);
+		}
+		if (userName) {
+			countRequest.input("userName", userName);
+		}
+		
 		const countQuery = `
 			SELECT COUNT(*) as total 
 			FROM [SJDA_Users].[dbo].[${tableName}] app
 			${whereClause}
 		`;
-		const countResult = await pool.request().query(countQuery);
+		const countResult = await countRequest.query(countQuery);
 		const total = countResult.recordset[0]?.total || 0;
 
 		return NextResponse.json({

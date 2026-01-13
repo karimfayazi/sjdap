@@ -23,10 +23,41 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		// Fetch families with member counts
+		// Get user's full name to match with SubmittedBy
 		const pool = await getPeDb();
+		const userResult = await pool
+			.request()
+			.input("user_id", userId)
+			.query(
+				"SELECT TOP(1) [USER_FULL_NAME], [USER_ID] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
+			);
+
+		const user = userResult.recordset?.[0];
+		if (!user) {
+			return NextResponse.json(
+				{ success: false, message: "User not found", records: [] },
+				{ status: 404 }
+			);
+		}
+
+		const userFullName = user.USER_FULL_NAME;
+		const userName = user.USER_ID;
+
+		// Fetch families with member counts, filtered by SubmittedBy
 		const sqlRequest = pool.request();
 		(sqlRequest as any).timeout = 120000;
+		
+		// Add user parameters
+		if (userFullName) sqlRequest.input("userFullName", userFullName);
+		if (userName) sqlRequest.input("userName", userName);
+
+		const whereClause = userFullName && userName 
+			? `WHERE (b.[SubmittedBy] = @userFullName OR b.[SubmittedBy] = @userName)`
+			: userFullName 
+			? `WHERE b.[SubmittedBy] = @userFullName`
+			: userName 
+			? `WHERE b.[SubmittedBy] = @userName`
+			: ``;
 
 		const query = `
 			SELECT 
@@ -44,6 +75,7 @@ export async function GET(request: NextRequest) {
 				FROM [SJDA_Users].[dbo].[PE_FamilyMember]
 				GROUP BY [FormNo]
 			) m ON b.[FormNumber] = m.[FormNo]
+			${whereClause}
 			ORDER BY b.[FormNumber]
 		`;
 
