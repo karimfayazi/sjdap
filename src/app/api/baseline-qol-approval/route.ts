@@ -23,44 +23,31 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		const { searchParams } = new URL(request.url);
-		const recordId = searchParams.get("recordId");
-		const moduleName = searchParams.get("moduleName") || "Feasibility Plan";
-
-		if (!recordId) {
-			return NextResponse.json(
-				{ success: false, message: "Record ID is required", records: [] },
-				{ status: 400 }
-			);
-		}
-
-		// Fetch approval log data
+		// Fetch baseline QOL data with family member count
 		const pool = await getPeDb();
 		const sqlRequest = pool.request();
 		(sqlRequest as any).timeout = 120000;
 
-		// For Baseline module, RecordID is a string (FormNumber), otherwise it's an integer
-		if (moduleName === "Baseline") {
-			sqlRequest.input("RecordID", sql.VarChar, recordId);
-		} else {
-			sqlRequest.input("RecordID", sql.Int, parseInt(recordId));
-		}
-		sqlRequest.input("ModuleName", sql.NVarChar, moduleName);
-
 		const query = `
-			SELECT TOP (1000) 
-				[LogID],
-				[ModuleName],
-				[RecordID],
-				[ActionLevel],
-				[ActionBy],
-				[ActionAt],
-				[ActionType],
-				[Remarks]
-			FROM [SJDA_Users].[dbo].[Approval_Log]
-			WHERE [RecordID] = @RecordID 
-				AND [ModuleName] = @ModuleName
-			ORDER BY [ActionAt] DESC
+			SELECT 
+				app.[FormNumber],
+				app.[Full_Name],
+				app.[CNICNumber],
+				app.[RegionalCommunity],
+				app.[LocalCommunity],
+				app.[CurrentCommunityCenter],
+				app.[Area_Type],
+				app.[ApprovalStatus],
+				ISNULL(fm.MemberCount, 0) as TotalMembers
+			FROM [SJDA_Users].[dbo].[PE_Application_BasicInfo] app
+			LEFT JOIN (
+				SELECT 
+					[FormNo],
+					COUNT(*) as MemberCount
+				FROM [SJDA_Users].[dbo].[PE_FamilyMember]
+				GROUP BY [FormNo]
+			) fm ON app.[FormNumber] = fm.[FormNo]
+			ORDER BY app.[FormNumber] DESC
 		`;
 
 		const result = await sqlRequest.query(query);
@@ -71,13 +58,13 @@ export async function GET(request: NextRequest) {
 			records,
 		});
 	} catch (error) {
-		console.error("Error fetching approval log data:", error);
+		console.error("Error fetching baseline QOL approval data:", error);
 
 		const errorMessage = error instanceof Error ? error.message : String(error);
 		return NextResponse.json(
 			{
 				success: false,
-				message: "Error fetching approval log data: " + errorMessage,
+				message: "Error fetching baseline QOL approval data: " + errorMessage,
 				records: [],
 			},
 			{ status: 500 }

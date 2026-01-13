@@ -206,6 +206,34 @@ export default function FeasibilityApprovalPage() {
 		);
 	});
 
+	// Group records by FamilyID
+	const groupedByFamily = filteredRecords.reduce((acc, record) => {
+		const familyId = record.FamilyID || "Unknown";
+		if (!acc[familyId]) {
+			acc[familyId] = {
+				familyId: familyId,
+				formNumber: record.FormNumber || familyId,
+				applicationFullName: record.ApplicationFullName || "N/A",
+				cnicNumber: record.CNICNumber || "N/A",
+				regionalCommunity: record.RegionalCommunity || "N/A",
+				localCommunity: record.LocalCommunity || "N/A",
+				records: [],
+			};
+		}
+		acc[familyId].records.push(record);
+		return acc;
+	}, {} as Record<string, {
+		familyId: string;
+		formNumber: string;
+		applicationFullName: string;
+		cnicNumber: string;
+		regionalCommunity: string;
+		localCommunity: string;
+		records: FeasibilityApprovalData[];
+	}>);
+
+	const familyGroups = Object.values(groupedByFamily);
+
 	// Stats
 	const totalPlans = records.length;
 	const totalApproved = records.filter((row) => {
@@ -563,113 +591,143 @@ export default function FeasibilityApprovalPage() {
 								</div>
 							</div>
 
-							<div className="overflow-x-auto max-h-[500px]">
-								<table className="min-w-full divide-y divide-gray-200 text-sm">
-									<thead className="bg-gray-50 sticky top-0">
-										<tr>
-											<th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
-												FDP ID
-											</th>
-											<th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
-												Family ID
-											</th>
-											<th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
-												Member Name
-											</th>
-											<th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
-												Regional Community
-											</th>
-											<th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
-												Local Community
-											</th>
-											<th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
-												Plan Category
-											</th>
-											<th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
-												Feasibility Type
-											</th>
-											<th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
-												Total Investment
-											</th>
-											<th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
-												Investment from PE
-											</th>
-											<th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
-												Status
-											</th>
-											<th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
-												Actions
-											</th>
-										</tr>
-									</thead>
-									<tbody className="bg-white divide-y divide-gray-200">
-										{filteredRecords.length === 0 ? (
-											<tr>
-												<td colSpan={11} className="px-3 py-6 text-center text-gray-500">
-													No feasibility records found.
-												</td>
-											</tr>
-										) : (
-											filteredRecords.map((row, idx) => {
-												const statusStyle = getStatusStyle(row.ApprovalStatus);
-												const StatusIcon = statusStyle.icon;
-												return (
-													<tr key={row.FDP_ID || idx} className="hover:bg-gray-50">
-														<td className="px-3 py-2 whitespace-nowrap text-gray-900">
-															{row.FDP_ID || "N/A"}
-														</td>
-														<td className="px-3 py-2 whitespace-nowrap text-gray-900">
-															{row.FamilyID || "N/A"}
-														</td>
-														<td className="px-3 py-2 whitespace-nowrap text-gray-900">
-															{row.MemberName || "N/A"}
-														</td>
-														<td className="px-3 py-2 whitespace-nowrap text-gray-900">
-															{row.RegionalCommunity || "N/A"}
-														</td>
-														<td className="px-3 py-2 whitespace-nowrap text-gray-900">
-															{row.LocalCommunity || "N/A"}
-														</td>
-														<td className="px-3 py-2 whitespace-nowrap text-gray-900">
-															{row.PlanCategory || "N/A"}
-														</td>
-														<td className="px-3 py-2 whitespace-nowrap text-gray-900">
-															{row.FeasibilityType || "N/A"}
-														</td>
-														<td className="px-3 py-2 whitespace-nowrap text-gray-900">
-															{row.TotalInvestmentRequired != null
-																? row.TotalInvestmentRequired.toLocaleString()
-																: "N/A"}
-														</td>
-														<td className="px-3 py-2 whitespace-nowrap text-gray-900">
-															{row.InvestmentFromPEProgram != null
-																? row.InvestmentFromPEProgram.toLocaleString()
-																: "N/A"}
-														</td>
-														<td className="px-3 py-2 whitespace-nowrap">
-															<span
-																className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${statusStyle.className}`}
-															>
-																<StatusIcon className="h-3 w-3" />
-																{statusStyle.label}
-															</span>
-														</td>
-														<td className="px-3 py-2 whitespace-nowrap">
+							<div className="overflow-x-auto max-h-[600px]">
+								{familyGroups.length === 0 ? (
+									<div className="p-6 text-center text-gray-500">
+										No feasibility records found.
+									</div>
+								) : (
+									<div className="space-y-6">
+										{familyGroups.map((familyGroup) => (
+											<div key={familyGroup.familyId} className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+												{/* Family Information Header */}
+												<div className="bg-[#0b4d2b] px-6 py-4">
+													<div className="flex items-center justify-between">
+														<div className="flex-1">
+															<h3 className="text-lg font-semibold text-white mb-2">
+																Family ID: {familyGroup.familyId}
+															</h3>
+															<div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-white/90">
+																<div>
+																	<span className="font-medium">Form Number:</span> {familyGroup.formNumber}
+																</div>
+																<div>
+																	<span className="font-medium">Name:</span> {familyGroup.applicationFullName}
+																</div>
+																<div>
+																	<span className="font-medium">CNIC:</span> {familyGroup.cnicNumber}
+																</div>
+																<div>
+																	<span className="font-medium">Regional:</span> {familyGroup.regionalCommunity}
+																</div>
+																<div>
+																	<span className="font-medium">Local:</span> {familyGroup.localCommunity}
+																</div>
+																<div>
+																	<span className="font-medium">Feasibility Records:</span> {familyGroup.records.length}
+																</div>
+															</div>
+														</div>
+														<div className="ml-4">
 															<button
 																type="button"
-																onClick={() => handleViewRow(row)}
-																className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100"
+																onClick={() => router.push(`/dashboard/approval-section/family-development-plan-approval?formNumber=${encodeURIComponent(familyGroup.familyId)}`)}
+																className="inline-flex items-center gap-2 px-4 py-2 bg-white text-[#0b4d2b] rounded-md hover:bg-gray-100 transition-colors font-medium"
 															>
-																<Eye className="h-3 w-3" />
-																View
+																<Eye className="h-4 w-4" />
+																View FDP Approval
 															</button>
-														</td>
-													</tr>
-												);
-											})
-										)}
-									</tbody>
-								</table>
+														</div>
+													</div>
+												</div>
+
+												{/* Member Feasibility Records */}
+												<div className="overflow-x-auto">
+													<table className="min-w-full divide-y divide-gray-200 text-sm">
+														<thead className="bg-gray-50">
+															<tr>
+																<th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
+																	FDP ID
+																</th>
+																<th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
+																	Member Name
+																</th>
+																<th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
+																	Plan Category
+																</th>
+																<th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
+																	Feasibility Type
+																</th>
+																<th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
+																	Total Investment
+																</th>
+																<th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
+																	Investment from PE
+																</th>
+																<th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
+																	Status
+																</th>
+																<th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
+																	Actions
+																</th>
+															</tr>
+														</thead>
+														<tbody className="bg-white divide-y divide-gray-200">
+															{familyGroup.records.map((row, idx) => {
+																const statusStyle = getStatusStyle(row.ApprovalStatus);
+																const StatusIcon = statusStyle.icon;
+																return (
+																	<tr key={row.FDP_ID || idx} className="hover:bg-gray-50">
+																		<td className="px-3 py-2 whitespace-nowrap text-gray-900">
+																			{row.FDP_ID || "N/A"}
+																		</td>
+																		<td className="px-3 py-2 whitespace-nowrap text-gray-900">
+																			{row.MemberName || "N/A"}
+																		</td>
+																		<td className="px-3 py-2 whitespace-nowrap text-gray-900">
+																			{row.PlanCategory || "N/A"}
+																		</td>
+																		<td className="px-3 py-2 whitespace-nowrap text-gray-900">
+																			{row.FeasibilityType || "N/A"}
+																		</td>
+																		<td className="px-3 py-2 whitespace-nowrap text-gray-900">
+																			{row.TotalInvestmentRequired != null
+																				? row.TotalInvestmentRequired.toLocaleString()
+																				: "N/A"}
+																		</td>
+																		<td className="px-3 py-2 whitespace-nowrap text-gray-900">
+																			{row.InvestmentFromPEProgram != null
+																				? row.InvestmentFromPEProgram.toLocaleString()
+																				: "N/A"}
+																		</td>
+																		<td className="px-3 py-2 whitespace-nowrap">
+																			<span
+																				className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${statusStyle.className}`}
+																			>
+																				<StatusIcon className="h-3 w-3" />
+																				{statusStyle.label}
+																			</span>
+																		</td>
+																		<td className="px-3 py-2 whitespace-nowrap">
+																			<button
+																				type="button"
+																				onClick={() => handleViewRow(row)}
+																				className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100"
+																			>
+																				<Eye className="h-3 w-3" />
+																				View
+																			</button>
+																		</td>
+																	</tr>
+																);
+															})}
+														</tbody>
+													</table>
+												</div>
+											</div>
+										))}
+									</div>
+								)}
 							</div>
 						</div>
 					</>

@@ -258,25 +258,25 @@ function EducationSupportContent() {
 		setFormData(prev => ({ ...prev, EduMonthlyTransportPEContribution: Math.max(0, peContribution) }));
 	}, [formData.EduMonthlyTransportTotalCost, formData.EduMonthlyTransportFamilyContribution]);
 
-	// Handle Regular Support changes
-	useEffect(() => {
-		if (formData.EducationInterventionType === "Regular Support") {
-			// Clear Baseline Reason Not Studying and one-time admission costs
-			setFormData(prev => ({
-				...prev,
-				RegularSupport: true,
-				BaselineReasonNotStudying: "",
-				EduOneTimeAdmissionTotalCost: 0,
-				EduOneTimeAdmissionFamilyContribution: 0,
-				EduOneTimeAdmissionPEContribution: 0,
-			}));
-		} else {
-			setFormData(prev => ({
-				...prev,
-				RegularSupport: false,
-			}));
-		}
-	}, [formData.EducationInterventionType]);
+		// Handle Regular Support changes
+		useEffect(() => {
+			if (formData.EducationInterventionType === "Regular Support") {
+				// Clear Baseline Reason Not Studying and one-time admission costs
+				setFormData(prev => ({
+					...prev,
+					RegularSupport: true,
+					BaselineReasonNotStudying: "",
+					EduOneTimeAdmissionTotalCost: 0,
+					EduOneTimeAdmissionFamilyContribution: 0,
+					EduOneTimeAdmissionPEContribution: 0,
+				}));
+			} else {
+				setFormData(prev => ({
+					...prev,
+					RegularSupport: false,
+				}));
+			}
+		}, [formData.EducationInterventionType]);
 
 	// Calculate totals
 	useEffect(() => {
@@ -405,8 +405,8 @@ function EducationSupportContent() {
 					}));
 				}
 
-				// Fetch family members
-				const membersResponse = await fetch(`/api/family-members?formNumber=${encodeURIComponent(formNumber)}`);
+				// Fetch family members from PE_FamilyMember table
+				const membersResponse = await fetch(`/api/family-development-plan/members?formNumber=${encodeURIComponent(formNumber)}`);
 				const membersResult = await membersResponse.json();
 				
 				if (membersResult.success && membersResult.data) {
@@ -423,7 +423,7 @@ function EducationSupportContent() {
 								BeneficiaryID: selectedMember.MemberNo,
 								BeneficiaryName: selectedMember.FullName,
 								BeneficiaryAge: age,
-								BeneficiaryGender: selectedMember.Gender,
+								BeneficiaryGender: selectedMember.Gender || "",
 							}));
 						}
 					}
@@ -443,6 +443,13 @@ function EducationSupportContent() {
 							const existing = records.find((r: any) => r.FDP_SocialEduID?.toString() === fdpSocialEduId) || records[0];
 							if (existing) {
 								setSelectedRecordId(existing.FDP_SocialEduID);
+								
+								// Get beneficiary info from family members if not in existing record
+								const beneficiaryId = existing.BeneficiaryID || memberNo;
+								const selectedMember = familyMembers.find((m: FamilyMember) => m.MemberNo === beneficiaryId);
+								const calculatedAge = selectedMember ? calculateAge(selectedMember.DOBMonth, selectedMember.DOBYear) : 0;
+								const memberGender = selectedMember?.Gender || "";
+								
 								setFormData(prev => ({
 									...prev,
 									MaxSocialSupportAmount: existing.MaxSocialSupportAmount || 0,
@@ -462,9 +469,9 @@ function EducationSupportContent() {
 									EduMonthlyTransportPEContribution: existing.EduMonthlyTransportPEContribution || 0,
 									EduTransportNumberOfMonths: existing.EduTransportNumberOfMonths || 0,
 									BeneficiaryID: existing.BeneficiaryID || prev.BeneficiaryID,
-									BeneficiaryName: existing.BeneficiaryName || prev.BeneficiaryName,
-									BeneficiaryAge: existing.BeneficiaryAge || prev.BeneficiaryAge,
-									BeneficiaryGender: existing.BeneficiaryGender || prev.BeneficiaryGender,
+									BeneficiaryName: existing.BeneficiaryName || selectedMember?.FullName || prev.BeneficiaryName,
+									BeneficiaryAge: existing.BeneficiaryAge || calculatedAge || prev.BeneficiaryAge,
+									BeneficiaryGender: existing.BeneficiaryGender || memberGender || prev.BeneficiaryGender,
 									EducationInterventionType: existing.EducationInterventionType || "",
 									RegularSupport: existing.RegularSupport || (existing.EducationInterventionType === "Regular Support"),
 									BaselineReasonNotStudying: existing.BaselineReasonNotStudying || "",
@@ -514,10 +521,31 @@ function EducationSupportContent() {
 				BeneficiaryID: selectedMember.MemberNo,
 				BeneficiaryName: selectedMember.FullName,
 				BeneficiaryAge: age,
-				BeneficiaryGender: selectedMember.Gender,
+				BeneficiaryGender: selectedMember.Gender || "",
 			}));
 		}
 	};
+
+	// Update Age and Gender when BeneficiaryID changes or family members are loaded
+	useEffect(() => {
+		if (formData.BeneficiaryID && familyMembers.length > 0) {
+			const selectedMember = familyMembers.find(m => m.MemberNo === formData.BeneficiaryID);
+			if (selectedMember) {
+				const age = calculateAge(selectedMember.DOBMonth, selectedMember.DOBYear);
+				const gender = selectedMember.Gender || "";
+				// Only update if Age or Gender is missing or different
+				if (formData.BeneficiaryAge === 0 || formData.BeneficiaryAge !== age || !formData.BeneficiaryGender || formData.BeneficiaryGender !== gender) {
+					setFormData(prev => ({
+						...prev,
+						BeneficiaryAge: age,
+						BeneficiaryGender: gender,
+						BeneficiaryName: selectedMember.FullName || prev.BeneficiaryName,
+					}));
+				}
+			}
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [formData.BeneficiaryID, familyMembers.length]);
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -530,19 +558,53 @@ function EducationSupportContent() {
 			return;
 		}
 
-		if (formData.EducationInterventionType === "Admitted" && !formData.AdmittedToSchoolType) {
-			setError("Please select Admitted To School Type");
+		// Validate EducationInterventionType is one of the allowed values
+		const allowedInterventionTypes = ["Admitted", "Transferred", "Regular Support"];
+		const interventionType = formData.EducationInterventionType.trim();
+		if (!allowedInterventionTypes.includes(interventionType)) {
+			setError(`Invalid Education Intervention Type. Must be one of: ${allowedInterventionTypes.join(", ")}`);
 			return;
 		}
 
-		if (formData.EducationInterventionType === "Regular Support" && !formData.AdmittedToSchoolType) {
-			setError("Please select School Type");
-			return;
+		if (interventionType === "Admitted") {
+			if (!formData.BaselineReasonNotStudying || !formData.BaselineReasonNotStudying.trim()) {
+				setError("Please enter Baseline Reason Not Studying");
+				return;
+			}
+			if (!formData.AdmittedToSchoolType) {
+				setError("Please select Admitted To School Type");
+				return;
+			}
+			if (!formData.AdmittedToClassLevel) {
+				setError("Please select Admitted To Class Level");
+				return;
+			}
 		}
 
-		if (formData.EducationInterventionType === "Transferred" && (!formData.BaselineSchoolType || !formData.TransferredToSchoolType)) {
-			setError("Please fill in Baseline School Type and Transferred To School Type");
-			return;
+		if (interventionType === "Regular Support") {
+			if (!formData.AdmittedToSchoolType) {
+				setError("Please select School Type");
+				return;
+			}
+			if (!formData.AdmittedToClassLevel) {
+				setError("Please select Class Level");
+				return;
+			}
+		}
+
+		if (interventionType === "Transferred") {
+			if (!formData.BaselineSchoolType) {
+				setError("Please select Baseline School Type");
+				return;
+			}
+			if (!formData.TransferredToSchoolType) {
+				setError("Please select Transferred To School Type");
+				return;
+			}
+			if (!formData.TransferredToClassLevel) {
+				setError("Please select Transferred To Class Level");
+				return;
+			}
 		}
 
 		// Validate that Total PE Contribution does not exceed Available Social Support
@@ -567,6 +629,7 @@ function EducationSupportContent() {
 				},
 				body: JSON.stringify({
 					...formData,
+					EducationInterventionType: interventionType, // Use validated and trimmed value
 					CreatedBy: userProfile?.username || userProfile?.email || "System",
 					UpdatedBy: userProfile?.username || userProfile?.email || "System",
 				}),
@@ -892,19 +955,13 @@ function EducationSupportContent() {
 							<label className="block text-sm font-medium text-gray-700 mb-2">
 								Beneficiary ID <span className="text-red-500">*</span>
 							</label>
-							<select
-								value={formData.BeneficiaryID}
-								onChange={(e) => handleBeneficiaryChange(e.target.value)}
+							<input
+								type="text"
+								value={formData.BeneficiaryID || ""}
+								readOnly
 								required
-								className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-							>
-								<option value="">Select Beneficiary</option>
-								{familyMembers.map((member) => (
-									<option key={member.MemberNo} value={member.MemberNo}>
-										{member.MemberNo} - {member.FullName}
-									</option>
-								))}
-							</select>
+								className="w-full rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-gray-600 cursor-not-allowed"
+							/>
 						</div>
 						<div>
 							<label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
@@ -983,24 +1040,28 @@ function EducationSupportContent() {
 					{formData.EducationInterventionType === "Admitted" && (
 						<div className="mt-4 space-y-4">
 							<div>
-								<label className="block text-sm font-medium text-gray-700 mb-2">Baseline Reason Not Studying</label>
+								<label className="block text-sm font-medium text-gray-700 mb-2">
+									Baseline Reason Not Studying <span className="text-red-500">*</span>
+								</label>
 								<input
 									type="text"
 									value={formData.BaselineReasonNotStudying}
 									onChange={(e) => handleChange("BaselineReasonNotStudying", e.target.value)}
 									className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
 									placeholder="Enter reason"
+									required
 								/>
 							</div>
 							<div className="grid grid-cols-2 gap-4">
 								<div>
 									<label className="block text-sm font-medium text-gray-700 mb-2">
-										Admitted To School Type
+										Admitted To School Type <span className="text-red-500">*</span>
 									</label>
 									<select
 										value={formData.AdmittedToSchoolType}
 										onChange={(e) => handleChange("AdmittedToSchoolType", e.target.value)}
 										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+										required
 									>
 										<option value="">Select School Type</option>
 										<option value="Govt">Govt</option>
@@ -1012,12 +1073,13 @@ function EducationSupportContent() {
 								</div>
 								<div>
 									<label className="block text-sm font-medium text-gray-700 mb-2">
-										Admitted To Class Level
+										Admitted To Class Level <span className="text-red-500">*</span>
 									</label>
 									<select
 										value={formData.AdmittedToClassLevel}
 										onChange={(e) => handleChange("AdmittedToClassLevel", e.target.value)}
 										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+										required
 									>
 										<option value="">Select Class Level</option>
 										<option value="Pre-Primary">Pre-Primary</option>
@@ -1036,12 +1098,13 @@ function EducationSupportContent() {
 							<div className="grid grid-cols-2 gap-4">
 								<div>
 									<label className="block text-sm font-medium text-gray-700 mb-2">
-										School Type
+										School Type <span className="text-red-500">*</span>
 									</label>
 									<select
 										value={formData.AdmittedToSchoolType}
 										onChange={(e) => handleChange("AdmittedToSchoolType", e.target.value)}
 										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+										required
 									>
 										<option value="">Select School Type</option>
 										<option value="Govt">Govt</option>
@@ -1053,12 +1116,13 @@ function EducationSupportContent() {
 								</div>
 								<div>
 									<label className="block text-sm font-medium text-gray-700 mb-2">
-										Class Level
+										Class Level <span className="text-red-500">*</span>
 									</label>
 									<select
 										value={formData.AdmittedToClassLevel}
 										onChange={(e) => handleChange("AdmittedToClassLevel", e.target.value)}
 										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+										required
 									>
 										<option value="">Select Class Level</option>
 										<option value="Pre-Primary">Pre-Primary</option>
@@ -1076,11 +1140,14 @@ function EducationSupportContent() {
 						<div className="mt-4 space-y-4">
 							<div className="grid grid-cols-2 gap-4">
 								<div>
-									<label className="block text-sm font-medium text-gray-700 mb-2">Baseline School Type</label>
+									<label className="block text-sm font-medium text-gray-700 mb-2">
+										Baseline School Type <span className="text-red-500">*</span>
+									</label>
 									<select
 										value={formData.BaselineSchoolType}
 										onChange={(e) => handleChange("BaselineSchoolType", e.target.value)}
 										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+										required
 									>
 										<option value="">Select School Type</option>
 										<option value="Govt">Govt</option>
@@ -1091,11 +1158,14 @@ function EducationSupportContent() {
 									</select>
 								</div>
 								<div>
-									<label className="block text-sm font-medium text-gray-700 mb-2">Transferred To School Type</label>
+									<label className="block text-sm font-medium text-gray-700 mb-2">
+										Transferred To School Type <span className="text-red-500">*</span>
+									</label>
 									<select
 										value={formData.TransferredToSchoolType}
 										onChange={(e) => handleChange("TransferredToSchoolType", e.target.value)}
 										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+										required
 									>
 										<option value="">Select School Type</option>
 										<option value="Govt">Govt</option>
@@ -1107,11 +1177,14 @@ function EducationSupportContent() {
 								</div>
 							</div>
 							<div>
-								<label className="block text-sm font-medium text-gray-700 mb-2">Transferred To Class Level</label>
+								<label className="block text-sm font-medium text-gray-700 mb-2">
+									Transferred To Class Level <span className="text-red-500">*</span>
+								</label>
 								<select
 									value={formData.TransferredToClassLevel}
 									onChange={(e) => handleChange("TransferredToClassLevel", e.target.value)}
 									className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+									required
 								>
 									<option value="">Select Class Level</option>
 									<option value="Pre-Primary">Pre-Primary</option>

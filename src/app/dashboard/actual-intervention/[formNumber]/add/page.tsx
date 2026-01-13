@@ -47,6 +47,8 @@ function AddInterventionContent() {
 	const [headName, setHeadName] = useState<string>("");
 	const [housingSupportRecords, setHousingSupportRecords] = useState<any[]>([]);
 	const [loadingHousingSupport, setLoadingHousingSupport] = useState(false);
+	const [filteredInterventions, setFilteredInterventions] = useState<Intervention[]>([]);
+	const [loadingInterventions, setLoadingInterventions] = useState(false);
 	const [formData, setFormData] = useState<Partial<Intervention>>({
 		FormNumber: formNumber || "",
 	});
@@ -70,6 +72,26 @@ function AddInterventionContent() {
 			});
 		}
 	}, [interventionType, formNumber, memberId]);
+
+	// Auto-set Main Intervention based on Section
+	useEffect(() => {
+		const section = formData.Section;
+		if (section) {
+			// If Section is Food, Health, Habitat, or Education, set Main Intervention to "Social"
+			// Otherwise, set it to "Economic"
+			if (section === "Food" || section === "Health" || section === "Habitat" || section === "Education") {
+				setFormData((prev) => ({
+					...prev,
+					MainIntervention: "Social",
+				}));
+			} else {
+				setFormData((prev) => ({
+					...prev,
+					MainIntervention: "Economic",
+				}));
+			}
+		}
+	}, [formData.Section]);
 
 	// Set Amount Type and Total Amount based on Intervention Type and Financial Category
 	useEffect(() => {
@@ -184,11 +206,57 @@ function AddInterventionContent() {
 		}
 	}, [interventionType, formNumber]);
 
+	// Fetch filtered interventions by Section and MemberID
+	useEffect(() => {
+		if (formNumber && formData.Section && formData.MemberID) {
+			const fetchFilteredInterventions = async () => {
+				try {
+					setLoadingInterventions(true);
+					const response = await fetch(
+						`/api/actual-intervention/interventions?formNumber=${encodeURIComponent(formNumber)}`
+					);
+					const data = await response.json().catch(() => ({}));
+
+					if (response.ok && data.success) {
+						// Filter by Section and MemberID
+						const filtered = (data.records || []).filter(
+							(intervention: Intervention) =>
+								intervention.Section === formData.Section &&
+								intervention.MemberID === formData.MemberID
+						);
+						setFilteredInterventions(filtered);
+					}
+				} catch (err) {
+					console.error("Error fetching filtered interventions:", err);
+				} finally {
+					setLoadingInterventions(false);
+				}
+			};
+
+			fetchFilteredInterventions();
+		} else {
+			setFilteredInterventions([]);
+		}
+	}, [formNumber, formData.Section, formData.MemberID]);
+
 	const handleInputChange = (field: keyof Intervention, value: any) => {
 		setFormData((prev) => ({
 			...prev,
 			[field]: value,
 		}));
+	};
+
+	const formatDate = (dateString: string | null): string => {
+		if (!dateString) return "N/A";
+		try {
+			return new Date(dateString).toLocaleDateString("en-US", {
+				year: "numeric",
+				month: "short",
+				day: "numeric",
+			});
+		} catch {
+			return dateString;
+		}
 	};
 
 	const handleSubmit = async (e: React.FormEvent) => {
@@ -197,6 +265,42 @@ function AddInterventionContent() {
 		try {
 			setSaving(true);
 			setError(null);
+
+			// Validation: For Habitat and Education sections, all required fields must be filled
+			if (formData.Section === "Habitat" || formData.Section === "Education") {
+				if (!formData.InterventionCategory) {
+					setError(`Intervention Category is required for ${formData.Section} section.`);
+					setSaving(false);
+					return;
+				}
+				if (!formData.InterventionType) {
+					setError(`Intervention Type is required for ${formData.Section} section.`);
+					setSaving(false);
+					return;
+				}
+				if (!formData.FinancialCategory) {
+					setError(`Financial Category is required for ${formData.Section} section.`);
+					setSaving(false);
+					return;
+				}
+				if (!formData.TotalAmount && formData.TotalAmount !== 0) {
+					setError(`Total Intervention Amount is required for ${formData.Section} section.`);
+					setSaving(false);
+					return;
+				}
+				if (!formData.InterventionEndDate) {
+					setError(`End Date is required for ${formData.Section} section.`);
+					setSaving(false);
+					return;
+				}
+			}
+
+			// Validation: Total Amount must be 0 or above (negative values not accepted)
+			if (formData.TotalAmount != null && formData.TotalAmount < 0) {
+				setError("Total Intervention Amount must be 0 or above. Negative values are not accepted.");
+				setSaving(false);
+				return;
+			}
 
 			// Validation: Total Amount is required for Financial interventions with payment categories
 			if (formData.InterventionType === "Financial" && (formData.FinancialCategory === "Payment From PE Account" || formData.FinancialCategory === "Payment But Non-PE Account")) {
@@ -207,15 +311,44 @@ function AddInterventionContent() {
 				}
 			}
 
-			// Validation: For habitat section, Total Amount should not exceed Total PE Contribution
+			// Validation: For habitat section, Total Amount should not exceed remaining PE Contribution
 			if (interventionType === "habitat" && formData.TotalAmount) {
 				const totalPEContribution = housingSupportRecords.reduce((sum, record) => {
 					const peContribution = parseFloat(record.HabitatTotalPEContribution) || 0;
 					return sum + peContribution;
 				}, 0);
 
-				if (formData.TotalAmount > totalPEContribution) {
-					setError(`Total Amount (PKR ${formData.TotalAmount.toLocaleString()}) cannot exceed Total PE Contribution (PKR ${totalPEContribution.toLocaleString()}) from Housing Support records.`);
+				// Calculate sum of existing interventions for the same Section and MemberID
+				const existingInterventionsTotal = filteredInterventions.reduce((sum, intervention) => {
+					const amount = intervention.TotalAmount || 0;
+					return sum + amount;
+				}, 0);
+
+				// Calculate remaining amount
+				const remainingAmount = totalPEContribution - existingInterventionsTotal;
+
+				// Check if new amount + existing total exceeds PE Contribution
+				const newTotal = existingInterventionsTotal + formData.TotalAmount;
+
+				if (newTotal > totalPEContribution) {
+					setError(
+						`Total intervention amount exceeds available PE Contribution. ` +
+						`Total PE Contribution: PKR ${totalPEContribution.toLocaleString()}, ` +
+						`Existing interventions total: PKR ${existingInterventionsTotal.toLocaleString()}, ` +
+						`Remaining available: PKR ${remainingAmount.toLocaleString()}, ` +
+						`New amount: PKR ${formData.TotalAmount.toLocaleString()}. ` +
+						`Total would be: PKR ${newTotal.toLocaleString()} (exceeds by PKR ${(newTotal - totalPEContribution).toLocaleString()})`
+					);
+					setSaving(false);
+					return;
+				}
+
+				if (formData.TotalAmount > remainingAmount) {
+					setError(
+						`Total Amount (PKR ${formData.TotalAmount.toLocaleString()}) exceeds remaining available amount (PKR ${remainingAmount.toLocaleString()}). ` +
+						`Total PE Contribution: PKR ${totalPEContribution.toLocaleString()}, ` +
+						`Already used: PKR ${existingInterventionsTotal.toLocaleString()}`
+					);
 					setSaving(false);
 					return;
 				}
@@ -231,6 +364,23 @@ function AddInterventionContent() {
 
 			if (!response.ok || !data.success) {
 				throw new Error(data?.message || "Failed to create intervention");
+			}
+
+			// Refresh filtered interventions list
+			if (formNumber && formData.Section && formData.MemberID) {
+				const refreshResponse = await fetch(
+					`/api/actual-intervention/interventions?formNumber=${encodeURIComponent(formNumber)}`
+				);
+				const refreshData = await refreshResponse.json().catch(() => ({}));
+
+				if (refreshResponse.ok && refreshData.success) {
+					const filtered = (refreshData.records || []).filter(
+						(intervention: Intervention) =>
+							intervention.Section === formData.Section &&
+							intervention.MemberID === formData.MemberID
+					);
+					setFilteredInterventions(filtered);
+				}
 			}
 
 			// Redirect to the family's intervention page
@@ -321,6 +471,76 @@ function AddInterventionContent() {
 					) : (
 						<p className="text-gray-500 text-sm py-4">No housing support records found for this family.</p>
 					)}
+					{/* PE Contribution Summary */}
+					{housingSupportRecords.length > 0 && formData.Section === "Habitat" && formData.MemberID && (
+						<div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+							<h3 className="text-lg font-semibold text-gray-900 mb-3">PE Contribution Summary - Section Wise & Member Wise</h3>
+							{(() => {
+								const totalPEContribution = housingSupportRecords.reduce((sum, record) => {
+									const peContribution = parseFloat(record.HabitatTotalPEContribution) || 0;
+									return sum + peContribution;
+								}, 0);
+
+								const existingInterventionsTotal = filteredInterventions.reduce((sum, intervention) => {
+									const amount = intervention.TotalAmount || 0;
+									return sum + amount;
+								}, 0);
+
+								const remainingAmount = totalPEContribution - existingInterventionsTotal;
+								const newAmount = formData.TotalAmount || 0;
+								const wouldBeTotal = existingInterventionsTotal + newAmount;
+
+								return (
+									<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+										<div className="bg-white p-3 rounded border border-gray-200">
+											<p className="text-xs text-gray-600 uppercase tracking-wide mb-1">Total PE Contribution</p>
+											<p className="text-xl font-bold text-gray-900">PKR {totalPEContribution.toLocaleString()}</p>
+										</div>
+										<div className="bg-white p-3 rounded border border-gray-200">
+											<p className="text-xs text-gray-600 uppercase tracking-wide mb-1">Existing Interventions Total</p>
+											<p className="text-xl font-bold text-orange-600">PKR {existingInterventionsTotal.toLocaleString()}</p>
+										</div>
+										<div className="bg-white p-3 rounded border border-gray-200">
+											<p className="text-xs text-gray-600 uppercase tracking-wide mb-1">Remaining Available</p>
+											<p className={`text-xl font-bold ${remainingAmount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+												PKR {remainingAmount.toLocaleString()}
+											</p>
+										</div>
+										<div className="bg-white p-3 rounded border border-gray-200">
+											<p className="text-xs text-gray-600 uppercase tracking-wide mb-1">New Amount</p>
+											<p className="text-xl font-bold text-blue-600">PKR {newAmount.toLocaleString()}</p>
+										</div>
+									</div>
+								);
+							})()}
+							{(() => {
+								const totalPEContribution = housingSupportRecords.reduce((sum, record) => {
+									const peContribution = parseFloat(record.HabitatTotalPEContribution) || 0;
+									return sum + peContribution;
+								}, 0);
+
+								const existingInterventionsTotal = filteredInterventions.reduce((sum, intervention) => {
+									const amount = intervention.TotalAmount || 0;
+									return sum + amount;
+								}, 0);
+
+								const newAmount = formData.TotalAmount || 0;
+								const wouldBeTotal = existingInterventionsTotal + newAmount;
+
+								if (newAmount > 0 && wouldBeTotal > totalPEContribution) {
+									return (
+										<div className="mt-4 p-3 bg-red-50 border border-red-200 rounded">
+											<p className="text-sm font-semibold text-red-800">
+												⚠️ Warning: Total would exceed PE Contribution by PKR {(wouldBeTotal - totalPEContribution).toLocaleString()}
+											</p>
+										</div>
+									);
+								}
+
+								return null;
+							})()}
+						</div>
+					)}
 				</div>
 			)}
 
@@ -355,13 +575,45 @@ function AddInterventionContent() {
 						<div>
 							<label className="block text-sm font-medium text-gray-700 mb-1">
 								Intervention Category
+								{(formData.Section === "Habitat" || formData.Section === "Education") && <span className="text-red-500"> *</span>}
 							</label>
-							<input
-								type="text"
-								value={formData.InterventionCategory || ""}
-								onChange={(e) => handleInputChange("InterventionCategory", e.target.value)}
-								className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-							/>
+							{formData.Section === "Habitat" ? (
+								<select
+									value={formData.InterventionCategory || ""}
+									onChange={(e) => handleInputChange("InterventionCategory", e.target.value)}
+									required={formData.Section === "Habitat"}
+									className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+								>
+									<option value="">Select Intervention Category</option>
+									<option value="FOR HOME RENT">FOR HOME RENT</option>
+									<option value="FOR UTILITIES">FOR UTILITIES</option>
+									<option value="FOR MINOR/ESSENTIAL RENOVATION OF HOUSE (FOR SAFETY, WINTERIZATION ,WATER SUPPLY SYSTEM,TOILET ,KITCHEN)">FOR MINOR/ESSENTIAL RENOVATION OF HOUSE (FOR SAFETY, WINTERIZATION ,WATER SUPPLY SYSTEM,TOILET ,KITCHEN)</option>
+									<option value="FOR RESETTLEMENT/MOVING TO A NEW HOUSE">FOR RESETTLEMENT/MOVING TO A NEW HOUSE</option>
+								</select>
+							) : formData.Section === "Education" ? (
+								<select
+									value={formData.InterventionCategory || ""}
+									onChange={(e) => handleInputChange("InterventionCategory", e.target.value)}
+									required={formData.Section === "Education"}
+									className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+								>
+									<option value="">Select Intervention Category</option>
+									<option value="Coaching / Tutoring / Bridge Program">Coaching / Tutoring / Bridge Program</option>
+									<option value="School Fees for Tuition/ Children / Parent Education">School Fees for Tuition/ Children / Parent Education</option>
+									<option value="New Admission for Out-of-School Student">New Admission for Out-of-School Student</option>
+									<option value="In-Kind Support (Kits, Materials, Uniforms, Supplies)">In-Kind Support (Kits, Materials, Uniforms, Supplies)</option>
+									<option value="School Van / Transportation / Hostel Fees">School Van / Transportation / Hostel Fees</option>
+									<option value="Admission in the Same School (Existing Student)">Admission in the Same School (Existing Student)</option>
+									<option value="Day-Care Support">Day-Care Support</option>
+								</select>
+							) : (
+								<input
+									type="text"
+									value={formData.InterventionCategory || ""}
+									onChange={(e) => handleInputChange("InterventionCategory", e.target.value)}
+									className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+								/>
+							)}
 						</div>
 
 						<div>
@@ -371,8 +623,8 @@ function AddInterventionContent() {
 							<input
 								type="text"
 								value={formData.MainIntervention || ""}
-								onChange={(e) => handleInputChange("MainIntervention", e.target.value)}
-								className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+								readOnly
+								className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-600 cursor-not-allowed"
 							/>
 						</div>
 
@@ -391,6 +643,7 @@ function AddInterventionContent() {
 						<div>
 							<label className="block text-sm font-medium text-gray-700 mb-1">
 								Intervention Type
+								{(formData.Section === "Habitat" || formData.Section === "Education") && <span className="text-red-500"> *</span>}
 							</label>
 							<select
 								value={formData.InterventionType || ""}
@@ -399,6 +652,7 @@ function AddInterventionContent() {
 									// Clear Financial Category when Intervention Type changes
 									handleInputChange("FinancialCategory", "");
 								}}
+								required={formData.Section === "Habitat" || formData.Section === "Education"}
 								className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
 							>
 								<option value="">Select Intervention Type</option>
@@ -410,11 +664,13 @@ function AddInterventionContent() {
 						<div>
 							<label className="block text-sm font-medium text-gray-700 mb-1">
 								Financial Category
+								{(formData.Section === "Habitat" || formData.Section === "Education") && <span className="text-red-500"> *</span>}
 							</label>
 							<select
 								value={formData.FinancialCategory || ""}
 								onChange={(e) => handleInputChange("FinancialCategory", e.target.value)}
 								disabled={!formData.InterventionType}
+								required={formData.Section === "Habitat" || formData.Section === "Education"}
 								className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
 							>
 								<option value="">Select Financial Category</option>
@@ -463,21 +719,70 @@ function AddInterventionContent() {
 						<div>
 							<label className="block text-sm font-medium text-gray-700 mb-1">
 								Total Intervention Amount
-								{(formData.InterventionType === "Financial" && (formData.FinancialCategory === "Payment From PE Account" || formData.FinancialCategory === "Payment But Non-PE Account")) && (
+								{(formData.Section === "Habitat" || formData.Section === "Education" || (formData.InterventionType === "Financial" && (formData.FinancialCategory === "Payment From PE Account" || formData.FinancialCategory === "Payment But Non-PE Account"))) && (
 									<span className="text-red-500"> *</span>
 								)}
 							</label>
 							<input
 								type="number"
 								step="0.01"
+								min="0"
 								value={formData.TotalAmount != null ? formData.TotalAmount : ""}
-								onChange={(e) => handleInputChange("TotalAmount", e.target.value ? parseFloat(e.target.value) : null)}
-								required={formData.InterventionType === "Financial" && (formData.FinancialCategory === "Payment From PE Account" || formData.FinancialCategory === "Payment But Non-PE Account")}
+								onChange={(e) => {
+									const value = e.target.value;
+									if (value === "") {
+										handleInputChange("TotalAmount", null);
+									} else {
+										const numValue = parseFloat(value);
+										// Only allow values >= 0
+										if (!isNaN(numValue) && numValue >= 0) {
+											handleInputChange("TotalAmount", numValue);
+										}
+									}
+								}}
+								required={formData.Section === "Habitat" || formData.Section === "Education" || (formData.InterventionType === "Financial" && (formData.FinancialCategory === "Payment From PE Account" || formData.FinancialCategory === "Payment But Non-PE Account"))}
 								readOnly={formData.InterventionType === "Non-Financial"}
 								className={`w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${
 									formData.InterventionType === "Non-Financial" ? "bg-gray-100 text-gray-600 cursor-not-allowed" : ""
 								}`}
 							/>
+							{formData.Section === "Habitat" && formData.MemberID && housingSupportRecords.length > 0 && (() => {
+								const totalPEContribution = housingSupportRecords.reduce((sum, record) => {
+									const peContribution = parseFloat(record.HabitatTotalPEContribution) || 0;
+									return sum + peContribution;
+								}, 0);
+
+								const existingInterventionsTotal = filteredInterventions.reduce((sum, intervention) => {
+									const amount = intervention.TotalAmount || 0;
+									return sum + amount;
+								}, 0);
+
+								const remainingAmount = totalPEContribution - existingInterventionsTotal;
+								const newAmount = formData.TotalAmount || 0;
+								const wouldBeTotal = existingInterventionsTotal + newAmount;
+
+								return (
+									<div className="mt-2">
+										<p className="text-xs text-gray-600">
+											Remaining available: <span className={`font-semibold ${remainingAmount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+												PKR {remainingAmount.toLocaleString()}
+											</span>
+											{newAmount > 0 && (
+												<span className="ml-2">
+													| Total would be: <span className={`font-semibold ${wouldBeTotal <= totalPEContribution ? 'text-blue-600' : 'text-red-600'}`}>
+														PKR {wouldBeTotal.toLocaleString()}
+													</span>
+												</span>
+											)}
+										</p>
+										{newAmount > 0 && wouldBeTotal > totalPEContribution && (
+											<p className="text-xs text-red-600 font-medium mt-1">
+												⚠️ This amount would exceed the PE Contribution limit by PKR {(wouldBeTotal - totalPEContribution).toLocaleString()}
+											</p>
+										)}
+									</div>
+								);
+							})()}
 						</div>
 
 						<div>
@@ -491,12 +796,16 @@ function AddInterventionContent() {
 						</div>
 
 						<div>
-							<label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+							<label className="block text-sm font-medium text-gray-700 mb-1">
+								End Date
+								{(formData.Section === "Habitat" || formData.Section === "Education") && <span className="text-red-500"> *</span>}
+							</label>
 							<input
 								type="date"
 								value={formData.InterventionEndDate ? formData.InterventionEndDate.split('T')[0] : ""}
 								onChange={(e) => handleInputChange("InterventionEndDate", e.target.value ? new Date(e.target.value).toISOString() : null)}
 								min={new Date().toISOString().split('T')[0]}
+								required={formData.Section === "Habitat" || formData.Section === "Education"}
 								className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
 							/>
 						</div>
@@ -511,7 +820,7 @@ function AddInterventionContent() {
 							/>
 						</div>
 
-						{interventionType !== "habitat" && (
+						{interventionType !== "habitat" && formData.Section !== "Education" && (
 							<>
 								<div>
 									<label className="block text-sm font-medium text-gray-700 mb-1">Main Trade</label>
@@ -596,6 +905,151 @@ function AddInterventionContent() {
 					</div>
 				</form>
 			</div>
+
+			{/* Filtered Interventions Table - Show when Section and MemberID match */}
+			{formData.Section && formData.MemberID && (
+				<div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+					<div className="px-6 py-4 border-b border-gray-200">
+						<h2 className="text-xl font-semibold text-gray-900">
+							Existing Interventions - {formData.Section} ({formData.MemberID})
+						</h2>
+						<p className="text-sm text-gray-600 mt-1">
+							Showing interventions with matching Section and Member ID
+						</p>
+					</div>
+					{loadingInterventions ? (
+						<div className="flex items-center justify-center py-12">
+							<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
+							<span className="ml-3 text-gray-600">Loading interventions...</span>
+						</div>
+					) : (
+						<div className="overflow-x-auto">
+							<table className="min-w-full divide-y divide-gray-200">
+								<thead className="bg-[#0b4d2b]">
+									<tr>
+										<th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
+											ID
+										</th>
+										<th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
+											Form Number
+										</th>
+										<th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
+											Section
+										</th>
+										<th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
+											Status
+										</th>
+										<th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
+											Category
+										</th>
+										<th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
+											Main Intervention
+										</th>
+										<th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
+											Type
+										</th>
+										<th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
+											Financial Category
+										</th>
+										<th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
+											Total Amount
+										</th>
+										<th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
+											Start Date
+										</th>
+										<th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
+											End Date
+										</th>
+										<th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
+											Member ID
+										</th>
+										<th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
+											Approval Status
+										</th>
+									</tr>
+								</thead>
+								<tbody className="bg-white divide-y divide-gray-200">
+									{filteredInterventions.length === 0 ? (
+										<tr>
+											<td colSpan={13} className="px-4 py-8 text-center text-gray-500">
+												No interventions found for this Section and Member ID.
+											</td>
+										</tr>
+									) : (
+										filteredInterventions.map((intervention) => (
+											<tr key={intervention.InterventionID} className="hover:bg-gray-50 transition-colors">
+												<td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+													{intervention.InterventionID || "N/A"}
+												</td>
+												<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+													{intervention.FormNumber || "N/A"}
+												</td>
+												<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+													<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+														{intervention.Section || "N/A"}
+													</span>
+												</td>
+												<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+													<span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+														intervention.InterventionStatus === "Open" 
+															? "bg-green-100 text-green-800" 
+															: "bg-gray-100 text-gray-800"
+													}`}>
+														{intervention.InterventionStatus || "N/A"}
+													</span>
+												</td>
+												<td className="px-4 py-3 text-sm text-gray-900 max-w-xs">
+													<div className="truncate" title={intervention.InterventionCategory || "N/A"}>
+														{intervention.InterventionCategory || "N/A"}
+													</div>
+												</td>
+												<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+													<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+														{intervention.MainIntervention || "N/A"}
+													</span>
+												</td>
+												<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+													{intervention.InterventionType || "N/A"}
+												</td>
+												<td className="px-4 py-3 text-sm text-gray-900 max-w-xs">
+													<div className="truncate" title={intervention.FinancialCategory || "N/A"}>
+														{intervention.FinancialCategory || "N/A"}
+													</div>
+												</td>
+												<td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-gray-900">
+													{intervention.TotalAmount != null
+														? `PKR ${intervention.TotalAmount.toLocaleString()}`
+														: "N/A"}
+												</td>
+												<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+													{formatDate(intervention.InterventionStartDate)}
+												</td>
+												<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+													{formatDate(intervention.InterventionEndDate)}
+												</td>
+												<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+													{intervention.MemberID || "N/A"}
+												</td>
+												<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+													<span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+														intervention.ApprovalStatus === "Approved" 
+															? "bg-green-100 text-green-800" 
+															: intervention.ApprovalStatus === "Pending"
+															? "bg-yellow-100 text-yellow-800"
+															: "bg-gray-100 text-gray-800"
+													}`}>
+														{intervention.ApprovalStatus || "N/A"}
+													</span>
+												</td>
+											</tr>
+										))
+									)}
+								</tbody>
+							</table>
+						</div>
+					)}
+				</div>
+			)}
 		</div>
 	);
 }

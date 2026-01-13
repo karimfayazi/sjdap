@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Loader2, FileText, X, DollarSign } from "lucide-react";
+import { ArrowLeft, Loader2, FileText, X, DollarSign, CheckCircle, XCircle, Clock } from "lucide-react";
 import jsPDF from "jspdf";
 
 type ApplicationDetails = {
@@ -108,12 +108,20 @@ type ApplicationDetails = {
 function ApplicationDetailsContent() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
-	const formNo = searchParams.get("formNo");
+	const formNo = searchParams.get("formNo") || searchParams.get("formNumber");
 	
 	const [details, setDetails] = useState<ApplicationDetails | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [showIncomeModal, setShowIncomeModal] = useState(false);
+	const [approvalRemarks, setApprovalRemarks] = useState("");
+	const [savingStatus, setSavingStatus] = useState(false);
+	const [saveError, setSaveError] = useState<string | null>(null);
+	const [approvalStatus, setApprovalStatus] = useState<string | null>(null);
+	const [approvalLogs, setApprovalLogs] = useState<any[]>([]);
+	const [loadingLogs, setLoadingLogs] = useState(false);
+	const [showSuccessModal, setShowSuccessModal] = useState(false);
+	const [successMessage, setSuccessMessage] = useState({ title: "", message: "", type: "", remarks: "" });
 
 	const formatCurrency = (value: number | null | undefined): string => {
 		if (value === null || value === undefined) return "N/A";
@@ -525,11 +533,155 @@ function ApplicationDetailsContent() {
 	useEffect(() => {
 		if (formNo) {
 			fetchApplicationDetails();
+			fetchApprovalStatus();
+			fetchApprovalLogs();
 		} else {
 			setError("Form No is missing from the URL");
 			setLoading(false);
 		}
 	}, [formNo]);
+
+	const fetchApprovalStatus = async () => {
+		if (!formNo) return;
+
+		try {
+			const response = await fetch(`/api/baseline-qol-approval`);
+			const data = await response.json().catch(() => ({}));
+
+			if (response.ok && data.success) {
+				const record = data.records.find((r: any) => r.FormNumber === formNo);
+				if (record) {
+					setApprovalStatus(record.ApprovalStatus);
+				}
+			}
+		} catch (err) {
+			console.error("Error fetching approval status:", err);
+		}
+	};
+
+	const fetchApprovalLogs = async () => {
+		if (!formNo) return;
+
+		try {
+			setLoadingLogs(true);
+			const response = await fetch(
+				`/api/approval-log?recordId=${encodeURIComponent(formNo)}&moduleName=${encodeURIComponent("Baseline")}`
+			);
+			const data = await response.json().catch(() => ({}));
+
+			if (response.ok && data.success) {
+				setApprovalLogs(data.records || []);
+			}
+		} catch (err) {
+			console.error("Error fetching approval logs:", err);
+		} finally {
+			setLoadingLogs(false);
+		}
+	};
+
+	const updateApprovalStatus = async (newStatus: string) => {
+		if (!formNo) return;
+
+		try {
+			setSavingStatus(true);
+			setSaveError(null);
+
+			const response = await fetch("/api/baseline-approval", {
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					formNumber: formNo,
+					approvalStatus: newStatus,
+					remarks: approvalRemarks,
+				}),
+			});
+
+			const data = await response.json().catch(() => ({}));
+
+			if (!response.ok || !data.success) {
+				throw new Error(data?.message || "Failed to update approval status");
+			}
+
+			// Store remarks before clearing
+			const remarksToShow = approvalRemarks;
+
+			// Update approval status
+			setApprovalStatus(newStatus);
+
+			// Refresh approval logs
+			fetchApprovalLogs();
+
+			// Clear remarks
+			setApprovalRemarks("");
+
+			// Show success modal
+			if (newStatus === "Approved") {
+				setSuccessMessage({
+					title: "Approval Status",
+					message: "The baseline application has been successfully approved.",
+					type: "success",
+					remarks: remarksToShow
+				});
+			} else if (newStatus === "Rejected") {
+				setSuccessMessage({
+					title: "Approval Status",
+					message: "The baseline application has been rejected.",
+					type: "error",
+					remarks: remarksToShow
+				});
+			}
+			setShowSuccessModal(true);
+		} catch (err) {
+			console.error("Error updating approval status:", err);
+			const message =
+				err instanceof Error
+					? err.message
+					: "Error updating approval status. Please try again.";
+			setSaveError(message);
+		} finally {
+			setSavingStatus(false);
+		}
+	};
+
+	const isApproved = () => {
+		if (!approvalStatus) return false;
+		const statusLower = (approvalStatus || "").toString().trim().toLowerCase();
+		return statusLower === "approved" || statusLower.includes("approve");
+	};
+
+	const getStatusBadge = (status: string | null) => {
+		if (!status) {
+			return (
+				<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+					<Clock className="h-3 w-3 mr-1" />
+					Pending
+				</span>
+			);
+		}
+		const statusLower = status.toLowerCase();
+		if (statusLower === "approved" || statusLower.includes("approve")) {
+			return (
+				<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+					<CheckCircle className="h-3 w-3 mr-1" />
+					Approved
+				</span>
+			);
+		} else if (statusLower === "rejected" || statusLower.includes("reject")) {
+			return (
+				<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+					<XCircle className="h-3 w-3 mr-1" />
+					Rejected
+				</span>
+			);
+		} else {
+			return (
+				<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+					<Clock className="h-3 w-3 mr-1" />
+					{status}
+				</span>
+			);
+		}
+	};
 
 	const fetchApplicationDetails = async () => {
 		if (!formNo) return;
@@ -955,7 +1107,10 @@ function ApplicationDetailsContent() {
 					</button>
 					<div>
 						<h1 className="text-3xl font-bold text-gray-900">Application Details</h1>
-						<p className="text-gray-600 mt-2">Form No: {details.application.FormNo}</p>
+						<div className="flex items-center gap-3 mt-2">
+							<p className="text-gray-600">Form No: {details.application.FormNo}</p>
+							{approvalStatus && getStatusBadge(approvalStatus)}
+						</div>
 					</div>
 				</div>
 				<div className="flex items-center gap-3">
@@ -1291,6 +1446,206 @@ function ApplicationDetailsContent() {
 						</table>
 									</div>
 								</div>
+			)}
+
+			{/* Approval Section */}
+			<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+				<h3 className="text-lg font-semibold text-gray-900 mb-4">Approval Action</h3>
+				{isApproved() && (
+					<div className="mb-4 bg-green-50 border border-green-200 rounded-lg p-4">
+						<p className="text-green-700 text-sm font-medium">
+							This record has already been approved. Editing is disabled.
+						</p>
+					</div>
+				)}
+				<div className="space-y-4">
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-2">
+							Remarks
+						</label>
+						<textarea
+							value={approvalRemarks}
+							onChange={(e) => setApprovalRemarks(e.target.value)}
+							placeholder="Enter remarks for approval/rejection..."
+							rows={4}
+							disabled={isApproved()}
+							className={`w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${
+								isApproved() ? "bg-gray-100 cursor-not-allowed opacity-60" : ""
+							}`}
+						/>
+					</div>
+
+					{saveError && (
+						<div className="bg-red-50 border border-red-200 rounded-lg p-4">
+							<p className="text-red-600 text-sm font-medium">Error: {saveError}</p>
+						</div>
+					)}
+
+					<div className="flex gap-4">
+						<button
+							onClick={() => updateApprovalStatus("Approved")}
+							disabled={savingStatus || isApproved()}
+							className="inline-flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+						>
+							<CheckCircle className="h-4 w-4" />
+							Approve
+						</button>
+						<button
+							onClick={() => updateApprovalStatus("Rejected")}
+							disabled={savingStatus || isApproved()}
+							className="inline-flex items-center gap-2 px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+						>
+							<XCircle className="h-4 w-4" />
+							Reject
+						</button>
+					</div>
+				</div>
+			</div>
+
+			{/* Approval Log */}
+			<div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+				<div className="bg-[#0b4d2b] px-6 py-4">
+					<h2 className="text-xl font-semibold text-white">Approval History</h2>
+				</div>
+				{loadingLogs ? (
+					<div className="flex items-center justify-center py-12">
+						<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
+						<span className="ml-3 text-gray-600">Loading approval logs...</span>
+					</div>
+				) : approvalLogs.length > 0 ? (
+					<div className="overflow-x-auto">
+						<table className="min-w-full divide-y divide-gray-200">
+							<thead className="bg-gray-50">
+								<tr>
+									<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Log ID</th>
+									<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action Level</th>
+									<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action By</th>
+									<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action At</th>
+									<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action Type</th>
+									<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remarks</th>
+								</tr>
+							</thead>
+							<tbody className="bg-white divide-y divide-gray-200">
+								{approvalLogs.map((log, idx) => (
+									<tr key={log.LogID || idx} className="hover:bg-gray-50">
+										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{log.LogID || "N/A"}</td>
+										<td className="px-4 py-3 whitespace-nowrap text-sm">
+											{log.ActionLevel ? (
+												<span
+													className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${
+														(log.ActionLevel || "")
+															.toString()
+															.trim()
+															.toLowerCase()
+															.includes("approve")
+															? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+															: (log.ActionLevel || "")
+																	.toString()
+																	.trim()
+																	.toLowerCase()
+																	.includes("reject")
+															? "bg-red-50 text-red-700 border border-red-200"
+															: "bg-amber-50 text-amber-700 border border-amber-200"
+													}`}
+												>
+													{log.ActionLevel}
+												</span>
+											) : (
+												"N/A"
+											)}
+										</td>
+										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{log.ActionBy || "N/A"}</td>
+										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+											{log.ActionAt
+												? new Date(log.ActionAt).toLocaleString("en-US", {
+														year: "numeric",
+														month: "short",
+														day: "numeric",
+														hour: "2-digit",
+														minute: "2-digit",
+												  })
+												: "N/A"}
+										</td>
+										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{log.ActionType || "N/A"}</td>
+										<td className="px-4 py-3 text-sm text-gray-900">{log.Remarks || "N/A"}</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+					</div>
+				) : (
+					<div className="p-12 text-center">
+						<p className="text-gray-500">No approval logs found.</p>
+					</div>
+				)}
+			</div>
+
+			{/* Success Modal */}
+			{showSuccessModal && (
+				<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+					<div className="bg-white rounded-lg shadow-2xl max-w-md w-full transform transition-all">
+						{/* Modal Header */}
+						<div className={`px-6 py-4 rounded-t-lg ${
+							successMessage.type === "success" 
+								? "bg-gradient-to-r from-green-500 to-emerald-600" 
+								: "bg-gradient-to-r from-red-500 to-rose-600"
+						}`}>
+							<div className="flex items-center justify-between">
+								<div className="flex items-center gap-3">
+									{successMessage.type === "success" ? (
+										<div className="bg-white/20 rounded-full p-2">
+											<CheckCircle className="h-6 w-6 text-white" />
+										</div>
+									) : (
+										<div className="bg-white/20 rounded-full p-2">
+											<XCircle className="h-6 w-6 text-white" />
+										</div>
+									)}
+									<h3 className="text-xl font-bold text-white">{successMessage.title}</h3>
+								</div>
+								<button
+									onClick={() => setShowSuccessModal(false)}
+									className="text-white hover:text-gray-200 transition-colors"
+								>
+									<X className="h-5 w-5" />
+								</button>
+							</div>
+						</div>
+
+						{/* Modal Body */}
+						<div className="px-6 py-6">
+							<div className="mb-4">
+								<p className={`text-base ${
+									successMessage.type === "success" 
+										? "text-green-700" 
+										: "text-red-700"
+								} font-medium`}>
+									{successMessage.message}
+								</p>
+							</div>
+							{successMessage.remarks && (
+								<div className="mt-4 p-3 bg-gray-50 rounded-md border border-gray-200">
+									<p className="text-xs font-medium text-gray-600 mb-1">Remarks:</p>
+									<p className="text-sm text-gray-700">{successMessage.remarks}</p>
+								</div>
+							)}
+						</div>
+
+						{/* Modal Footer */}
+						<div className="px-6 py-4 bg-gray-50 rounded-b-lg flex justify-end">
+							<button
+								onClick={() => setShowSuccessModal(false)}
+								className={`px-6 py-2 rounded-md font-medium transition-colors ${
+									successMessage.type === "success"
+										? "bg-green-600 text-white hover:bg-green-700"
+										: "bg-red-600 text-white hover:bg-red-700"
+								}`}
+							>
+								OK
+							</button>
+						</div>
+					</div>
+				</div>
 			)}
 
 			{/* Income Levels Modal */}

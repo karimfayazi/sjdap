@@ -14,8 +14,22 @@ export async function POST(request: NextRequest) {
 		sqlRequest.input("FamilyID", sql.VarChar, body.FamilyID);
 		sqlRequest.input("MaxSocialSupportAmount", sql.Decimal(18, 2), body.MaxSocialSupportAmount || null);
 		
+		// Validate and normalize EducationInterventionType
+		const allowedValues = ["Admitted", "Transferred", "Regular Support"];
+		const interventionType = body.EducationInterventionType ? String(body.EducationInterventionType).trim() : "";
+		
+		if (!interventionType || !allowedValues.includes(interventionType)) {
+			return NextResponse.json(
+				{
+					success: false,
+					message: `Invalid EducationInterventionType. Must be one of: ${allowedValues.join(", ")}`,
+				},
+				{ status: 400 }
+			);
+		}
+		
 		// Check if Regular Support is selected
-		const isRegularSupport = body.EducationInterventionType === "Regular Support";
+		const isRegularSupport = interventionType === "Regular Support";
 		
 		// Set one-time admission costs to 0 if Regular Support is selected
 		const oneTimeCost = isRegularSupport ? 0 : (body.EduOneTimeAdmissionTotalCost || 0);
@@ -41,7 +55,6 @@ export async function POST(request: NextRequest) {
 		sqlRequest.input("BeneficiaryAge", sql.Int, body.BeneficiaryAge || null);
 		sqlRequest.input("BeneficiaryGender", sql.VarChar, body.BeneficiaryGender || null);
 		sqlRequest.input("EducationInterventionType", sql.VarChar, body.EducationInterventionType);
-		sqlRequest.input("RegularSupport", sql.Bit, isRegularSupport || body.RegularSupport || false);
 		sqlRequest.input("BaselineReasonNotStudying", sql.NVarChar, isRegularSupport ? null : (body.BaselineReasonNotStudying || null));
 		sqlRequest.input("AdmittedToSchoolType", sql.VarChar, body.AdmittedToSchoolType || null);
 		sqlRequest.input("AdmittedToClassLevel", sql.VarChar, body.AdmittedToClassLevel || null);
@@ -59,7 +72,7 @@ export async function POST(request: NextRequest) {
 				[EduMonthlyHostelTotalCost], [EduMonthlyHostelFamilyContribution], [EduMonthlyHostelPEContribution], [EduHostelNumberOfMonths],
 				[EduMonthlyTransportTotalCost], [EduMonthlyTransportFamilyContribution], [EduMonthlyTransportPEContribution], [EduTransportNumberOfMonths],
 				[BeneficiaryID], [BeneficiaryName], [BeneficiaryAge], [BeneficiaryGender],
-				[EducationInterventionType], [RegularSupport], [BaselineReasonNotStudying], [AdmittedToSchoolType], [AdmittedToClassLevel],
+				[EducationInterventionType], [BaselineReasonNotStudying], [AdmittedToSchoolType], [AdmittedToClassLevel],
 				[BaselineSchoolType], [TransferredToSchoolType], [TransferredToClassLevel],
 				[CreatedBy], [CreatedAt], [IsActive]
 			)
@@ -71,7 +84,7 @@ export async function POST(request: NextRequest) {
 				@EduMonthlyHostelTotalCost, @EduMonthlyHostelFamilyContribution, @EduMonthlyHostelPEContribution, @EduHostelNumberOfMonths,
 				@EduMonthlyTransportTotalCost, @EduMonthlyTransportFamilyContribution, @EduMonthlyTransportPEContribution, @EduTransportNumberOfMonths,
 				@BeneficiaryID, @BeneficiaryName, @BeneficiaryAge, @BeneficiaryGender,
-				@EducationInterventionType, @RegularSupport, @BaselineReasonNotStudying, @AdmittedToSchoolType, @AdmittedToClassLevel,
+				@EducationInterventionType, @BaselineReasonNotStudying, @AdmittedToSchoolType, @AdmittedToClassLevel,
 				@BaselineSchoolType, @TransferredToSchoolType, @TransferredToClassLevel,
 				@CreatedBy, GETDATE(), 1
 			)
@@ -182,8 +195,22 @@ export async function PUT(request: NextRequest) {
 		sqlRequest.input("FDP_SocialEduID", sql.Int, parseInt(fdpSocialEduId));
 		sqlRequest.input("MaxSocialSupportAmount", sql.Decimal(18, 2), body.MaxSocialSupportAmount || null);
 		
+		// Validate and normalize EducationInterventionType
+		const allowedValues = ["Admitted", "Transferred", "Regular Support"];
+		const interventionType = body.EducationInterventionType ? String(body.EducationInterventionType).trim() : "";
+		
+		if (!interventionType || !allowedValues.includes(interventionType)) {
+			return NextResponse.json(
+				{
+					success: false,
+					message: `Invalid EducationInterventionType. Must be one of: ${allowedValues.join(", ")}`,
+				},
+				{ status: 400 }
+			);
+		}
+		
 		// Check if Regular Support is selected
-		const isRegularSupport = body.EducationInterventionType === "Regular Support";
+		const isRegularSupport = interventionType === "Regular Support";
 		
 		// Set one-time admission costs to 0 if Regular Support is selected
 		const oneTimeCost = isRegularSupport ? 0 : (body.EduOneTimeAdmissionTotalCost || 0);
@@ -208,8 +235,7 @@ export async function PUT(request: NextRequest) {
 		sqlRequest.input("BeneficiaryName", sql.NVarChar, body.BeneficiaryName || null);
 		sqlRequest.input("BeneficiaryAge", sql.Int, body.BeneficiaryAge || null);
 		sqlRequest.input("BeneficiaryGender", sql.VarChar, body.BeneficiaryGender || null);
-		sqlRequest.input("EducationInterventionType", sql.VarChar, body.EducationInterventionType);
-		sqlRequest.input("RegularSupport", sql.Bit, isRegularSupport || body.RegularSupport || false);
+		sqlRequest.input("EducationInterventionType", sql.VarChar, interventionType);
 		sqlRequest.input("BaselineReasonNotStudying", sql.NVarChar, isRegularSupport ? null : (body.BaselineReasonNotStudying || null));
 		sqlRequest.input("AdmittedToSchoolType", sql.VarChar, body.AdmittedToSchoolType || null);
 		sqlRequest.input("AdmittedToClassLevel", sql.VarChar, body.AdmittedToClassLevel || null);
@@ -242,7 +268,6 @@ export async function PUT(request: NextRequest) {
 				[BeneficiaryAge] = @BeneficiaryAge,
 				[BeneficiaryGender] = @BeneficiaryGender,
 				[EducationInterventionType] = @EducationInterventionType,
-				[RegularSupport] = @RegularSupport,
 				[BaselineReasonNotStudying] = @BaselineReasonNotStudying,
 				[AdmittedToSchoolType] = @AdmittedToSchoolType,
 				[AdmittedToClassLevel] = @AdmittedToClassLevel,

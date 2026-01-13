@@ -5,6 +5,89 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Save, AlertCircle } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
+type BusinessTrade = {
+	mainTrade: string;
+	subTrade: string;
+	definition: string;
+	code: string;
+};
+
+const BUSINESS_TRADES: BusinessTrade[] = [
+	{ mainTrade: "AGRICULTURE", subTrade: "HORTICULTURE", definition: "ORCHARDS/NURSERIES/FLORI/VEGETABLES/ORGANICS/GREEN/MEDICINAL", code: "T-001" },
+	{ mainTrade: "AGRICULTURE", subTrade: "AGRONOMY", definition: "CROP PRODUCTION/CEREALS, PULSES, OILSEEDS, FODDER", code: "T-002" },
+	{ mainTrade: "AGRICULTURE", subTrade: "LIVESTOCK", definition: "DAIRY FARMING/POULTRY/SHEEP & GOAT/YAK/FISH FARMING/APICULTURE/MEAT PRODUCTION/FODDER PRODUCTION/VETERINARY SERVICES AND ANIMAL HEALTH", code: "T-003" },
+	{ mainTrade: "AGRICULTURE", subTrade: "AGRI BUSINESS", definition: "FOOD PROCESSING/AGRI MARKETING/SUPPLY CHAIN MANAGEMENGT/AGRI BASED ENTERPRISES/CONSULTENCY SERVICE", code: "T-004" },
+	{ mainTrade: "RETAIL AND TRADE", subTrade: "GENERAL AND GROCERY STORES", definition: "MINI MART, DAIRY SHOP, KIRYANA SHOP, FRESH FRUITS & VEGETABLES, MEAT & POULTRY SHOP, BAKERY & CONFECTIONERY, BEVERAGE SHOP", code: "T-005" },
+	{ mainTrade: "RETAIL AND TRADE", subTrade: "STREET VENDING", definition: "HAWKERS/CARTS/KOSIK/MOVABLE SHOPS/MOBILE VENDORS", code: "T-006" },
+	{ mainTrade: "RETAIL AND TRADE", subTrade: "ELECTRONIC AND APPLIANCES", definition: "TV & AUDIO SYSTEMS, REFRIGERATORS & FREEZERS, AIR CONDITIONERS, WASHING MACHINES, KITCHEN APPLIANCES, COMPUTER, MOBILE & LAPTOPS, CAMERAS & ACCESSORIES", code: "T-007" },
+	{ mainTrade: "RETAIL AND TRADE", subTrade: "FASHION & APPERAL SHOP", definition: "MEN'S & WOMEN'S CLOTHING, KIDS WEAR, TRADITIONAL CLOTHING, TAILORING & STITCHING, ACCESSORIES (BELTS, CAPS, BAGS), TEXTILE & FABRIC, GARMENTS, COSMETICS & BEAUTY PRODUCTS", code: "T-008" },
+	{ mainTrade: "RETAIL AND TRADE", subTrade: "HOME IMPROVEMENT AND HARDWARE", definition: "PAINT & HARDWARE, CONSTRUCTION MATERIALS, PLUMBING & SANITARY, ELECTRICAL ITEMS, LIGHTING SHOPS, TOOLS & EQUIPMENT, GARDENING TOOLS", code: "T-009" },
+	{ mainTrade: "RETAIL AND TRADE", subTrade: "MECHENICAL ACESSORIES SHOP", definition: "AUTO PARTS, MOTORBIKE SPARE PARTS, TRACTOR/MACHINERY PARTS, BICYCLE SPARE PARTS, TYRE SHOPS, LUBRICANTS & OILS", code: "T-010" },
+	{ mainTrade: "RETAIL AND TRADE", subTrade: "PHARMACY & MEDICAL STORE", definition: "GENERAL PHARMACY, HERBAL/UNANI MEDICINE, MEDICAL EQUIPMENT & SURGICAL ITEMS, BABY PRODUCTS & NUTRITION, HEALTH & WELLNESS PRODUCTS", code: "T-011" },
+	{ mainTrade: "RETAIL AND TRADE", subTrade: "STATIONERY AND OFFICE SUPPLIES", definition: "SCHOOL STATIONERY, OFFICE STATIONERY, PRINTING & PHOTOCOPY SERVICES, BOOKS & NOVELS, MAGAZINES, ART SUPPLIES", code: "T-012" },
+	{ mainTrade: "RETAIL AND TRADE", subTrade: "FURNITURE AND HOME DÉCOR SHOPS", definition: "WOODEN FURNITURE, PLASTIC/STEEL FURNITURE, UPHOLSTERY, CURTAINS & CARPETS, KITCHEN CABINETS, HOME DÉCOR ITEMS", code: "T-013" },
+	{ mainTrade: "RETAIL AND TRADE", subTrade: "MOBILE PHONES & ACCESSORIES", definition: "MOBILE PHONES, MOBILE ACCESSORIES (CHARGERS, EARPHONES, COVERS), TABLETS & IPADS, REPAIRING SHOPS, SIM & RECHARGE SHOPS", code: "T-014" },
+	{ mainTrade: "RETAIL AND TRADE", subTrade: "FOOTWEAR SHOPS", definition: "MEN'S FOOTWEAR, WOMEN'S FOOTWEAR, CHILDREN'S FOOTWEAR, SPORTS SHOES, TRADITIONAL FOOTWEAR", code: "T-015" },
+	{ mainTrade: "RETAIL AND TRADE", subTrade: "SPORTS EQUIPMENT", definition: "CRICKET EQUIPMENT, FOOTBALL EQUIPMENT, BADMINTON/TENNIS RACKETS, GYM & FITNESS EQUIPMENT, OUTDOOR GAMES ITEMS", code: "T-016" },
+	{ mainTrade: "RETAIL AND TRADE", subTrade: "TOYS SHOPS", definition: "EDUCATIONAL TOYS, BATTERY-OPERATED TOYS, DOLLS & ACTION FIGURES, OUTDOOR TOYS (BICYCLES, SWINGS), PUZZLE & BOARD GAMES", code: "T-017" },
+	{ mainTrade: "RETAIL AND TRADE", subTrade: "GIFTS AND HANDICRAFTS SHOPS", definition: "SOUVENIRS, LOCAL HANDICRAFTS, DECORATIVE ITEMS, GIFT PACKS, CARDS & WRAPPING MATERIALS", code: "T-018" },
+	{ mainTrade: "RETAIL AND TRADE", subTrade: "WHOLE SALE & DISTRIBUTION OUTLETS", definition: "FOOD WHOLESALE, CLOTHING WHOLESALE, ELECTRONICS WHOLESALE, MEDICAL WHOLESALE, AGRICULTURAL SUPPLIES WHOLESALE, GENERAL DISTRIBUTION AGENTS", code: "T-019" },
+	{ mainTrade: "RETAIL AND TRADE", subTrade: "SECOND HAND SHOP", definition: "ALL KIND OF LEFTOVERS/SECOND HAND SHOPS", code: "T-020" },
+	{ mainTrade: "FOOD & HOSPITALITY", subTrade: "HOME BASED FOOD BUSINESSES", definition: "BAKING/CATERING/CLOUD KITCHEN/FROZEN FOOD/HOMEMADE PICKLES & CHUTNEYS, DRY FRUIT PACKAGING, HOME-COOKED MEALS (LUNCH/DINNER), FROZEN SNACKS, BAKERY ITEMS (CAKES, COOKIES), TRADITIONAL SWEETS", code: "T-021" },
+	{ mainTrade: "FOOD & HOSPITALITY", subTrade: "SMALL RESTAURANTS, REFRESHMENT CORNER & CAFES", definition: "FOOD CART/ TEA STALL/ ANY SORT OF FOOD STALLS/STREET FOOD VENDORS/DESI FOOD RESTAURANT, BBQ & GRILL, CHINESE FOOD CORNER, FAST FOOD CAFÉ, FAMILY-STYLE RESTAURANT", code: "T-022" },
+	{ mainTrade: "FOOD & HOSPITALITY", subTrade: "FOOD KOSIK & STALLS", definition: "GOLGAPPA/CHAAT STALL, FRIES & SNACKS STALL, LOCAL BBQ STALL,PIZZA OUTLET, BURGER SHOP, FRIED CHICKEN OUTLET, SANDWICH SHOP, WRAPS & ROLLS OUTLET", code: "T-023" },
+	{ mainTrade: "FOOD & HOSPITALITY", subTrade: "GUEST HOUSE/REST HOUSE", definition: "AIR BNB/FAMILY GUEST HOUSE, TOURIST REST HOUSE/RESORT", code: "T-024" },
+	{ mainTrade: "SERVICES", subTrade: "TAILORING & ALTERATIONS", definition: "TRAILOR SHOP, PEKO SHOP", code: "T-025" },
+	{ mainTrade: "SERVICES", subTrade: "GROOMING SERVICES", definition: "SALON, BARBER, BEAUTY PARLOR, SPA", code: "T-026" },
+	{ mainTrade: "SERVICES", subTrade: "HOUSEHOLD MANTAINANCE SERVICES", definition: "ELECTRICIAN, PLUMBER, CARPENTER", code: "T-027" },
+	{ mainTrade: "SERVICES", subTrade: "AUTOMECHENIC", definition: "MOTORBIKE, CAR, TRACTOR, SPARE PARTS FITTING", code: "T-028" },
+	{ mainTrade: "SERVICES", subTrade: "HOUSEHOLD SERVICES", definition: "MAID/LAUNDRY/CLEANING, COOKING, LAUNDRY, PEST CONTROL, DOMESTIC HELP", code: "T-029" },
+	{ mainTrade: "SERVICES", subTrade: "TUTOR & DAY CARE SERVICES", definition: "PRIVATE TUITION, DAYCARE CENTER, EARLY LEARNING SUPPORT", code: "T-030" },
+	{ mainTrade: "SERVICES", subTrade: "CATERING & EVENT MANAGEMENT SERVICE", definition: "WEDDING CATERING, FESTIVAL CATERING, HOME-PARTY CATERING, WEDDING BANQUET FOOD, FESTIVAL FOOD STALLS, RELIGIOUS EVENT FOOD SERVICES, COMMUNITY FUNCTIONS CATERING, WEDDING PLANNER, STAGE DECORATION, CATERING COORDINATION, SOUND SYSTEM, PHOTOGRAPHY & VIDEOGRAPHY", code: "T-031" },
+	{ mainTrade: "SERVICES", subTrade: "TRAVEL AND TOUR OPERATORS", definition: "", code: "T-032" },
+	{ mainTrade: "SERVICES", subTrade: "HEALTH & FITNESS SERVICES", definition: "GYM, PHYSIOTHERAPY, YOGA, FITNESS TRAINER, SPORTS COACHING", code: "T-033" },
+	{ mainTrade: "SERVICES", subTrade: "FINANCIAL SERVICES", definition: "MONEY EXCHANGE, BOOKKEEPING, SMALL ACCOUNTING SERVICES, MOBILE BANKING AGENTS, INSURANCE AGENTS", code: "T-034" },
+	{ mainTrade: "SERVICES", subTrade: "ELECTRIC HARDWARE REPAIR AND MANTAINANCE", definition: "APPLIANCES REPAIR, ELECTRONICS REPAIR, TAILORING MACHINE REPAIR", code: "T-035" },
+	{ mainTrade: "SERVICES", subTrade: "LOGISTICS & DELIVERY SERVICES", definition: "GOODS TRANSPORT, COURIER, FOOD DELIVERY, BIKE/CAR RENTALS", code: "T-036" },
+	{ mainTrade: "SERVICES", subTrade: "EDUCATION & SKILL TRAINING CENTERS", definition: "COMPUTER TRAINING, VOCATIONAL TRAINING, LANGUAGE CENTERS", code: "T-037" },
+	{ mainTrade: "MANUFACTURING & PRODUCTION", subTrade: "HOME BASED MANUFACTRUING AND PRODUCTION", definition: "CANDLES/OIL/SOAP/SKINCARE/SMALL FURNITURE MAKING/ARTS & CRAFTS/EMBROIDRY/JEWELLERY MAKING/WOOD CARVING", code: "T-038" },
+	{ mainTrade: "MANUFACTURING & PRODUCTION", subTrade: "FOOD PROCESSING & PRESERVATION", definition: "JAM & JELLY MAKING, PICKLE PRODUCTION, DRIED FRUIT PACKAGING, SPICE GRINDING & PACKAGING, FLOUR MILLING, FROZEN FOODS", code: "T-039" },
+	{ mainTrade: "MANUFACTURING & PRODUCTION", subTrade: "HANDICRAFTS & TRADITIONAL PRODUCTS", definition: "WOOLEN PRODUCTS (SHAWLS, CAPS, SOCKS), WOOD CARVING, POTTERY, STONE CRAFTS, HANDWOVEN MATS & CARPETS", code: "T-040" },
+	{ mainTrade: "MANUFACTURING & PRODUCTION", subTrade: "TEXTILE & GARMENTS PRODUCTION", definition: "SCHOOL UNIFORMS, BOUTIQUE CLOTHING, TRADITIONAL DRESSES, BED SHEETS & PILLOW COVERS, WORKWEAR & PROTECTIVE CLOTHING", code: "T-041" },
+	{ mainTrade: "MANUFACTURING & PRODUCTION", subTrade: "FURNITURE & WOODWORKS", definition: "WOODEN CHAIRS & TABLES, CABINETS & CUPBOARDS, SOFA SETS, SCHOOL FURNITURE, DOORS & WINDOWS", code: "T-042" },
+	{ mainTrade: "MANUFACTURING & PRODUCTION", subTrade: "CONSTRUCTION MATERIALS PRODUCTION", definition: "BRICKS, BLOCKS, CONCRETE TILES, PAVING STONES, READY-MIX PLASTER", code: "T-043" },
+	{ mainTrade: "MANUFACTURING & PRODUCTION", subTrade: "LEATHER PRODUCTS MANUFACTURING", definition: "SHOES, SANDALS, BAGS, BELTS, WALLETS", code: "T-044" },
+	{ mainTrade: "MANUFACTURING & PRODUCTION", subTrade: "COSMETICS & HERBAL PRODUCTS", definition: "NATURAL SOAPS, HERBAL CREAMS, ORGANIC OILS, PERFUMES, HAIR OILS", code: "T-045" },
+	{ mainTrade: "MANUFACTURING & PRODUCTION", subTrade: "PAPER PRODUCTS & PRINTING PRESS SERVICE", definition: "NOTEBOOKS, REGISTERS, PAPER BAGS, PACKAGING CARTONS, WEDDING CARDS & FLYERS, BUSINESS CARDS, FLYERS & BROCHURES, POSTERS, FLEX PRINTING, SCHOOL NOTEBOOKS, WEDDING CARDS, CUSTOM PACKAGING", code: "T-046" },
+	{ mainTrade: "MANUFACTURING & PRODUCTION", subTrade: "RECYCLING & UPCYCLING PRODUCTION", definition: "RECYCLED PLASTIC ITEMS, UPCYCLED FURNITURE, REUSABLE SHOPPING BAGS, ECO-FRIENDLY CRAFTS", code: "T-047" },
+	{ mainTrade: "MANUFACTURING & PRODUCTION", subTrade: "SMALL-SCALE INDUSTRIAL PRODUCTION", definition: "FLOUR MILLS, OIL EXTRACTION UNITS, SPICE MILLS, SMALL BEVERAGE PRODUCTION, PACKAGED WATER, HUSKER MACHINE", code: "T-048" },
+	{ mainTrade: "TECHNOLOGY ENABLED SERVICES & PRODUCTS", subTrade: "E-COMMERCE", definition: "ONLINE CLOTHING STORE, HANDICRAFT SELLING, FOOD DELIVERY PLATFORM, SECOND-HAND MARKETPLACE, ELECTRONICS & MOBILE ACCESSORIES, ONLINE GROCERY DELIVERY", code: "T-049" },
+	{ mainTrade: "TECHNOLOGY ENABLED SERVICES & PRODUCTS", subTrade: "DIGITAL MEDIA, IT & SOFTWARE SERVICES", definition: "MOBILE APP DEVELOPMENT, WEBSITE DESIGN, SOFTWARE SOLUTIONS, IT CONSULTING, CLOUD SERVICES, CYBERSECURITY SERVICES, YOUTUBE CHANNEL, VLOGGING, PODCAST PRODUCTION, E-BOOKS & SELF-PUBLISHING, ONLINE TRAINING VIDEOS, SOCIAL MEDIA MANAGEMENT, PAID ADS CAMPAIGNS (FACEBOOK, GOOGLE), INFLUENCER MARKETING, EMAIL MARKETING, BRAND PROMOTION, VIDEO MARKETING, GRAPHIC DESIGN, CONTENT WRITING, TRANSLATION, WEB DEVELOPMENT, DATA ENTRY, VIRTUAL ASSISTANCE, SEO SERVICES", code: "T-050" },
+	{ mainTrade: "TECHNOLOGY ENABLED SERVICES & PRODUCTS", subTrade: "MOBILE & COMPUTER REPAIR SERVICES", definition: "SMARTPHONE REPAIR, LAPTOP/PC REPAIR, PRINTER & SCANNER REPAIR, NETWORK INSTALLATION, DATA RECOVERY SERVICES", code: "T-051" },
+	{ mainTrade: "TECHNOLOGY ENABLED SERVICES & PRODUCTS", subTrade: "ONLINE EDUCATION & E-LEARNING SERVICES", definition: "LANGUAGE LEARNING APPS, ONLINE TUITION PLATFORMS, SKILLS TRAINING (IT, ACCOUNTING, DESIGN), DIGITAL LIBRARIES", code: "T-052" },
+	{ mainTrade: "TECHNOLOGY ENABLED SERVICES & PRODUCTS", subTrade: "TECH-BASED FINANCIAL SERVICES (FINTECH)", definition: "MOBILE WALLET AGENT, ONLINE BILL PAYMENT SERVICE, POS (POINT OF SALE) SERVICES, MICRO-LENDING APPS", code: "T-053" },
+	{ mainTrade: "TECHNOLOGY ENABLED SERVICES & PRODUCTS", subTrade: "TECH-ENABLED LOGISTICS, RIDE-HAILING & DELIVERY SERVICES", definition: "FOOD DELIVERY APPS, COURIER & PARCEL SERVICE, GROCERY DELIVERY, BIKE RIDE-HAILING, CAR RIDE-HAILING, AUTO-RICKSHAW RIDE-HAILING, SHARED CARPOOLING SERVICES", code: "T-054" },
+	{ mainTrade: "TECHNOLOGY ENABLED SERVICES & PRODUCTS", subTrade: "GAMING & ANIMATION", definition: "GAME DEVELOPMENT (MOBILE/PC), 3D ANIMATION, MOTION GRAPHICS, AR/VR EXPERIENCES", code: "T-055" },
+	{ mainTrade: "TRANSPORT & LOGISTICS", subTrade: "PASSENGER TRANSPORTATION", definition: "TAXI SERVICE, VAN/HIACE SERVICE, BUS SERVICE, RICKSHAW TRANSPORT, SCHOOL VAN SERVICE, AMBULANCE SERVICE", code: "T-056" },
+	{ mainTrade: "TRANSPORT & LOGISTICS", subTrade: "VEHICLE RENTAL SERVICES", definition: "CAR RENTAL, JEEP RENTAL FOR TOURISM, BIKE RENTAL, WEDDING CAR RENTAL, CONSTRUCTION MACHINERY RENTAL (TRACTOR, LOADER), TOUR BUSES, COASTERS FOR GROUPS, JEEP SAFARI SERVICE, TREKKING EXPEDITION LOGISTICS, HOTEL SHUTTLE TRANSPORT", code: "T-057" },
+	{ mainTrade: "TRANSPORT & LOGISTICS", subTrade: "FREIGHT & CARGO SERVICES", definition: "REGIONAL TRUCKING, CONTAINER TRANSPORT, BULK MATERIAL TRANSPORT, CROSS-BORDER GOODS SERVICE. PICKUP VAN DELIVERY, TRUCK TRANSPORT, COLD STORAGE TRANSPORT, AGRICULTURAL GOODS TRANSPORT, FUEL/WOOD/COAL DELIVERY, THREE WHEEL LOADER, LOCAL DOCUMENT COURIER, PARCEL DELIVERY, CASH-ON-DELIVERY (COD) SERVICE, E-COMMERCE DELIVERY, SAME-DAY COURIER", code: "T-058" },
+	{ mainTrade: "BUILDING & CONSTRUCTION", subTrade: "DAILY WAGE LABOURS/MASIONARY", definition: "GENERAL LABOUR, MASON, HELPER, STONE CUTTING WORKER, CONCRETE MIXING WORKER", code: "T-059" },
+	{ mainTrade: "BUILDING & CONSTRUCTION", subTrade: "SKILLED LABOUR", definition: "ELECTRICIAN, PLUMBER, CARPENTER, STEEL FIXER, PAINTER, TILE/MARBLE FIXER, WELDER, POP/FALSE CEILING WORKER, PAINTING & POLISHING, ROOFING REPAIR, FLOORING & TILING, PLUMBING REPAIR, WOOD & FURNITURE REPAIR", code: "T-060" },
+	{ mainTrade: "BUILDING & CONSTRUCTION", subTrade: "SMALL CONTRACTORS", definition: "HOUSE CONSTRUCTION CONTRACTOR, ROAD & PAVEMENT CONTRACTOR, RENOVATION CONTRACTOR, PLUMBING & ELECTRICAL WORKS CONTRACTOR", code: "T-061" },
+	{ mainTrade: "BUILDING & CONSTRUCTION", subTrade: "BUILDING MATERIAL SUPPLIERS", definition: "CEMENT SHOP, SAND & GRAVEL SUPPLIER, BRICKS & BLOCKS SUPPLIER, STEEL & IRON RODS SHOP, PAINT & HARDWARE SUPPLIER", code: "T-062" },
+	{ mainTrade: "BUILDING & CONSTRUCTION", subTrade: "MACHINERY & EQUIPMENT RENTAL SERVICES", definition: "TRACTOR TROLLEY, MIXER MACHINE RENTAL, SCAFFOLDING RENTAL, CRANE/LIFTER RENTAL, GENERATOR RENTAL", code: "T-063" },
+	{ mainTrade: "BUILDING & CONSTRUCTION", subTrade: "ARCHITECTURAL & DRAFTING SERVICES", definition: "HOUSE MAPS DESIGNING, COST ESTIMATION, AUTOCAD DRAWING, STRUCTURAL DESIGN SUPPORT", code: "T-064" },
+	{ mainTrade: "BUILDING & CONSTRUCTION", subTrade: "INTERIOR & EXTERIOR FINISHING SERVICES", definition: "FALSE CEILING, GLASS & ALUMINUM WORKS, LANDSCAPING & GARDENING, INTERIOR DECORATION, LIGHTING INSTALLATION", code: "T-065" },
+	{ mainTrade: "HEALTH & WELLNESS", subTrade: "NUTRITION & DIETARY SERVICES", definition: "NUTRITIONIST CONSULTATIONS, WEIGHT LOSS/GAIN PROGRAMS, MEAL PLANNING, DIET SUPPLEMENTS SHOP, ORGANIC FOOD ADVISORY", code: "T-066" },
+	{ mainTrade: "HEALTH & WELLNESS", subTrade: "FITNESS CENTERS & SPORTS TRAINING", definition: "GYM & BODYBUILDING CENTER, AEROBICS & ZUMBA CLASSES, YOGA & MEDITATION CENTER, MARTIAL ARTS TRAINING, PERSONAL FITNESS TRAINER", code: "T-067" },
+	{ mainTrade: "HEALTH & WELLNESS", subTrade: "SMALL CLINICS", definition: "GENERAL PRACTITIONER CLINIC, DENTAL CLINIC, EYE CLINIC, CHILD CARE CLINIC, WOMEN'S HEALTH CLINIC", code: "T-068" },
+	{ mainTrade: "HEALTH & WELLNESS", subTrade: "MEDICAL STORES / ALTERNATIVE & TRADITIONAL MEDICINE", definition: "COMMUNITY PHARMACY, HERBAL MEDICINE SHOP, OVER-THE-COUNTER MEDICINES, MEDICAL SUPPLIES STORE, HERBAL THERAPY, HOMEOPATHY CLINIC, UNANI/TIBB CLINIC, ACUPUNCTURE, SPIRITUAL HEALING CENTER,HERBAL TEAS, ORGANIC SUPPLEMENTS, NATURAL SKINCARE, ESSENTIAL OILS, FITNESS ACCESSORIES", code: "T-069" },
+	{ mainTrade: "HEALTH & WELLNESS", subTrade: "MENTAL HEALTH & COUNSELING SERVICES", definition: "INDIVIDUAL THERAPY, FAMILY & MARRIAGE COUNSELING, STRESS MANAGEMENT PROGRAMS, ADDICTION COUNSELING", code: "T-070" },
+	{ mainTrade: "HEALTH & WELLNESS", subTrade: "HOME-BASED HEALTH SERVICES", definition: "HOME NURSING, ELDERLY CARE SERVICE, MIDWIFERY & MATERNAL CARE, CHILDCARE HEALTH SUPPORT", code: "T-071" },
+	{ mainTrade: "HEALTH & WELLNESS", subTrade: "REHABILITATION & PHYSIOTHERAPY CENTERS", definition: "PHYSIOTHERAPY CLINIC, SPORTS INJURY REHABILITATION, POST-SURGERY RECOVERY, CHIROPRACTIC SERVICES", code: "T-072" },
+	{ mainTrade: "HEALTH & WELLNESS", subTrade: "DIAGNOSTICS & LABORATORY SERVICES", definition: "PATHOLOGY LAB, X-RAY SERVICE, ULTRASOUND CLINIC, BLOOD TESTING LAB", code: "T-073" },
+];
+
 type FDPEconomicFormData = {
 	// Family-Level Information (read-only)
 	FamilyID: string;
@@ -22,9 +105,10 @@ type FDPEconomicFormData = {
 	BeneficiaryGender: string;
 	BeneficiaryCurrentOccupation: string;
 	InterventionType: string;
-	FieldOfInvestment: string;
 	SubFieldOfInvestment: string;
 	Trade: string;
+	MainTrade: string;
+	SubTradeCode: string;
 	SkillsDevelopmentCourse: string;
 	Institution: string;
 	
@@ -112,9 +196,10 @@ function FDPEconomicContent() {
 		BeneficiaryGender: "",
 		BeneficiaryCurrentOccupation: "",
 		InterventionType: "",
-		FieldOfInvestment: "",
 		SubFieldOfInvestment: "",
 		Trade: "",
+		MainTrade: "",
+		SubTradeCode: "",
 		SkillsDevelopmentCourse: "",
 		Institution: "",
 		InvestmentRequiredTotal: 0,
@@ -339,11 +424,12 @@ function FDPEconomicContent() {
 									BeneficiaryName: existing.BeneficiaryName || prev.BeneficiaryName,
 									BeneficiaryAge: existing.BeneficiaryAge || prev.BeneficiaryAge,
 									BeneficiaryGender: existing.BeneficiaryGender || prev.BeneficiaryGender,
-									BeneficiaryCurrentOccupation: existing.BeneficiaryCurrentOccupation || prev.BeneficiaryCurrentOccupation,
-									InterventionType: existing.InterventionType || "",
-									FieldOfInvestment: existing.FieldOfInvestment || "",
-									SubFieldOfInvestment: existing.SubFieldOfInvestment || "",
-									Trade: existing.Trade || "",
+								BeneficiaryCurrentOccupation: existing.BeneficiaryCurrentOccupation || prev.BeneficiaryCurrentOccupation,
+								InterventionType: existing.InterventionType || "",
+								SubFieldOfInvestment: existing.SubFieldOfInvestment || "",
+								Trade: existing.Trade || "",
+								MainTrade: existing.MainTrade || "",
+								SubTradeCode: existing.SubTradeCode || "",
 									SkillsDevelopmentCourse: existing.SkillsDevelopmentCourse || "",
 									Institution: existing.Institution || "",
 									InvestmentRequiredTotal: existing.InvestmentRequiredTotal || 0,
@@ -792,9 +878,10 @@ function FDPEconomicContent() {
 				setFormData(prev => ({
 					...prev,
 					InterventionType: "",
-					FieldOfInvestment: "",
 					SubFieldOfInvestment: "",
 					Trade: "",
+					MainTrade: "",
+					SubTradeCode: "",
 					SkillsDevelopmentCourse: "",
 					Institution: "",
 					InvestmentRequiredTotal: 0,
@@ -890,9 +977,10 @@ function FDPEconomicContent() {
 								setFormData(prev => ({
 									...prev,
 									InterventionType: "",
-									FieldOfInvestment: "",
 									SubFieldOfInvestment: "",
 									Trade: "",
+									MainTrade: "",
+									SubTradeCode: "",
 									SkillsDevelopmentCourse: "",
 									Institution: "",
 									InvestmentRequiredTotal: 0,
@@ -919,7 +1007,6 @@ function FDPEconomicContent() {
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Beneficiary</th>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Intervention Type</th>
-									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Field of Investment</th>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Investment Required</th>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">PE Investment</th>
 									<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Validation</th>
@@ -935,7 +1022,6 @@ function FDPEconomicContent() {
 											{record.BeneficiaryName || record.BeneficiaryID || "-"}
 										</td>
 										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{record.InterventionType || "-"}</td>
-										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{record.FieldOfInvestment || "-"}</td>
 										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
 											{record.InvestmentRequiredTotal ? `PKR ${parseFloat(record.InvestmentRequiredTotal).toLocaleString()}` : "-"}
 										</td>
@@ -1212,46 +1298,97 @@ function FDPEconomicContent() {
 								</select>
 							)}
 						</div>
-						<div>
-							<label className="block text-sm font-medium text-gray-700 mb-2">Field of Investment</label>
-							<select
-								value={formData.FieldOfInvestment}
-								onChange={(e) => handleChange("FieldOfInvestment", e.target.value)}
-								className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-							>
-								<option value="">Select Field</option>
-								<option value="Construction">Construction</option>
-								<option value="Retail">Retail</option>
-								<option value="Hospitality">Hospitality</option>
-								<option value="Transport">Transport</option>
-								<option value="Manufacturing">Manufacturing</option>
-								<option value="Agriculture">Agriculture</option>
-								<option value="ICT">ICT</option>
-								<option value="Health">Health</option>
-								<option value="Education">Education</option>
-								<option value="Other">Other</option>
-							</select>
-						</div>
-						<div>
-							<label className="block text-sm font-medium text-gray-700 mb-2">Sub-Field of Investment</label>
-							<input
-								type="text"
-								value={formData.SubFieldOfInvestment}
-								onChange={(e) => handleChange("SubFieldOfInvestment", e.target.value)}
-								className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-								placeholder="Enter sub-field"
-							/>
-						</div>
-						<div>
-							<label className="block text-sm font-medium text-gray-700 mb-2">Trade</label>
-							<input
-								type="text"
-								value={formData.Trade}
-								onChange={(e) => handleChange("Trade", e.target.value)}
-								className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-								placeholder="Enter trade"
-							/>
-						</div>
+						{formData.InterventionType === "Business" ? (
+							<>
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-2">Main Trade</label>
+									<select
+										value={formData.MainTrade}
+										onChange={(e) => {
+											handleChange("MainTrade", e.target.value);
+											// Clear Sub Trade when Main Trade changes
+											handleChange("SubFieldOfInvestment", "");
+											handleChange("SubTradeCode", "");
+										}}
+										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+									>
+										<option value="">Select Main Trade</option>
+										{Array.from(new Set(BUSINESS_TRADES.map(t => t.mainTrade))).map(mainTrade => (
+											<option key={mainTrade} value={mainTrade}>{mainTrade}</option>
+										))}
+									</select>
+								</div>
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-2">Sub Trade</label>
+									<select
+										value={formData.SubFieldOfInvestment}
+										onChange={(e) => {
+											const selectedSubTrade = e.target.value;
+											const selectedTrade = BUSINESS_TRADES.find(t => 
+												t.mainTrade === formData.MainTrade && t.subTrade === selectedSubTrade
+											);
+											handleChange("SubFieldOfInvestment", selectedSubTrade);
+											handleChange("SubTradeCode", selectedTrade?.code || "");
+										}}
+										disabled={!formData.MainTrade}
+										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
+									>
+										<option value="">Select Sub Trade</option>
+										{BUSINESS_TRADES
+											.filter(t => t.mainTrade === formData.MainTrade)
+											.map(trade => (
+												<option key={trade.code} value={trade.subTrade}>
+													{trade.subTrade}
+												</option>
+											))}
+									</select>
+								</div>
+								{formData.SubFieldOfInvestment && (() => {
+									const selectedTrade = BUSINESS_TRADES.find(t => 
+										t.mainTrade === formData.MainTrade && t.subTrade === formData.SubFieldOfInvestment
+									);
+									return selectedTrade ? (
+										<div className="col-span-2">
+											<div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+												<div className="flex items-start gap-2">
+													<div className="flex-1">
+														<p className="text-sm font-semibold text-gray-900 mb-1">Definition:</p>
+														<p className="text-sm text-gray-700">{selectedTrade.definition || "No definition available"}</p>
+													</div>
+													<div className="text-right">
+														<p className="text-xs text-gray-500 mb-1">Sub Trade Code:</p>
+														<p className="text-sm font-semibold text-[#0b4d2b]">{selectedTrade.code}</p>
+													</div>
+												</div>
+											</div>
+										</div>
+									) : null;
+								})()}
+							</>
+						) : (
+							<>
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-2">Trade</label>
+									<input
+										type="text"
+										value={formData.Trade}
+										onChange={(e) => handleChange("Trade", e.target.value)}
+										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+										placeholder="Enter trade"
+									/>
+								</div>
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-2">Sub Trade</label>
+									<input
+										type="text"
+										value={formData.SubFieldOfInvestment}
+										onChange={(e) => handleChange("SubFieldOfInvestment", e.target.value)}
+										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+										placeholder="Enter sub trade"
+									/>
+								</div>
+							</>
+						)}
 						{formData.InterventionType === "Employment" && (
 							<>
 								<div>

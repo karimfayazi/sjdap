@@ -43,7 +43,9 @@ export async function POST(request: NextRequest) {
 		sqlRequest.input("InvestmentFromPEProgram", sql.Decimal(18, 2), body.InvestmentFromPEProgram || null);
 
 		// Skills fields
-		sqlRequest.input("PrimaryIndustry", sql.NVarChar, body.PrimaryIndustry || null);
+		sqlRequest.input("MainTrade", sql.NVarChar, body.MainTrade || null);
+		sqlRequest.input("SubTrade", sql.NVarChar, body.SubTrade || null);
+		sqlRequest.input("SkillsDevelopmentInstitution", sql.NVarChar, body.SkillsDevelopmentInstitution || null);
 		sqlRequest.input("SubField", sql.NVarChar, body.SubField || null);
 		sqlRequest.input("Trade", sql.NVarChar, body.Trade || null);
 		sqlRequest.input("TrainingInstitution", sql.NVarChar, body.TrainingInstitution || null);
@@ -82,7 +84,9 @@ export async function POST(request: NextRequest) {
 					[NetProfitLoss] = @NetProfitLoss,
 					[TotalInvestmentRequired] = @TotalInvestmentRequired,
 					[InvestmentFromPEProgram] = @InvestmentFromPEProgram,
-					[PrimaryIndustry] = @PrimaryIndustry,
+					[MainTrade] = @MainTrade,
+					[SubTrade] = @SubTrade,
+					[SkillsDevelopmentInstitution] = @SkillsDevelopmentInstitution,
 					[SubField] = @SubField,
 					[Trade] = @Trade,
 					[TrainingInstitution] = @TrainingInstitution,
@@ -111,7 +115,8 @@ export async function POST(request: NextRequest) {
 					[FeasibilityType], [InvestmentRationale], [MarketBusinessAnalysis],
 					[TotalSalesRevenue], [TotalDirectCosts], [TotalIndirectCosts], [NetProfitLoss],
 					[TotalInvestmentRequired], [InvestmentFromPEProgram],
-					[PrimaryIndustry], [SubField], [Trade],
+					[MainTrade], [SubTrade], [SkillsDevelopmentInstitution],
+					[SubField], [Trade],
 					[TrainingInstitution], [InstitutionType], [InstitutionCertifiedBy],
 					[CourseTitle], [CourseDeliveryType], [HoursOfInstruction], [DurationWeeks],
 					[StartDate], [EndDate], [CostPerParticipant], [ExpectedStartingSalary],
@@ -123,7 +128,8 @@ export async function POST(request: NextRequest) {
 					@FeasibilityType, @InvestmentRationale, @MarketBusinessAnalysis,
 					@TotalSalesRevenue, @TotalDirectCosts, @TotalIndirectCosts, @NetProfitLoss,
 					@TotalInvestmentRequired, @InvestmentFromPEProgram,
-					@PrimaryIndustry, @SubField, @Trade,
+					@MainTrade, @SubTrade, @SkillsDevelopmentInstitution,
+					@SubField, @Trade,
 					@TrainingInstitution, @InstitutionType, @InstitutionCertifiedBy,
 					@CourseTitle, @CourseDeliveryType, @HoursOfInstruction, @DurationWeeks,
 					@StartDate, @EndDate, @CostPerParticipant, @ExpectedStartingSalary,

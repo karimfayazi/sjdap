@@ -147,81 +147,121 @@ function ActualInterventionDetailContent() {
 			<div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
 				<div className="overflow-x-auto">
 					<table className="min-w-full divide-y divide-gray-200">
-						<thead className="bg-gray-50">
+						<thead className="bg-[#0b4d2b]">
 							<tr>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									Intervention ID
+								<th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
+									ID
 								</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+								<th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
+									Form Number
+								</th>
+								<th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
 									Section
 								</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									Category
-								</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									Main Intervention
-								</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+								<th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
 									Status
 								</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+								<th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
+									Category
+								</th>
+								<th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
+									Main Intervention
+								</th>
+								<th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
 									Type
 								</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+								<th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
+									Financial Category
+								</th>
+								<th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
 									Total Amount
 								</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									Member ID
-								</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+								<th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
 									Start Date
 								</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+								<th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
 									End Date
+								</th>
+								<th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
+									Member ID
+								</th>
+								<th className="px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider">
+									Approval Status
 								</th>
 							</tr>
 						</thead>
 						<tbody className="bg-white divide-y divide-gray-200">
 							{interventions.length === 0 ? (
 								<tr>
-									<td colSpan={10} className="px-4 py-8 text-center text-gray-500">
+									<td colSpan={13} className="px-4 py-8 text-center text-gray-500">
 										No interventions found.
 									</td>
 								</tr>
 							) : (
 								interventions.map((intervention) => (
-									<tr key={intervention.InterventionID} className="hover:bg-gray-50">
-										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+									<tr key={intervention.InterventionID} className="hover:bg-gray-50 transition-colors">
+										<td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
 											{intervention.InterventionID || "N/A"}
 										</td>
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-											{intervention.Section || "N/A"}
+											{intervention.FormNumber || "N/A"}
 										</td>
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-											{intervention.InterventionCategory || "N/A"}
+											<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+												{intervention.Section || "N/A"}
+											</span>
 										</td>
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-											{intervention.MainIntervention || "N/A"}
+											<span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+												intervention.InterventionStatus === "Open" 
+													? "bg-green-100 text-green-800" 
+													: "bg-gray-100 text-gray-800"
+											}`}>
+												{intervention.InterventionStatus || "N/A"}
+											</span>
+										</td>
+										<td className="px-4 py-3 text-sm text-gray-900 max-w-xs">
+											<div className="truncate" title={intervention.InterventionCategory || "N/A"}>
+												{intervention.InterventionCategory || "N/A"}
+											</div>
 										</td>
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-											{intervention.InterventionStatus || "N/A"}
+											<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+												{intervention.MainIntervention || "N/A"}
+											</span>
 										</td>
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
 											{intervention.InterventionType || "N/A"}
 										</td>
-										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-											{intervention.TotalAmount != null
-												? intervention.TotalAmount.toLocaleString()
-												: "N/A"}
+										<td className="px-4 py-3 text-sm text-gray-900 max-w-xs">
+											<div className="truncate" title={intervention.FinancialCategory || "N/A"}>
+												{intervention.FinancialCategory || "N/A"}
+											</div>
 										</td>
-										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-											{intervention.MemberID || "N/A"}
+										<td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-gray-900">
+											{intervention.TotalAmount != null
+												? `PKR ${intervention.TotalAmount.toLocaleString()}`
+												: "N/A"}
 										</td>
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
 											{formatDate(intervention.InterventionStartDate)}
 										</td>
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
 											{formatDate(intervention.InterventionEndDate)}
+										</td>
+										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+											{intervention.MemberID || "N/A"}
+										</td>
+										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+											<span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+												intervention.ApprovalStatus === "Approved" 
+													? "bg-green-100 text-green-800" 
+													: intervention.ApprovalStatus === "Pending"
+													? "bg-yellow-100 text-yellow-800"
+													: "bg-gray-100 text-gray-800"
+											}`}>
+												{intervention.ApprovalStatus || "N/A"}
+											</span>
 										</td>
 									</tr>
 								))

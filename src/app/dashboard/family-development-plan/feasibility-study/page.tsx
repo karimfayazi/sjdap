@@ -24,7 +24,9 @@ type FeasibilityFormData = {
 	InvestmentFromPEProgram: number;
 	
 	// Skills fields
-	PrimaryIndustry: string;
+	MainTrade: string;
+	SubTrade: string;
+	SkillsDevelopmentInstitution: string;
 	SubField: string;
 	Trade: string;
 	TrainingInstitution: string;
@@ -89,7 +91,9 @@ function FeasibilityStudyContent() {
 		NetProfitLoss: 0,
 		TotalInvestmentRequired: 0,
 		InvestmentFromPEProgram: 0,
-		PrimaryIndustry: "",
+		MainTrade: "",
+		SubTrade: "",
+		SkillsDevelopmentInstitution: "",
 		SubField: "",
 		Trade: "",
 		TrainingInstitution: "",
@@ -292,7 +296,9 @@ function FeasibilityStudyContent() {
 								NetProfitLoss: record.NetProfitLoss || 0,
 								TotalInvestmentRequired: record.TotalInvestmentRequired || 0,
 								InvestmentFromPEProgram: record.InvestmentFromPEProgram || 0,
-								PrimaryIndustry: record.PrimaryIndustry || "",
+								MainTrade: record.MainTrade || "",
+								SubTrade: record.SubTrade || "",
+								SkillsDevelopmentInstitution: record.SkillsDevelopmentInstitution || "",
 								SubField: record.SubField || "",
 								Trade: record.Trade || "",
 								TrainingInstitution: record.TrainingInstitution || "",
@@ -458,8 +464,8 @@ function FeasibilityStudyContent() {
 		}
 
 		if (formData.PlanCategory === "SKILLS") {
-			if (!formData.PrimaryIndustry || !formData.CourseTitle || !formData.CostPerParticipant || formData.CostPerParticipant <= 0) {
-				setError("Please fill in all required Skills fields");
+			if (!formData.MainTrade || !formData.SubTrade || !formData.SkillsDevelopmentInstitution || !formData.CourseTitle || !formData.CostPerParticipant || formData.CostPerParticipant <= 0) {
+				setError("Please fill in all required Skills fields (Main Trade, Sub Trade, Skills Development Institution, Course Title, and Cost Per Participant)");
 				return;
 			}
 		}
@@ -843,16 +849,42 @@ function FeasibilityStudyContent() {
 							<div className="grid grid-cols-2 gap-4">
 								<div>
 									<label className="block text-sm font-medium text-gray-700 mb-2">
-										Primary Industry <span className="text-red-500">*</span>
+										Main Trade <span className="text-red-500">*</span>
 									</label>
 									<input
 										type="text"
-										value={formData.PrimaryIndustry}
-										onChange={(e) => setFormData(prev => ({ ...prev, PrimaryIndustry: e.target.value }))}
+										value={formData.MainTrade}
+										onChange={(e) => setFormData(prev => ({ ...prev, MainTrade: e.target.value }))}
 										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
 										required
 									/>
 								</div>
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-2">
+										Sub Trade <span className="text-red-500">*</span>
+									</label>
+									<input
+										type="text"
+										value={formData.SubTrade}
+										onChange={(e) => setFormData(prev => ({ ...prev, SubTrade: e.target.value }))}
+										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+										required
+									/>
+								</div>
+							</div>
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-2">
+									Skills Development Institution <span className="text-red-500">*</span>
+								</label>
+								<input
+									type="text"
+									value={formData.SkillsDevelopmentInstitution}
+									onChange={(e) => setFormData(prev => ({ ...prev, SkillsDevelopmentInstitution: e.target.value }))}
+									className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+									required
+								/>
+							</div>
+							<div className="grid grid-cols-2 gap-4">
 								<div>
 									<label className="block text-sm font-medium text-gray-700 mb-2">
 										Sub Field
@@ -1140,7 +1172,7 @@ function FeasibilityStudyContent() {
 										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{record.FDP_ID}</td>
 										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{record.PlanCategory || "-"}</td>
 										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-											{record.FeasibilityType || record.PrimaryIndustry || record.CourseTitle || "-"}
+											{record.FeasibilityType || record.MainTrade || record.CourseTitle || "-"}
 										</td>
 										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
 											{record.TotalInvestmentRequired || record.CostPerParticipant

@@ -108,6 +108,7 @@ const getNavigationGroups = (userSection?: string | null, isLoading?: boolean): 
 						icon: CheckCircle,
 						subItems: [
 							{ label: "Baseline Approval", href: "/dashboard/approval-section/baseline-approval" },
+							{ label: "Feasibility Approval", href: "/dashboard/feasibility-approval" },
 							{ label: "Family Development Plan Approval", href: "/dashboard/approval-section/family-development-plan-approval" },
 							{ label: "Intervention Approval", href: "/dashboard/approval-section/intervention-approval" },
 							{ label: "Bank Account Approval", href: "/dashboard/approval-section/bank-account-approval" },
@@ -127,7 +128,6 @@ const getNavigationGroups = (userSection?: string | null, isLoading?: boolean): 
 				{ label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
 				{ label: "Baseline", href: "/dashboard/baseline-qol", icon: BarChart3 },
 				{ label: "Family Development Plan", href: "/dashboard/family-development-plan", icon: FileText },
-				{ label: "Feasibility Approval", href: "/dashboard/feasibility-approval", icon: FileCheck },
 				{ label: "Family Approval from CRC", href: "/dashboard/family-approval-crc", icon: CheckCircle },
 				{ label: "Actual Intervention", href: "/dashboard/actual-intervention", icon: Activity },
 				{ label: "ROPs", href: "/dashboard/rops", icon: FileBarChart },
@@ -159,6 +159,7 @@ const getNavigationGroups = (userSection?: string | null, isLoading?: boolean): 
 					icon: CheckCircle,
 					subItems: [
 						{ label: "Baseline Approval", href: "/dashboard/approval-section/baseline-approval" },
+						{ label: "Feasibility Approval", href: "/dashboard/feasibility-approval" },
 						{ label: "Family Development Plan Approval", href: "/dashboard/approval-section/family-development-plan-approval" },
 						{ label: "Intervention Approval", href: "/dashboard/approval-section/intervention-approval" },
 						{ label: "Bank Account Approval", href: "/dashboard/approval-section/bank-account-approval" },
