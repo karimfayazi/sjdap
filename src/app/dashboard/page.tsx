@@ -1,73 +1,339 @@
 "use client";
 
-import { Construction, Wrench, Clock, Sparkles } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Users, CheckCircle, Clock, XCircle, RefreshCw } from "lucide-react";
+
+type Stats = {
+	total: number;
+	approved: number;
+	pending: number;
+	rejected: number;
+};
 
 export default function DashboardPage() {
+	const [baselineStats, setBaselineStats] = useState<Stats>({
+		total: 0,
+		approved: 0,
+		pending: 0,
+		rejected: 0,
+	});
+	const [fdpStats, setFdpStats] = useState<Stats>({
+		total: 0,
+		approved: 0,
+		pending: 0,
+		rejected: 0,
+	});
+	const [interventionStats, setInterventionStats] = useState<Stats>({
+		total: 0,
+		approved: 0,
+		pending: 0,
+		rejected: 0,
+	});
+	const [loading, setLoading] = useState(true);
+	const [error, setError] = useState<string | null>(null);
+
+	const fetchStats = async () => {
+		try {
+			setLoading(true);
+			setError(null);
+
+			// Fetch all stats in parallel
+			const [baselineRes, fdpRes, interventionRes] = await Promise.all([
+				fetch("/api/baseline-stats"),
+				fetch("/api/fdp-stats"),
+				fetch("/api/intervention-stats"),
+			]);
+
+			const baselineData = await baselineRes.json();
+			const fdpData = await fdpRes.json();
+			const interventionData = await interventionRes.json();
+
+			if (baselineData.success) {
+				setBaselineStats(baselineData.stats);
+			}
+			if (fdpData.success) {
+				setFdpStats(fdpData.stats);
+			}
+			if (interventionData.success) {
+				setInterventionStats(interventionData.stats);
+			}
+
+			if (!baselineData.success || !fdpData.success || !interventionData.success) {
+				setError("Some statistics failed to load");
+			}
+		} catch (err) {
+			console.error("Error fetching stats:", err);
+			setError("Error fetching statistics. Please try again.");
+		} finally {
+			setLoading(false);
+		}
+	};
+
+	useEffect(() => {
+		fetchStats();
+	}, []);
+
 	return (
-		<div className="flex items-center justify-center min-h-[70vh]">
-			<div className="text-center max-w-2xl mx-auto px-6">
-				{/* Main Icon */}
-				<div className="mb-8 flex justify-center">
-					<div className="relative">
-						<div className="absolute inset-0 bg-[#0b4d2b] rounded-full blur-xl opacity-20 animate-pulse"></div>
-						<div className="relative bg-gradient-to-br from-[#0b4d2b] to-[#0a3d22] p-8 rounded-full shadow-2xl">
-							<Construction className="h-16 w-16 text-white" />
-						</div>
-					</div>
+		<div className="space-y-6">
+			{/* Header */}
+			<div className="flex items-center justify-between">
+				<div>
+					<h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+					<p className="text-gray-600 mt-2">Overview and statistics</p>
 				</div>
-
-				{/* Title */}
-				<h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
-					Dashboard
-				</h1>
-
-				{/* Under Construction Message */}
-				<div className="mb-8">
-					<h2 className="text-2xl md:text-3xl font-semibold text-gray-700 mb-3">
-						Under Construction
-					</h2>
-					<p className="text-lg text-gray-600 leading-relaxed">
-						We're working hard to bring you an amazing dashboard experience. 
-						Please check back soon!
-					</p>
-				</div>
-
-				{/* Feature Icons */}
-				<div className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-12 mb-8">
-					<div className="flex flex-col items-center p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
-						<div className="bg-blue-100 p-3 rounded-full mb-3">
-							<Wrench className="h-6 w-6 text-blue-600" />
-						</div>
-						<span className="text-sm font-medium text-gray-700">Development</span>
-					</div>
-					<div className="flex flex-col items-center p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
-						<div className="bg-green-100 p-3 rounded-full mb-3">
-							<Sparkles className="h-6 w-6 text-green-600" />
-						</div>
-						<span className="text-sm font-medium text-gray-700">Enhancement</span>
-					</div>
-					<div className="flex flex-col items-center p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
-						<div className="bg-purple-100 p-3 rounded-full mb-3">
-							<Clock className="h-6 w-6 text-purple-600" />
-						</div>
-						<span className="text-sm font-medium text-gray-700">Coming Soon</span>
-					</div>
-					<div className="flex flex-col items-center p-4 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
-						<div className="bg-amber-100 p-3 rounded-full mb-3">
-							<Construction className="h-6 w-6 text-amber-600" />
-						</div>
-						<span className="text-sm font-medium text-gray-700">In Progress</span>
-					</div>
-				</div>
-
-				{/* Decorative Elements */}
-				<div className="mt-12 pt-8 border-t border-gray-200">
-					<div className="flex items-center justify-center gap-2 text-gray-500">
-						<Clock className="h-4 w-4" />
-						<span className="text-sm">We'll be back soon with exciting updates</span>
-					</div>
-				</div>
+				<button
+					onClick={fetchStats}
+					disabled={loading}
+					className="inline-flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+				>
+					<RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+					Refresh
+				</button>
 			</div>
+
+			{/* Error Message */}
+			{error && (
+				<div className="bg-red-50 border border-red-200 rounded-lg p-4">
+					<p className="text-red-600 text-sm">{error}</p>
+				</div>
+			)}
+
+			{loading ? (
+				<div className="flex items-center justify-center py-12">
+					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
+					<span className="ml-3 text-gray-600">Loading statistics...</span>
+				</div>
+			) : (
+				<div className="space-y-8">
+					{/* Baseline Statistics Cards */}
+					<div className="space-y-4">
+						<div>
+							<h2 className="text-2xl font-bold text-gray-900 mb-4">Baseline</h2>
+						</div>
+						<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+							{/* Total Families Card */}
+							<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6 hover:shadow-md transition-shadow">
+								<div className="flex items-center justify-between">
+									<div>
+										<p className="text-sm font-medium text-gray-600 uppercase tracking-wide">
+											# of Families
+										</p>
+										<p className="text-3xl font-bold text-gray-900 mt-2">
+											{baselineStats.total.toLocaleString()}
+										</p>
+									</div>
+									<div className="bg-blue-100 p-3 rounded-full">
+										<Users className="h-8 w-8 text-blue-600" />
+									</div>
+								</div>
+							</div>
+
+							{/* Approved Families Card */}
+							<div className="bg-white rounded-lg border border-emerald-200 bg-emerald-50 shadow-sm p-6 hover:shadow-md transition-shadow">
+								<div className="flex items-center justify-between">
+									<div>
+										<p className="text-sm font-medium text-emerald-700 uppercase tracking-wide">
+											# of Approved Families
+										</p>
+										<p className="text-3xl font-bold text-emerald-900 mt-2">
+											{baselineStats.approved.toLocaleString()}
+										</p>
+									</div>
+									<div className="bg-emerald-100 p-3 rounded-full">
+										<CheckCircle className="h-8 w-8 text-emerald-600" />
+									</div>
+								</div>
+							</div>
+
+							{/* Pending Families Card */}
+							<div className="bg-white rounded-lg border border-amber-200 bg-amber-50 shadow-sm p-6 hover:shadow-md transition-shadow">
+								<div className="flex items-center justify-between">
+									<div>
+										<p className="text-sm font-medium text-amber-700 uppercase tracking-wide">
+											# of Pending Families
+										</p>
+										<p className="text-3xl font-bold text-amber-900 mt-2">
+											{baselineStats.pending.toLocaleString()}
+										</p>
+									</div>
+									<div className="bg-amber-100 p-3 rounded-full">
+										<Clock className="h-8 w-8 text-amber-600" />
+									</div>
+								</div>
+							</div>
+
+							{/* Rejected Families Card */}
+							<div className="bg-white rounded-lg border border-red-200 bg-red-50 shadow-sm p-6 hover:shadow-md transition-shadow">
+								<div className="flex items-center justify-between">
+									<div>
+										<p className="text-sm font-medium text-red-700 uppercase tracking-wide">
+											# of Rejected Families
+										</p>
+										<p className="text-3xl font-bold text-red-900 mt-2">
+											{baselineStats.rejected.toLocaleString()}
+										</p>
+									</div>
+									<div className="bg-red-100 p-3 rounded-full">
+										<XCircle className="h-8 w-8 text-red-600" />
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+
+					{/* Family Development Plan Statistics Cards */}
+					<div className="space-y-4">
+						<div>
+							<h2 className="text-2xl font-bold text-gray-900 mb-4">Family Development Plan Section</h2>
+						</div>
+						<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+							{/* Total Families Card */}
+							<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6 hover:shadow-md transition-shadow">
+								<div className="flex items-center justify-between">
+									<div>
+										<p className="text-sm font-medium text-gray-600 uppercase tracking-wide">
+											# of Families
+										</p>
+										<p className="text-3xl font-bold text-gray-900 mt-2">
+											{fdpStats.total.toLocaleString()}
+										</p>
+									</div>
+									<div className="bg-blue-100 p-3 rounded-full">
+										<Users className="h-8 w-8 text-blue-600" />
+									</div>
+								</div>
+							</div>
+
+							{/* Approved Families Card */}
+							<div className="bg-white rounded-lg border border-emerald-200 bg-emerald-50 shadow-sm p-6 hover:shadow-md transition-shadow">
+								<div className="flex items-center justify-between">
+									<div>
+										<p className="text-sm font-medium text-emerald-700 uppercase tracking-wide">
+											# of Approved Families
+										</p>
+										<p className="text-3xl font-bold text-emerald-900 mt-2">
+											{fdpStats.approved.toLocaleString()}
+										</p>
+									</div>
+									<div className="bg-emerald-100 p-3 rounded-full">
+										<CheckCircle className="h-8 w-8 text-emerald-600" />
+									</div>
+								</div>
+							</div>
+
+							{/* Pending Families Card */}
+							<div className="bg-white rounded-lg border border-amber-200 bg-amber-50 shadow-sm p-6 hover:shadow-md transition-shadow">
+								<div className="flex items-center justify-between">
+									<div>
+										<p className="text-sm font-medium text-amber-700 uppercase tracking-wide">
+											# of Pending Families
+										</p>
+										<p className="text-3xl font-bold text-amber-900 mt-2">
+											{fdpStats.pending.toLocaleString()}
+										</p>
+									</div>
+									<div className="bg-amber-100 p-3 rounded-full">
+										<Clock className="h-8 w-8 text-amber-600" />
+									</div>
+								</div>
+							</div>
+
+							{/* Rejected Families Card */}
+							<div className="bg-white rounded-lg border border-red-200 bg-red-50 shadow-sm p-6 hover:shadow-md transition-shadow">
+								<div className="flex items-center justify-between">
+									<div>
+										<p className="text-sm font-medium text-red-700 uppercase tracking-wide">
+											# of Rejected Families
+										</p>
+										<p className="text-3xl font-bold text-red-900 mt-2">
+											{fdpStats.rejected.toLocaleString()}
+										</p>
+									</div>
+									<div className="bg-red-100 p-3 rounded-full">
+										<XCircle className="h-8 w-8 text-red-600" />
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+
+					{/* Intervention Statistics Cards */}
+					<div className="space-y-4">
+						<div>
+							<h2 className="text-2xl font-bold text-gray-900 mb-4">Intervention Section</h2>
+						</div>
+						<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+							{/* Total Families Card */}
+							<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6 hover:shadow-md transition-shadow">
+								<div className="flex items-center justify-between">
+									<div>
+										<p className="text-sm font-medium text-gray-600 uppercase tracking-wide">
+											# of Families
+										</p>
+										<p className="text-3xl font-bold text-gray-900 mt-2">
+											{interventionStats.total.toLocaleString()}
+										</p>
+									</div>
+									<div className="bg-blue-100 p-3 rounded-full">
+										<Users className="h-8 w-8 text-blue-600" />
+									</div>
+								</div>
+							</div>
+
+							{/* Approved Families Card */}
+							<div className="bg-white rounded-lg border border-emerald-200 bg-emerald-50 shadow-sm p-6 hover:shadow-md transition-shadow">
+								<div className="flex items-center justify-between">
+									<div>
+										<p className="text-sm font-medium text-emerald-700 uppercase tracking-wide">
+											# of Approved Families
+										</p>
+										<p className="text-3xl font-bold text-emerald-900 mt-2">
+											{interventionStats.approved.toLocaleString()}
+										</p>
+									</div>
+									<div className="bg-emerald-100 p-3 rounded-full">
+										<CheckCircle className="h-8 w-8 text-emerald-600" />
+									</div>
+								</div>
+							</div>
+
+							{/* Pending Families Card */}
+							<div className="bg-white rounded-lg border border-amber-200 bg-amber-50 shadow-sm p-6 hover:shadow-md transition-shadow">
+								<div className="flex items-center justify-between">
+									<div>
+										<p className="text-sm font-medium text-amber-700 uppercase tracking-wide">
+											# of Pending Families
+										</p>
+										<p className="text-3xl font-bold text-amber-900 mt-2">
+											{interventionStats.pending.toLocaleString()}
+										</p>
+									</div>
+									<div className="bg-amber-100 p-3 rounded-full">
+										<Clock className="h-8 w-8 text-amber-600" />
+									</div>
+								</div>
+							</div>
+
+							{/* Rejected Families Card */}
+							<div className="bg-white rounded-lg border border-red-200 bg-red-50 shadow-sm p-6 hover:shadow-md transition-shadow">
+								<div className="flex items-center justify-between">
+									<div>
+										<p className="text-sm font-medium text-red-700 uppercase tracking-wide">
+											# of Rejected Families
+										</p>
+										<p className="text-3xl font-bold text-red-900 mt-2">
+											{interventionStats.rejected.toLocaleString()}
+										</p>
+									</div>
+									<div className="bg-red-100 p-3 rounded-full">
+										<XCircle className="h-8 w-8 text-red-600" />
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			)}
 		</div>
 	);
 }
