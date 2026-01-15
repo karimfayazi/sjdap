@@ -662,11 +662,11 @@ function FamilyDevelopmentPlanPageContent() {
 										{loadingCRCStatus ? (
 											<div className="flex items-center gap-2">
 												<div className="animate-spin rounded-full h-4 w-4 border-2 border-white/30 border-t-white"></div>
-												<span className="text-white/80 text-xs">Checking approval status...</span>
+												<span className="text-white/80 text-xs">Loading FDP Status...</span>
 											</div>
 										) : (
 											<div className="flex items-center gap-2">
-												<span className="text-white/90 text-sm font-medium">Current FDP Status:</span>
+												<span className="text-white/90 text-sm font-medium">FDP Status:</span>
 												<span className="text-white text-sm font-bold bg-white/20 px-3 py-1 rounded-md backdrop-blur-sm">
 													{fdpStatus || "Not found"}
 												</span>

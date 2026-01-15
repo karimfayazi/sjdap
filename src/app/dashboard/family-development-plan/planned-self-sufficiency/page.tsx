@@ -15,6 +15,7 @@ type FamilyInfo = {
 	TotalMembers: number;
 	BaselineFamilyIncome: number;
 	SelfSufficiencyIncomePerCapita: number;
+	Mentor?: string | null;
 };
 
 type Intervention = {
@@ -41,9 +42,17 @@ function PlannedSelfSufficiencyContent() {
 
 	// Calculate poverty level
 	const calculatePovertyLevel = (perCapitaIncome: number, areaType: string, selfSufficiencyIncome?: number): string => {
-		// If per capita income is at or above self-sufficiency level, return "Nil"
-		if (selfSufficiencyIncome && perCapitaIncome >= selfSufficiencyIncome) {
-			return "Nil";
+		// If self-sufficiency income is provided, check the percentage first
+		if (selfSufficiencyIncome && selfSufficiencyIncome > 0) {
+			const percent = (perCapitaIncome / selfSufficiencyIncome) * 100;
+			// If percentage is more than 125%, return "Level +1"
+			if (percent > 125) {
+				return "Level +1";
+			}
+			// If per capita income is at or above self-sufficiency level (100% or more), return "Nil"
+			if (perCapitaIncome >= selfSufficiencyIncome) {
+				return "Nil";
+			}
 		}
 
 		const thresholds: { [key: string]: { [key: number]: string } } = {
@@ -128,12 +137,14 @@ function PlannedSelfSufficiencyContent() {
 	}, [formNumber]);
 
 	const formatCurrency = (value: number): string => {
-		return value.toLocaleString();
+		const roundedValue = Math.round(value);
+		return roundedValue.toLocaleString();
 	};
 
 	const formatNumber = (value: number | null | undefined): string => {
 		if (value === null || value === undefined) return "-";
-		return value.toLocaleString();
+		const roundedValue = Math.round(value);
+		return roundedValue.toLocaleString();
 	};
 
 	const downloadPDF = () => {
@@ -181,6 +192,7 @@ function PlannedSelfSufficiencyContent() {
 			{ label: 'Area Type', value: data.familyInfo.AreaType },
 			{ label: 'Baseline Income Level', value: data.familyInfo.BaselineIncomeLevel },
 			{ label: 'Total Members', value: data.familyInfo.TotalMembers.toString() },
+			{ label: 'Mentor', value: data.familyInfo.Mentor || '-' },
 		];
 
 		let col1X = margin;
@@ -210,8 +222,9 @@ function PlannedSelfSufficiencyContent() {
 		yPos += 8;
 
 		// Table Headers
-		const colWidths = [45, 35, 25, 25, 25, 25];
-		const headers = ['Investment *', 'Amount', 'Per Capita', '% of Self-Sufficiency', 'Poverty Level', 'Status'];
+		// Adjusted column widths: [Investment *, Investment, Amount, Per Capita, % of Self-Sufficiency, Poverty Level, Status]
+		const colWidths = [50, 28, 28, 25, 30, 25, 25];
+		const headers = ['Investment *', 'Investment', 'Amount', 'Per Capita', '% of Self-Sufficiency', 'Poverty Level', 'Status'];
 		let xPos = margin;
 
 		pdf.setFillColor(240, 240, 240);
@@ -221,7 +234,9 @@ function PlannedSelfSufficiencyContent() {
 		pdf.setFont('helvetica', 'bold');
 
 		headers.forEach((header, i) => {
-			pdf.text(header, xPos + 2, yPos + 6);
+			// Center align headers for better appearance
+			const textWidth = pdf.getTextWidth(header);
+			pdf.text(header, xPos + (colWidths[i] - textWidth) / 2, yPos + 6);
 			xPos += colWidths[i];
 		});
 
@@ -230,36 +245,39 @@ function PlannedSelfSufficiencyContent() {
 		pdf.line(margin, yPos, pageWidth - margin, yPos);
 		yPos += 5;
 
+		// Helper function to right-align text in a column
+		const rightAlignText = (text: string, colWidth: number, xPos: number): void => {
+			const textWidth = pdf.getTextWidth(text);
+			pdf.text(text, xPos + colWidth - textWidth - 2, yPos + 5);
+		};
+
 		// Self-Sufficiency Income Required Per Capita
 		pdf.setFont('helvetica', 'normal');
 		pdf.setFontSize(9);
 		xPos = margin;
 		pdf.text('Self-Sufficiency Income Required Per Capita PM', xPos + 2, yPos + 5);
 		xPos += colWidths[0];
-		pdf.text('', xPos + 2, yPos + 5); // Amount
-		xPos += colWidths[1];
-		pdf.text(formatCurrency(data.familyInfo.SelfSufficiencyIncomePerCapita), xPos + 2, yPos + 5);
-		xPos += colWidths[2];
-		pdf.text('100%', xPos + 2, yPos + 5);
+		xPos += colWidths[1]; // Skip Investment column
+		xPos += colWidths[2]; // Skip Amount column
+		rightAlignText(formatCurrency(data.familyInfo.SelfSufficiencyIncomePerCapita), colWidths[3], xPos); // Per Capita
 		xPos += colWidths[3];
-		pdf.text('', xPos + 2, yPos + 5); // Poverty Level
+		rightAlignText('100%', colWidths[4], xPos); // % of Self-Sufficiency
 		xPos += colWidths[4];
-		pdf.text('', xPos + 2, yPos + 5); // Status
+		xPos += colWidths[5]; // Skip Poverty Level
+		xPos += colWidths[6]; // Skip Status
 		yPos += 7;
 
 		// Number of family members
 		xPos = margin;
 		pdf.text('Number of family members', xPos + 2, yPos + 5);
 		xPos += colWidths[0];
-		pdf.text('', xPos + 2, yPos + 5);
-		xPos += colWidths[1];
-		pdf.text(data.familyInfo.TotalMembers.toString(), xPos + 2, yPos + 5);
-		xPos += colWidths[2];
-		pdf.text('', xPos + 2, yPos + 5);
+		xPos += colWidths[1]; // Skip Investment column
+		xPos += colWidths[2]; // Skip Amount column
+		rightAlignText(data.familyInfo.TotalMembers.toString(), colWidths[3], xPos); // Per Capita
 		xPos += colWidths[3];
-		pdf.text('', xPos + 2, yPos + 5);
-		xPos += colWidths[4];
-		pdf.text('', xPos + 2, yPos + 5);
+		xPos += colWidths[4]; // Skip % column
+		xPos += colWidths[5]; // Skip Poverty Level
+		xPos += colWidths[6]; // Skip Status
 		yPos += 7;
 
 		// Self-Sufficiency Income Target
@@ -267,15 +285,14 @@ function PlannedSelfSufficiencyContent() {
 		xPos = margin;
 		pdf.text('Self-Sufficiency Income Target', xPos + 2, yPos + 5);
 		xPos += colWidths[0];
-		pdf.text('Calculated', xPos + 2, yPos + 5);
-		xPos += colWidths[1];
-		pdf.text(formatCurrency(selfSufficiencyTarget), xPos + 2, yPos + 5);
+		xPos += colWidths[1]; // Skip Investment column
+		pdf.text('Calculated', xPos + 2, yPos + 5); // Amount column
 		xPos += colWidths[2];
-		pdf.text('', xPos + 2, yPos + 5);
+		rightAlignText(formatCurrency(selfSufficiencyTarget), colWidths[3], xPos); // Per Capita (but showing total)
 		xPos += colWidths[3];
-		pdf.text('', xPos + 2, yPos + 5);
-		xPos += colWidths[4];
-		pdf.text('', xPos + 2, yPos + 5);
+		xPos += colWidths[4]; // Skip % column
+		xPos += colWidths[5]; // Skip Poverty Level
+		xPos += colWidths[6]; // Skip Status
 		yPos += 7;
 
 		// Baseline Income
@@ -292,17 +309,16 @@ function PlannedSelfSufficiencyContent() {
 		pdf.setTextColor(0, 0, 0);
 		pdf.text('Baseline Income PM', xPos + 2, yPos + 5);
 		xPos += colWidths[0];
-		pdf.text('', xPos + 2, yPos + 5);
-		xPos += colWidths[1];
-		pdf.text(formatCurrency(data.familyInfo.BaselineFamilyIncome), xPos + 2, yPos + 5);
+		xPos += colWidths[1]; // Skip Investment column
+		rightAlignText(formatCurrency(data.familyInfo.BaselineFamilyIncome), colWidths[2], xPos); // Amount
 		xPos += colWidths[2];
-		pdf.text(formatCurrency(baselinePerCapita), xPos + 2, yPos + 5);
+		rightAlignText(formatCurrency(baselinePerCapita), colWidths[3], xPos); // Per Capita
 		xPos += colWidths[3];
-		pdf.text(`${baselinePercent.toFixed(0)}%`, xPos + 2, yPos + 5);
+		rightAlignText(`${baselinePercent.toFixed(0)}%`, colWidths[4], xPos); // % of Self-Sufficiency
 		xPos += colWidths[4];
-		pdf.text(baselinePovertyLevel, xPos + 2, yPos + 5);
+		pdf.text(baselinePovertyLevel, xPos + 2, yPos + 5); // Poverty Level (left align)
 		xPos += colWidths[5];
-		pdf.text(formatCurrency(baselineStatus), xPos + 2, yPos + 5);
+		rightAlignText(formatCurrency(baselineStatus), colWidths[6], xPos); // Status
 		yPos += 9;
 
 		// Interventions
@@ -323,17 +339,15 @@ function PlannedSelfSufficiencyContent() {
 			pdf.setTextColor(0, 0, 0);
 			pdf.text(`Incremental Income from Intervention ${intervention.InterventionNumber}`, xPos + 2, yPos + 5);
 			xPos += colWidths[0];
-			pdf.text(formatCurrency(intervention.Investment), xPos + 2, yPos + 5);
+			rightAlignText(formatCurrency(intervention.Investment), colWidths[1], xPos); // Investment
 			xPos += colWidths[1];
-			pdf.text(formatCurrency(intervention.IncrementalIncome), xPos + 2, yPos + 5);
+			rightAlignText(formatCurrency(intervention.IncrementalIncome), colWidths[2], xPos); // Amount
 			xPos += colWidths[2];
-			pdf.text(formatCurrency(intervention.IncrementalIncomePerCapita), xPos + 2, yPos + 5);
+			rightAlignText(formatCurrency(intervention.IncrementalIncomePerCapita), colWidths[3], xPos); // Per Capita
 			xPos += colWidths[3];
-			pdf.text('', xPos + 2, yPos + 5);
-			xPos += colWidths[4];
-			pdf.text('', xPos + 2, yPos + 5);
-			xPos += colWidths[5];
-			pdf.text('', xPos + 2, yPos + 5);
+			xPos += colWidths[4]; // Skip % column
+			xPos += colWidths[5]; // Skip Poverty Level
+			xPos += colWidths[6]; // Skip Status
 			yPos += 9;
 
 			// Income after Intervention row
@@ -342,17 +356,17 @@ function PlannedSelfSufficiencyContent() {
 			xPos = margin;
 			pdf.text(`Income after Intervention ${intervention.InterventionNumber}`, xPos + 2, yPos + 5);
 			xPos += colWidths[0];
-			pdf.text('Calculated', xPos + 2, yPos + 5);
+			pdf.text('Calculated', xPos + 2, yPos + 5); // Investment column
 			xPos += colWidths[1];
-			pdf.text(formatCurrency(cumulativeIncome), xPos + 2, yPos + 5);
+			rightAlignText(formatCurrency(cumulativeIncome), colWidths[2], xPos); // Amount
 			xPos += colWidths[2];
-			pdf.text(formatCurrency(cumulativePerCapita), xPos + 2, yPos + 5);
+			rightAlignText(formatCurrency(cumulativePerCapita), colWidths[3], xPos); // Per Capita
 			xPos += colWidths[3];
-			pdf.text(`${cumulativePercent.toFixed(0)}%`, xPos + 2, yPos + 5);
+			rightAlignText(`${cumulativePercent.toFixed(0)}%`, colWidths[4], xPos); // % of Self-Sufficiency
 			xPos += colWidths[4];
-			pdf.text(cumulativePovertyLevel, xPos + 2, yPos + 5);
+			pdf.text(cumulativePovertyLevel, xPos + 2, yPos + 5); // Poverty Level (left align)
 			xPos += colWidths[5];
-			pdf.text(formatCurrency(cumulativeStatus), xPos + 2, yPos + 5);
+			xPos += colWidths[6]; // Skip Status
 			yPos += 9;
 
 			// Self-Sufficiency Status row
@@ -361,17 +375,12 @@ function PlannedSelfSufficiencyContent() {
 			pdf.rect(margin, yPos - 2, contentWidth, 7, 'F');
 			pdf.text(`Self-Sufficiency Status`, xPos + 2, yPos + 5);
 			xPos += colWidths[0];
-			pdf.text('', xPos + 2, yPos + 5);
-			xPos += colWidths[1];
-			pdf.text('', xPos + 2, yPos + 5);
-			xPos += colWidths[2];
-			pdf.text('', xPos + 2, yPos + 5);
-			xPos += colWidths[3];
-			pdf.text('', xPos + 2, yPos + 5);
-			xPos += colWidths[4];
-			pdf.text('', xPos + 2, yPos + 5);
-			xPos += colWidths[5];
-			pdf.text(formatCurrency(cumulativeStatus), xPos + 2, yPos + 5);
+			xPos += colWidths[1]; // Skip Investment column
+			xPos += colWidths[2]; // Skip Amount column
+			xPos += colWidths[3]; // Skip Per Capita column
+			xPos += colWidths[4]; // Skip % column
+			xPos += colWidths[5]; // Skip Poverty Level
+			rightAlignText(formatCurrency(cumulativeStatus), colWidths[6], xPos); // Status
 			yPos += 9;
 		});
 
@@ -383,17 +392,15 @@ function PlannedSelfSufficiencyContent() {
 			xPos = margin;
 			pdf.text(`Incremental Income from Intervention ${i + 1}`, xPos + 2, yPos + 5);
 			xPos += colWidths[0];
-			pdf.text('-', xPos + 2, yPos + 5);
+			rightAlignText('-', colWidths[1], xPos); // Investment
 			xPos += colWidths[1];
-			pdf.text('-', xPos + 2, yPos + 5);
+			rightAlignText('-', colWidths[2], xPos); // Amount
 			xPos += colWidths[2];
-			pdf.text('-', xPos + 2, yPos + 5);
+			rightAlignText('-', colWidths[3], xPos); // Per Capita
 			xPos += colWidths[3];
-			pdf.text('', xPos + 2, yPos + 5);
-			xPos += colWidths[4];
-			pdf.text('', xPos + 2, yPos + 5);
-			xPos += colWidths[5];
-			pdf.text('', xPos + 2, yPos + 5);
+			xPos += colWidths[4]; // Skip % column
+			xPos += colWidths[5]; // Skip Poverty Level
+			xPos += colWidths[6]; // Skip Status
 			yPos += 9;
 
 			// Income after Intervention row (use last cumulative values)
@@ -412,17 +419,17 @@ function PlannedSelfSufficiencyContent() {
 			xPos = margin;
 			pdf.text(`Income after Intervention ${i + 1}`, xPos + 2, yPos + 5);
 			xPos += colWidths[0];
-			pdf.text('Calculated', xPos + 2, yPos + 5);
+			pdf.text('Calculated', xPos + 2, yPos + 5); // Investment column
 			xPos += colWidths[1];
-			pdf.text(formatCurrency(lastCumulativeIncome), xPos + 2, yPos + 5);
+			rightAlignText(formatCurrency(lastCumulativeIncome), colWidths[2], xPos); // Amount
 			xPos += colWidths[2];
-			pdf.text(formatCurrency(lastCumulativePerCapita), xPos + 2, yPos + 5);
+			rightAlignText(formatCurrency(lastCumulativePerCapita), colWidths[3], xPos); // Per Capita
 			xPos += colWidths[3];
-			pdf.text(`${lastCumulativePercent.toFixed(0)}%`, xPos + 2, yPos + 5);
+			rightAlignText(`${lastCumulativePercent.toFixed(0)}%`, colWidths[4], xPos); // % of Self-Sufficiency
 			xPos += colWidths[4];
-			pdf.text(lastCumulativePovertyLevel, xPos + 2, yPos + 5);
+			pdf.text(lastCumulativePovertyLevel, xPos + 2, yPos + 5); // Poverty Level (left align)
 			xPos += colWidths[5];
-			pdf.text(formatCurrency(lastCumulativeStatus), xPos + 2, yPos + 5);
+			xPos += colWidths[6]; // Skip Status
 			yPos += 9;
 
 			// Self-Sufficiency Status row
@@ -431,17 +438,12 @@ function PlannedSelfSufficiencyContent() {
 			pdf.rect(margin, yPos - 2, contentWidth, 7, 'F');
 			pdf.text(`Self-Sufficiency Status`, xPos + 2, yPos + 5);
 			xPos += colWidths[0];
-			pdf.text('', xPos + 2, yPos + 5);
-			xPos += colWidths[1];
-			pdf.text('', xPos + 2, yPos + 5);
-			xPos += colWidths[2];
-			pdf.text('', xPos + 2, yPos + 5);
-			xPos += colWidths[3];
-			pdf.text('', xPos + 2, yPos + 5);
-			xPos += colWidths[4];
-			pdf.text('', xPos + 2, yPos + 5);
-			xPos += colWidths[5];
-			pdf.text(formatCurrency(lastCumulativeStatus), xPos + 2, yPos + 5);
+			xPos += colWidths[1]; // Skip Investment column
+			xPos += colWidths[2]; // Skip Amount column
+			xPos += colWidths[3]; // Skip Per Capita column
+			xPos += colWidths[4]; // Skip % column
+			xPos += colWidths[5]; // Skip Poverty Level
+			rightAlignText(formatCurrency(lastCumulativeStatus), colWidths[6], xPos); // Status
 			yPos += 9;
 		}
 
@@ -453,17 +455,13 @@ function PlannedSelfSufficiencyContent() {
 		xPos = margin;
 		pdf.text('Total Investment', xPos + 2, yPos + 5);
 		xPos += colWidths[0];
-		pdf.text(formatCurrency(totalInvestment), xPos + 2, yPos + 5);
+		rightAlignText(formatCurrency(totalInvestment), colWidths[1], xPos); // Investment column
 		xPos += colWidths[1];
-		pdf.text('', xPos + 2, yPos + 5);
-		xPos += colWidths[2];
-		pdf.text('', xPos + 2, yPos + 5);
-		xPos += colWidths[3];
-		pdf.text('', xPos + 2, yPos + 5);
-		xPos += colWidths[4];
-		pdf.text('', xPos + 2, yPos + 5);
-		xPos += colWidths[5];
-		pdf.text('', xPos + 2, yPos + 5);
+		xPos += colWidths[2]; // Skip Amount column
+		xPos += colWidths[3]; // Skip Per Capita column
+		xPos += colWidths[4]; // Skip % column
+		xPos += colWidths[5]; // Skip Poverty Level
+		xPos += colWidths[6]; // Skip Status
 		yPos += 9;
 
 		// Footer note
@@ -661,6 +659,10 @@ function PlannedSelfSufficiencyContent() {
 						<p className="text-sm opacity-90">Total Members</p>
 						<p className="text-lg font-bold">{data.familyInfo.TotalMembers || 0}</p>
 					</div>
+					<div>
+						<p className="text-sm opacity-90">Mentor</p>
+						<p className="text-lg font-bold">{data.familyInfo.Mentor || "-"}</p>
+					</div>
 				</div>
 			</div>
 
@@ -674,6 +676,7 @@ function PlannedSelfSufficiencyContent() {
 						<thead className="bg-gray-50">
 							<tr>
 								<th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Investment *</th>
+								<th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Investment</th>
 								<th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Amount</th>
 								<th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Per Capita</th>
 								<th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">% of Self-Sufficiency</th>
@@ -686,6 +689,7 @@ function PlannedSelfSufficiencyContent() {
 							<tr className="bg-blue-50">
 								<td className="px-4 py-3 text-sm text-gray-900">Self-Sufficiency Income Required Per Capita PM</td>
 								<td className="px-4 py-3 text-sm text-gray-700"></td>
+								<td className="px-4 py-3 text-sm text-gray-700"></td>
 								<td className="px-4 py-3 text-sm font-semibold text-gray-900">{formatCurrency(data.familyInfo.SelfSufficiencyIncomePerCapita)}</td>
 								<td className="px-4 py-3 text-sm font-semibold text-gray-900">100%</td>
 								<td className="px-4 py-3 text-sm text-gray-700"></td>
@@ -695,6 +699,7 @@ function PlannedSelfSufficiencyContent() {
 							<tr className="bg-blue-50">
 								<td className="px-4 py-3 text-sm text-gray-900">Number of family members</td>
 								<td className="px-4 py-3 text-sm text-gray-700"></td>
+								<td className="px-4 py-3 text-sm text-gray-700"></td>
 								<td className="px-4 py-3 text-sm font-semibold text-gray-900">{data.familyInfo.TotalMembers}</td>
 								<td className="px-4 py-3 text-sm text-gray-700"></td>
 								<td className="px-4 py-3 text-sm text-gray-700"></td>
@@ -703,6 +708,7 @@ function PlannedSelfSufficiencyContent() {
 							{/* Self-Sufficiency Income Target */}
 							<tr className="bg-blue-50">
 								<td className="px-4 py-3 text-sm text-gray-900">Self-Sufficiency Income Target</td>
+								<td className="px-4 py-3 text-sm text-gray-700"></td>
 								<td className="px-4 py-3 text-sm font-semibold text-blue-600">Calculated</td>
 								<td className="px-4 py-3 text-sm font-semibold text-gray-900">{formatCurrency(selfSufficiencyTarget)}</td>
 								<td className="px-4 py-3 text-sm text-gray-700"></td>
@@ -712,6 +718,7 @@ function PlannedSelfSufficiencyContent() {
 							{/* Baseline Income */}
 							<tr className="bg-orange-50 border-l-4 border-orange-400">
 								<td className="px-4 py-3 text-sm font-medium text-gray-900">Baseline Income PM</td>
+								<td className="px-4 py-3 text-sm text-gray-700"></td>
 								<td className="px-4 py-3 text-sm font-semibold text-gray-900">{formatCurrency(data.familyInfo.BaselineFamilyIncome)}</td>
 								<td className="px-4 py-3 text-sm font-semibold text-gray-900">{formatCurrency(baselinePerCapita)}</td>
 								<td className="px-4 py-3 text-sm font-semibold text-gray-900">{baselinePercent.toFixed(0)}%</td>
@@ -721,6 +728,7 @@ function PlannedSelfSufficiencyContent() {
 							{/* Self-Sufficiency Status */}
 							<tr>
 								<td className="px-4 py-3 text-sm text-gray-700">Self-Sufficiency Status</td>
+								<td className="px-4 py-3 text-sm text-gray-700"></td>
 								<td className="px-4 py-3 text-sm text-gray-700"></td>
 								<td className="px-4 py-3 text-sm text-gray-700"></td>
 								<td className="px-4 py-3 text-sm text-gray-700"></td>
@@ -746,6 +754,7 @@ function PlannedSelfSufficiencyContent() {
 										</td>
 										<td className="px-4 py-3 text-sm text-gray-700"></td>
 										<td className="px-4 py-3 text-sm text-gray-700"></td>
+										<td className="px-4 py-3 text-sm text-gray-700"></td>
 									</tr>
 									{/* Income after Intervention */}
 									<tr className={row.investment > 0 ? "bg-green-50 border-l-4 border-green-400" : "bg-gray-50"}>
@@ -757,10 +766,12 @@ function PlannedSelfSufficiencyContent() {
 										<td className="px-4 py-3 text-sm font-semibold text-gray-900">{formatCurrency(row.incomeAfterPerCapita)}</td>
 										<td className="px-4 py-3 text-sm font-semibold text-gray-900">{row.incomeAfterPercent.toFixed(0)}%</td>
 										<td className="px-4 py-3 text-sm font-semibold text-green-600">{row.incomeAfterPovertyLevel === "Nil" ? "Nil" : row.incomeAfterPovertyLevel}</td>
+										<td className="px-4 py-3 text-sm text-gray-700"></td>
 									</tr>
 									{/* Self-Sufficiency Status */}
 									<tr>
 										<td className="px-4 py-3 text-sm text-gray-700">Self-Sufficiency Status</td>
+										<td className="px-4 py-3 text-sm text-gray-700"></td>
 										<td className="px-4 py-3 text-sm text-gray-700"></td>
 										<td className="px-4 py-3 text-sm text-gray-700"></td>
 										<td className="px-4 py-3 text-sm text-gray-700"></td>
@@ -773,6 +784,7 @@ function PlannedSelfSufficiencyContent() {
 							<tr className="bg-yellow-50 border-l-4 border-yellow-400">
 								<td className="px-4 py-3 text-sm font-bold text-gray-900">Total Investment</td>
 								<td className="px-4 py-3 text-sm font-bold text-gray-900">{formatCurrency(totalInvestment)}</td>
+								<td className="px-4 py-3 text-sm text-gray-700"></td>
 								<td className="px-4 py-3 text-sm text-gray-700"></td>
 								<td className="px-4 py-3 text-sm text-gray-700"></td>
 								<td className="px-4 py-3 text-sm text-gray-700"></td>

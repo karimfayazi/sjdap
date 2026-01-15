@@ -20,8 +20,8 @@ type FeasibilityFormData = {
 	TotalDirectCosts: number;
 	TotalIndirectCosts: number;
 	NetProfitLoss: number;
-	TotalInvestmentRequired: number;
-	InvestmentFromPEProgram: number;
+	TotalInvestmentRequired: number | null;
+	InvestmentFromPEProgram: number | null;
 	
 	// Skills fields
 	MainTrade: string;
@@ -173,8 +173,8 @@ function FeasibilityStudyContent() {
 		TotalDirectCosts: 0,
 		TotalIndirectCosts: 0,
 		NetProfitLoss: 0,
-		TotalInvestmentRequired: 0,
-		InvestmentFromPEProgram: 0,
+		TotalInvestmentRequired: null,
+		InvestmentFromPEProgram: null,
 		MainTrade: "Technical/Vocational Skills Enhancement Training",
 		SubTrade: "",
 		SubTradeCode: "",
@@ -394,8 +394,8 @@ function FeasibilityStudyContent() {
 								TotalDirectCosts: record.TotalDirectCosts || 0,
 								TotalIndirectCosts: record.TotalIndirectCosts || 0,
 								NetProfitLoss: record.NetProfitLoss || 0,
-								TotalInvestmentRequired: record.TotalInvestmentRequired || 0,
-								InvestmentFromPEProgram: record.InvestmentFromPEProgram || 0,
+								TotalInvestmentRequired: record.TotalInvestmentRequired ?? null,
+								InvestmentFromPEProgram: record.InvestmentFromPEProgram ?? null,
 								MainTrade: record.Trade || record.MainTrade || "Technical/Vocational Skills Enhancement Training",
 								SubTrade: subTradeValue,
 								SubTradeCode: subTradeCode,
@@ -534,7 +534,7 @@ function FeasibilityStudyContent() {
 		}
 
 		if (formData.PlanCategory === "ECONOMIC") {
-			if (!formData.FeasibilityType || !formData.TotalInvestmentRequired || formData.TotalInvestmentRequired <= 0) {
+			if (!formData.FeasibilityType || formData.TotalInvestmentRequired === null || formData.TotalInvestmentRequired === undefined || formData.TotalInvestmentRequired <= 0) {
 				setError("Please fill in all required Economic fields");
 				return;
 			}
@@ -563,7 +563,7 @@ function FeasibilityStudyContent() {
 				return;
 			}
 			// Validate that Investment from PE Program is less than or equal to Total Investment Required
-			if (formData.InvestmentFromPEProgram > formData.TotalInvestmentRequired) {
+			if (formData.TotalInvestmentRequired !== null && formData.InvestmentFromPEProgram > formData.TotalInvestmentRequired) {
 				setError("Investment from PE Program must be equal to or less than Total Investment Required");
 				return;
 			}
@@ -997,12 +997,12 @@ function FeasibilityStudyContent() {
 									<input
 										type="number"
 										step="0.01"
-										value={formData.TotalInvestmentRequired}
+										value={formData.TotalInvestmentRequired ?? ""}
 										onChange={(e) => {
-											const newValue = parseFloat(e.target.value) || 0;
+											const newValue = e.target.value === "" ? null : (parseFloat(e.target.value) || null);
 											setFormData(prev => {
 												// Check if Investment from PE Program is valid with new Total Investment Required
-												if (prev.InvestmentFromPEProgram > newValue) {
+												if (newValue !== null && prev.InvestmentFromPEProgram !== null && prev.InvestmentFromPEProgram > newValue) {
 													setInvestmentError("Investment from PE Program must be equal to or less than Total Investment Required");
 												} else {
 													setInvestmentError(null);
@@ -1025,13 +1025,13 @@ function FeasibilityStudyContent() {
 								<input
 									type="number"
 									step="0.01"
-									max={formData.TotalInvestmentRequired}
-									value={formData.InvestmentFromPEProgram || 0}
+									max={formData.TotalInvestmentRequired ?? undefined}
+									value={formData.InvestmentFromPEProgram ?? ""}
 									onChange={(e) => {
-										const newValue = parseFloat(e.target.value) || 0;
-										const totalInvestment = formData.TotalInvestmentRequired || 0;
+										const newValue = e.target.value === "" ? null : (parseFloat(e.target.value) || null);
+										const totalInvestment = formData.TotalInvestmentRequired;
 										
-										if (newValue > totalInvestment) {
+										if (newValue !== null && totalInvestment !== null && newValue > totalInvestment) {
 											setInvestmentError("Investment from PE Program must be equal to or less than Total Investment Required");
 										} else {
 											setInvestmentError(null);

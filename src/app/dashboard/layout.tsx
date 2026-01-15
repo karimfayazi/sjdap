@@ -1,11 +1,46 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
 	const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+	const router = useRouter();
+	const { user, userProfile, loading } = useAuth();
+
+	// Check if username is null and redirect to login
+	useEffect(() => {
+		if (loading) return; // Wait for auth to finish loading
+
+		// Check if username is null in both user and userProfile
+		const username = user?.username || userProfile?.username;
+		
+		// If username is null, redirect to login page
+		if (!username) {
+			router.push("/login");
+		}
+	}, [user, userProfile, loading, router]);
+
+	// Show loading state while checking authentication
+	if (loading) {
+		return (
+			<div className="h-full bg-gray-50 flex items-center justify-center">
+				<div className="flex flex-col items-center gap-4">
+					<div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0b4d2b]"></div>
+					<span className="text-gray-600">Loading...</span>
+				</div>
+			</div>
+		);
+	}
+
+	// Don't render dashboard if username is null (will redirect)
+	const username = user?.username || userProfile?.username;
+	if (!username) {
+		return null;
+	}
 	
 	return (
 		<div className="h-full bg-gray-50 flex flex-col">

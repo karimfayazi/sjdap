@@ -171,7 +171,8 @@ function FamilyDevelopmentPlanApprovalViewContent() {
 
 	const formatCurrency = (value: number | null | undefined): string => {
 		if (value === null || value === undefined) return "N/A";
-		return `PKR ${parseFloat(value.toString()).toLocaleString()}`;
+		const roundedValue = Math.round(parseFloat(value.toString()));
+		return `PKR ${roundedValue.toLocaleString()}`;
 	};
 
 	const getStatusBadge = (status: string | null) => {

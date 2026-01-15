@@ -438,9 +438,9 @@ function FDPEconomicContent() {
 									GrantAmount: existing.GrantAmount || 0,
 									LoanAmount: existing.LoanAmount || 0,
 									InvestmentValidationStatus: existing.InvestmentValidationStatus !== undefined ? existing.InvestmentValidationStatus : 0,
-									PlannedMonthlyIncome: existing.PlannedMonthlyIncome || 0,
+									PlannedMonthlyIncome: Math.ceil(existing.PlannedMonthlyIncome || 0),
 									CurrentMonthlyIncome: existing.CurrentMonthlyIncome || 0,
-									IncrementalMonthlyIncome: existing.IncrementalMonthlyIncome || 0,
+									IncrementalMonthlyIncome: Math.ceil(existing.IncrementalMonthlyIncome || 0),
 									FeasibilityID: existing.FeasibilityID?.toString() || "",
 									ApprovalStatus: "Pending", // Always set to Pending as it's read-only
 									ApprovalRemarks: existing.ApprovalRemarks || "",
@@ -600,9 +600,10 @@ function FDPEconomicContent() {
 	}, [formData.InvestmentRequiredTotal, formData.ContributionFromBeneficiary, formData.FeasibilityID, feasibilityStudies, memberFeasibilityLimit, totalMemberPEInvestment, isEditMode, selectedRecordId, fdpEconomicRecords]);
 
 	useEffect(() => {
-		// Calculate Incremental Monthly Income
+		// Calculate Incremental Monthly Income (rounded up)
 		const incremental = formData.PlannedMonthlyIncome - formData.CurrentMonthlyIncome;
-		setFormData(prev => ({ ...prev, IncrementalMonthlyIncome: Math.max(0, incremental) }));
+		const roundedIncremental = Math.ceil(Math.max(0, incremental));
+		setFormData(prev => ({ ...prev, IncrementalMonthlyIncome: roundedIncremental }));
 	}, [formData.PlannedMonthlyIncome, formData.CurrentMonthlyIncome]);
 
 	// Business Rule: If loan < 50,000, convert to grant (applied on blur, not while typing)
@@ -712,7 +713,7 @@ function FDPEconomicContent() {
 				...prev,
 				FeasibilityID: feasibilityId,
 				InvestmentRequiredTotal: investmentRequired,
-				PlannedMonthlyIncome: selectedFeasibility.TotalSalesRevenue || 0,
+				PlannedMonthlyIncome: Math.ceil(selectedFeasibility.TotalSalesRevenue || 0),
 				CurrentMonthlyIncome: selectedFeasibility.CurrentBaselineIncome || prev.CurrentMonthlyIncome,
 			}));
 			// Clear validation error when feasibility changes
@@ -751,7 +752,7 @@ function FDPEconomicContent() {
 				SkillsDevelopmentCourse: selectedFeasibility.CourseTitle || prev.SkillsDevelopmentCourse,
 				Institution: selectedFeasibility.TrainingInstitution || prev.Institution,
 				InvestmentRequiredTotal: investmentRequired,
-				PlannedMonthlyIncome: selectedFeasibility.TotalSalesRevenue || 0,
+				PlannedMonthlyIncome: Math.ceil(selectedFeasibility.TotalSalesRevenue || 0),
 				CurrentMonthlyIncome: selectedFeasibility.CurrentBaselineIncome || prev.CurrentMonthlyIncome,
 			}));
 		} else if (!feasibilityId) {
@@ -852,6 +853,8 @@ function FDPEconomicContent() {
 				},
 				body: JSON.stringify({
 					...formData,
+					PlannedMonthlyIncome: Math.ceil(formData.PlannedMonthlyIncome || 0),
+					IncrementalMonthlyIncome: Math.ceil(formData.IncrementalMonthlyIncome || 0),
 					GrantAmount: finalGrantAmount,
 					LoanAmount: finalLoanAmount,
 					InvestmentValidationStatus: 1, // 1 = Valid, 0 = Invalid
@@ -1552,11 +1555,23 @@ function FDPEconomicContent() {
 								<input
 									type="number"
 									value={formData.PlannedMonthlyIncome || ""}
-									onChange={(e) => handleChange("PlannedMonthlyIncome", parseFloat(e.target.value) || 0)}
+									onChange={(e) => {
+										const value = parseFloat(e.target.value) || 0;
+										// Round up the value
+										const roundedValue = Math.ceil(value);
+										handleChange("PlannedMonthlyIncome", roundedValue);
+									}}
+									onBlur={(e) => {
+										// Ensure value is rounded up on blur as well
+										const value = parseFloat(e.target.value) || 0;
+										if (value !== Math.ceil(value)) {
+											handleChange("PlannedMonthlyIncome", Math.ceil(value));
+										}
+									}}
 									className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
 									placeholder="0"
 									min="0"
-									step="0.01"
+									step="1"
 								/>
 							</div>
 							<div>
@@ -1572,7 +1587,7 @@ function FDPEconomicContent() {
 								<label className="block text-sm font-medium text-gray-700 mb-2">Incremental Planned Income per Month</label>
 								<input
 									type="text"
-									value={formatCurrency(formData.IncrementalMonthlyIncome)}
+									value={formatCurrency(Math.ceil(formData.IncrementalMonthlyIncome || 0))}
 									readOnly
 									className="w-full rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-gray-600 cursor-not-allowed"
 								/>

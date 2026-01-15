@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
 		sqlRequest.input("InvestmentValidationStatus", sql.Int, validationStatus);
 		sqlRequest.input("PlannedMonthlyIncome", sql.Decimal(18, 2), body.PlannedMonthlyIncome || 0);
 		sqlRequest.input("CurrentMonthlyIncome", sql.Decimal(18, 2), body.CurrentMonthlyIncome || 0);
-		// IncrementalMonthlyIncome is a computed column, don't include it in INSERT
+		sqlRequest.input("IncrementalMonthlyIncome", sql.Decimal(18, 2), body.IncrementalMonthlyIncome || 0);
 		sqlRequest.input("FeasibilityID", sql.Int, body.FeasibilityID ? parseInt(body.FeasibilityID) : null);
 		sqlRequest.input("ApprovalStatus", sql.NVarChar, body.ApprovalStatus || "Pending");
 		sqlRequest.input("ApprovalRemarks", sql.NVarChar, body.ApprovalRemarks || "");
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
 				[SubFieldOfInvestment], [Trade], [SkillsDevelopmentCourse], [Institution],
 				[InvestmentRequiredTotal], [ContributionFromBeneficiary], [InvestmentFromPEProgram],
 				[GrantAmount], [LoanAmount], [InvestmentValidationStatus],
-				[PlannedMonthlyIncome], [CurrentMonthlyIncome],
+				[PlannedMonthlyIncome], [CurrentMonthlyIncome], [IncrementalMonthlyIncome],
 				[FeasibilityID], [ApprovalStatus], [ApprovalRemarks],
 				[CreatedBy], [CreatedAt], [UpdatedAt], [IsActive]
 			)
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
 				@SubFieldOfInvestment, @Trade, @SkillsDevelopmentCourse, @Institution,
 				@InvestmentRequiredTotal, @ContributionFromBeneficiary, @InvestmentFromPEProgram,
 				@GrantAmount, @LoanAmount, @InvestmentValidationStatus,
-				@PlannedMonthlyIncome, @CurrentMonthlyIncome,
+				@PlannedMonthlyIncome, @CurrentMonthlyIncome, @IncrementalMonthlyIncome,
 				@FeasibilityID, @ApprovalStatus, @ApprovalRemarks,
 				@CreatedBy, GETDATE(), GETDATE(), 1
 			)
@@ -201,7 +201,7 @@ export async function PUT(request: NextRequest) {
 		sqlRequest.input("InvestmentValidationStatus", sql.Int, validationStatus);
 		sqlRequest.input("PlannedMonthlyIncome", sql.Decimal(18, 2), body.PlannedMonthlyIncome || 0);
 		sqlRequest.input("CurrentMonthlyIncome", sql.Decimal(18, 2), body.CurrentMonthlyIncome || 0);
-		// IncrementalMonthlyIncome is a computed column, don't include it in UPDATE
+		sqlRequest.input("IncrementalMonthlyIncome", sql.Decimal(18, 2), body.IncrementalMonthlyIncome || 0);
 		sqlRequest.input("FeasibilityID", sql.Int, body.FeasibilityID ? parseInt(body.FeasibilityID) : null);
 		sqlRequest.input("ApprovalStatus", sql.NVarChar, body.ApprovalStatus || "Pending");
 		sqlRequest.input("ApprovalRemarks", sql.NVarChar, body.ApprovalRemarks || "");
@@ -233,6 +233,7 @@ export async function PUT(request: NextRequest) {
 				[InvestmentValidationStatus] = @InvestmentValidationStatus,
 				[PlannedMonthlyIncome] = @PlannedMonthlyIncome,
 				[CurrentMonthlyIncome] = @CurrentMonthlyIncome,
+				[IncrementalMonthlyIncome] = @IncrementalMonthlyIncome,
 				[FeasibilityID] = @FeasibilityID,
 				[ApprovalStatus] = @ApprovalStatus,
 				[ApprovalRemarks] = @ApprovalRemarks,

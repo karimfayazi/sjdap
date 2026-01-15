@@ -33,7 +33,8 @@ export async function GET(request: NextRequest) {
 				[Intake_family_Income],
 				[MonthlyIncome_Remittance],
 				[MonthlyIncome_Rental],
-				[MonthlyIncome_OtherSources]
+				[MonthlyIncome_OtherSources],
+				[SubmittedBy]
 			FROM [SJDA_Users].[dbo].[PE_Application_BasicInfo]
 			WHERE [FormNumber] = @FormNumber
 		`;
@@ -65,6 +66,9 @@ export async function GET(request: NextRequest) {
 		const membersData = membersResult.recordset[0];
 		const totalMembers = membersData?.TotalMembers || 0;
 		const totalMemberIncome = membersData?.TotalMemberIncome || 0;
+
+		// Get Mentor from SubmittedBy field in PE_Application_BasicInfo
+		const mentor = basicInfo.SubmittedBy || null;
 
 		// Calculate baseline family income
 		const baselineFamilyIncome = 
@@ -173,6 +177,7 @@ export async function GET(request: NextRequest) {
 					TotalMembers: totalMembers,
 					BaselineFamilyIncome: baselineFamilyIncome,
 					SelfSufficiencyIncomePerCapita: selfSufficiencyIncomePerCapita,
+					Mentor: mentor,
 				},
 				interventions: interventions,
 			},

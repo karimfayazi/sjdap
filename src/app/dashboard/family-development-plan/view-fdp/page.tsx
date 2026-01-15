@@ -539,14 +539,23 @@ function ViewFDPContent() {
 						</p>
 					</div>
 				</div>
-				<button
-					onClick={downloadPDF}
-					disabled={!familyInfo}
-					className="inline-flex items-center gap-2 px-4 py-2 bg-[#0b4d2b] text-white rounded-md hover:bg-[#0a3d22] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-				>
-					<Download className="h-4 w-4" />
-					Download PDF
-				</button>
+				<div className="flex items-center gap-3">
+					<button
+						onClick={() => router.push(`/dashboard/family-development-plan/crc-approval?formNumber=${formNumber}`)}
+						disabled={!formNumber}
+						className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+					>
+						CRC-Approval
+					</button>
+					<button
+						onClick={downloadPDF}
+						disabled={!familyInfo}
+						className="inline-flex items-center gap-2 px-4 py-2 bg-[#0b4d2b] text-white rounded-md hover:bg-[#0a3d22] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+					>
+						<Download className="h-4 w-4" />
+						Download PDF
+					</button>
+				</div>
 			</div>
 
 			{/* Family-Level Information */}
