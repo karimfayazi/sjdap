@@ -1859,7 +1859,7 @@ export default function AddBaselineApplicationPage() {
 							)}
 						</div>
 					</div>
-					<p className="text-sm text-gray-600 mb-2">Please specify the Monthly Income from:</p>
+					<p className="text-sm text-gray-600 mb-2">Please specify the Monthly Income from: [Not included Member Level Income]</p>
 					<div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
 						<p className="text-xs text-blue-800">
 							<strong>Note:</strong> These fields are required. If no value is entered, it will automatically be set to <strong>0</strong>.

@@ -1,16 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { User, Shield, Lock, Users, Save } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { isSuperUser } from "@/lib/auth-utils";
+import NoPermissionMessage from "@/components/NoPermissionMessage";
 
-export default function SettingsPage() {
+function SettingsPageContent() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
-	const { userProfile } = useAuth();
+	const { userProfile, loading: authLoading } = useAuth();
 	const [activeTab, setActiveTab] = useState("profile");
-	const [isSuperUser, setIsSuperUser] = useState(false);
+	const [isSuperUserState, setIsSuperUserState] = useState<boolean | null>(null);
 	
 	useEffect(() => {
 		const tab = searchParams.get("tab");
@@ -20,42 +22,48 @@ export default function SettingsPage() {
 	}, [searchParams]);
 
 	useEffect(() => {
-		if (userProfile?.supper_user !== null && userProfile?.supper_user !== undefined) {
-			const su = userProfile.supper_user;
-			setIsSuperUser(
-				su === 1 ||
-				su === "1" ||
-				su === true ||
-				su === "true" ||
-				su === "Yes" ||
-				su === "yes"
-			);
-			} else {
-		try {
-			const stored = localStorage.getItem("userData");
-			if (stored) {
-				const parsed = JSON.parse(stored);
+		if (authLoading) return;
+		
+		if (userProfile) {
+			const superUserValue = userProfile.supper_user;
+			setIsSuperUserState(isSuperUser(superUserValue));
+		} else {
+			try {
+				const stored = localStorage.getItem("userData");
+				if (stored) {
+					const parsed = JSON.parse(stored);
 					const su = parsed.super_user || parsed.supper_user;
-					setIsSuperUser(
-					su === 1 ||
-					su === "1" ||
-					su === true ||
-					su === "true" ||
-					su === "Yes" ||
-						su === "yes"
-					);
-			}
-		} catch {
-				// ignore
+					setIsSuperUserState(isSuperUser(su));
+				} else {
+					setIsSuperUserState(false);
+				}
+			} catch {
+				setIsSuperUserState(false);
 			}
 		}
-	}, [userProfile]);
+	}, [userProfile, authLoading]);
+
+	// Check Super User status - only Super Users can access this page
+	if (isSuperUserState === null || authLoading) {
+		return (
+			<div className="space-y-6">
+				<div className="flex items-center justify-center py-12">
+					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
+					<span className="ml-3 text-gray-600">Checking permissions...</span>
+				</div>
+			</div>
+		);
+	}
+
+	if (!isSuperUserState) {
+		return <NoPermissionMessage />;
+	}
 
 	const tabs = [
 		{ id: "profile", label: "Profile", icon: User },
-		...(isSuperUser ? [{ id: "permissions", label: "Permissions", icon: Shield }] : []),
+		...(isSuperUserState ? [{ id: "permissions", label: "Permissions", icon: Shield }] : []),
 		{ id: "password", label: "Password", icon: Lock },
-		...(isSuperUser
+		...(isSuperUserState
 			? [
 					{ id: "addUser", label: "Add New User", icon: User },
 					{ id: "users", label: "View Users", icon: Users },
@@ -63,8 +71,8 @@ export default function SettingsPage() {
 			: []),
 	];
 
-		return (
-			<div className="space-y-6">
+	return (
+		<div className="space-y-6">
 			{/* Header */}
 				<div>
 					<h1 className="text-3xl font-bold text-gray-900">Settings</h1>
@@ -103,10 +111,10 @@ export default function SettingsPage() {
 				{/* Tab Content */}
 			<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
 				{activeTab === "profile" && <ProfileTab />}
-				{activeTab === "permissions" && isSuperUser && <PermissionsTab />}
+				{activeTab === "permissions" && isSuperUserState && <PermissionsTab />}
 				{activeTab === "password" && <PasswordTab />}
-				{activeTab === "addUser" && isSuperUser && <AddUserTab />}
-				{activeTab === "users" && isSuperUser && <ViewUsersTab />}
+				{activeTab === "addUser" && isSuperUserState && <AddUserTab />}
+				{activeTab === "users" && isSuperUserState && <ViewUsersTab />}
 									</div>
 									</div>
 	);
@@ -382,5 +390,20 @@ function ViewUsersTab() {
 				</table>
 					</div>
 				</div>
+	);
+}
+
+export default function SettingsPage() {
+	return (
+		<Suspense
+			fallback={
+				<div className="flex items-center justify-center min-h-[60vh]">
+					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
+					<span className="ml-3 text-gray-600">Loading...</span>
+				</div>
+			}
+		>
+			<SettingsPageContent />
+		</Suspense>
 	);
 }

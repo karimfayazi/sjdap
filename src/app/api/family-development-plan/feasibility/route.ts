@@ -6,6 +6,36 @@ export const maxDuration = 120;
 
 export async function POST(request: NextRequest) {
 	try {
+		// Auth
+		const authCookie = request.cookies.get("auth");
+		if (!authCookie || !authCookie.value) {
+			return NextResponse.json(
+				{ success: false, message: "Unauthorized" },
+				{ status: 401 }
+			);
+		}
+
+		const userId = authCookie.value.split(":")[1];
+		if (!userId) {
+			return NextResponse.json(
+				{ success: false, message: "Invalid session" },
+				{ status: 401 }
+			);
+		}
+
+		// Get user's full name (username) for CreatedBy
+		const { getDb } = await import("@/lib/db");
+		const userPool = await getDb();
+		const userResult = await userPool
+			.request()
+			.input("user_id", userId)
+			.query(
+				"SELECT TOP(1) [USER_FULL_NAME] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
+			);
+
+		const user = userResult.recordset?.[0];
+		const userFullName = user?.USER_FULL_NAME || userId;
+
 		const body = await request.json();
 
 		const pool = await getPeDb();
@@ -29,10 +59,14 @@ export async function POST(request: NextRequest) {
 		sqlRequest.input("MemberID", sql.NVarChar, body.MemberID);
 		sqlRequest.input("MemberName", sql.NVarChar, body.MemberName || null);
 		sqlRequest.input("PlanCategory", sql.VarChar, body.PlanCategory);
-		sqlRequest.input("CurrentBaselineIncome", sql.Decimal(18, 2), body.CurrentBaselineIncome || null);
+		// Note: CurrentBaselineIncome column has been removed from the database
 
 		// Economic fields
-		sqlRequest.input("FeasibilityType", sql.VarChar, body.FeasibilityType || null);
+		// FeasibilityType: Convert empty string to null
+		const feasibilityType = body.FeasibilityType && body.FeasibilityType.trim() !== "" 
+			? body.FeasibilityType.trim() 
+			: null;
+		sqlRequest.input("FeasibilityType", sql.VarChar, feasibilityType);
 		sqlRequest.input("InvestmentRationale", sql.NVarChar, body.InvestmentRationale || null);
 		sqlRequest.input("MarketBusinessAnalysis", sql.NVarChar, body.MarketBusinessAnalysis || null);
 		sqlRequest.input("TotalSalesRevenue", sql.Decimal(18, 2), body.TotalSalesRevenue || null);
@@ -43,16 +77,51 @@ export async function POST(request: NextRequest) {
 		sqlRequest.input("InvestmentFromPEProgram", sql.Decimal(18, 2), body.InvestmentFromPEProgram || null);
 
 		// Skills fields
-		sqlRequest.input("MainTrade", sql.NVarChar, body.MainTrade || null);
-		sqlRequest.input("SubTrade", sql.NVarChar, body.SubTrade || null);
-		sqlRequest.input("SkillsDevelopmentInstitution", sql.NVarChar, body.SkillsDevelopmentInstitution || null);
-		sqlRequest.input("SubField", sql.NVarChar, body.SubField || null);
-		sqlRequest.input("Trade", sql.NVarChar, body.Trade || null);
+		// Map MainTrade from frontend to Trade column in database
+		// If PlanCategory is ECONOMIC, Trade should be NULL
+		// If PlanCategory is SKILLS, Trade should have the value from MainTrade
+		const tradeValue = body.PlanCategory === "ECONOMIC" ? null : (body.MainTrade || null);
+		sqlRequest.input("Trade", sql.NVarChar, tradeValue);
+		// Map SubTrade from frontend to SubField column in database
+		// If PlanCategory is ECONOMIC, SubField should be NULL
+		const subFieldValue = body.PlanCategory === "ECONOMIC" ? null : (body.SubTrade || null);
+		sqlRequest.input("SubField", sql.NVarChar, subFieldValue);
+		// Note: SkillsdevelopmentInstitution column does not exist in the database table
 		sqlRequest.input("TrainingInstitution", sql.NVarChar, body.TrainingInstitution || null);
-		sqlRequest.input("InstitutionType", sql.VarChar, body.InstitutionType || null);
-		sqlRequest.input("InstitutionCertifiedBy", sql.VarChar, body.InstitutionCertifiedBy || null);
+		// InstitutionType: Convert empty string to null to satisfy potential CHECK constraint
+		const institutionType = body.InstitutionType && body.InstitutionType.trim() !== "" 
+			? body.InstitutionType.trim() 
+			: null;
+		sqlRequest.input("InstitutionType", sql.VarChar, institutionType);
+		// InstitutionCertifiedBy: Convert empty string to null
+		const institutionCertifiedBy = body.InstitutionCertifiedBy && body.InstitutionCertifiedBy.trim() !== "" 
+			? body.InstitutionCertifiedBy.trim() 
+			: null;
+		sqlRequest.input("InstitutionCertifiedBy", sql.VarChar, institutionCertifiedBy);
 		sqlRequest.input("CourseTitle", sql.NVarChar, body.CourseTitle || null);
-		sqlRequest.input("CourseDeliveryType", sql.VarChar, body.CourseDeliveryType || null);
+		// CourseDeliveryType: 
+		// - For ECONOMIC category, always set to NULL
+		// - For SKILLS category, validate and use the value, or NULL if empty/invalid
+		// - Convert empty string to null to satisfy CHECK constraint
+		let courseDeliveryType = null;
+		if (body.PlanCategory === "SKILLS") {
+			const allowedValues = ["In-Person", "Online", "Hybrid"];
+			const trimmedValue = body.CourseDeliveryType ? String(body.CourseDeliveryType).trim() : "";
+			if (trimmedValue && allowedValues.includes(trimmedValue)) {
+				courseDeliveryType = trimmedValue;
+			} else {
+				// If SKILLS but invalid/empty, return error
+				return NextResponse.json(
+					{
+						success: false,
+						message: "Course Delivery Type is required for Skills Development and must be one of: In-Person, Online, or Hybrid",
+					},
+					{ status: 400 }
+				);
+			}
+		}
+		// For ECONOMIC category, courseDeliveryType remains null
+		sqlRequest.input("CourseDeliveryType", sql.VarChar, courseDeliveryType);
 		sqlRequest.input("HoursOfInstruction", sql.Int, body.HoursOfInstruction || null);
 		sqlRequest.input("DurationWeeks", sql.Int, body.DurationWeeks || null);
 		sqlRequest.input("StartDate", sql.Date, body.StartDate || null);
@@ -64,7 +133,7 @@ export async function POST(request: NextRequest) {
 		sqlRequest.input("FeasibilityPdfPath", sql.NVarChar, body.FeasibilityPdfPath);
 		sqlRequest.input("ApprovalStatus", sql.VarChar, body.ApprovalStatus || "Pending");
 		sqlRequest.input("ApprovalRemarks", sql.NVarChar, body.ApprovalRemarks || null);
-		sqlRequest.input("CreatedBy", sql.VarChar, body.CreatedBy || null);
+		sqlRequest.input("CreatedBy", sql.VarChar, userFullName);
 
 		if (existingRecord) {
 			// Update existing record
@@ -74,7 +143,6 @@ export async function POST(request: NextRequest) {
 				SET
 					[MemberName] = @MemberName,
 					[PlanCategory] = @PlanCategory,
-					[CurrentBaselineIncome] = @CurrentBaselineIncome,
 					[FeasibilityType] = @FeasibilityType,
 					[InvestmentRationale] = @InvestmentRationale,
 					[MarketBusinessAnalysis] = @MarketBusinessAnalysis,
@@ -84,11 +152,8 @@ export async function POST(request: NextRequest) {
 					[NetProfitLoss] = @NetProfitLoss,
 					[TotalInvestmentRequired] = @TotalInvestmentRequired,
 					[InvestmentFromPEProgram] = @InvestmentFromPEProgram,
-					[MainTrade] = @MainTrade,
-					[SubTrade] = @SubTrade,
-					[SkillsDevelopmentInstitution] = @SkillsDevelopmentInstitution,
-					[SubField] = @SubField,
 					[Trade] = @Trade,
+					[SubField] = @SubField,
 					[TrainingInstitution] = @TrainingInstitution,
 					[InstitutionType] = @InstitutionType,
 					[InstitutionCertifiedBy] = @InstitutionCertifiedBy,
@@ -111,12 +176,11 @@ export async function POST(request: NextRequest) {
 			const insertQuery = `
 				INSERT INTO [SJDA_Users].[dbo].[PE_FamilyDevelopmentPlan_Feasibility]
 				(
-					[FamilyID], [MemberID], [MemberName], [PlanCategory], [CurrentBaselineIncome],
+					[FamilyID], [MemberID], [MemberName], [PlanCategory],
 					[FeasibilityType], [InvestmentRationale], [MarketBusinessAnalysis],
 					[TotalSalesRevenue], [TotalDirectCosts], [TotalIndirectCosts], [NetProfitLoss],
 					[TotalInvestmentRequired], [InvestmentFromPEProgram],
-					[MainTrade], [SubTrade], [SkillsDevelopmentInstitution],
-					[SubField], [Trade],
+					[Trade], [SubField],
 					[TrainingInstitution], [InstitutionType], [InstitutionCertifiedBy],
 					[CourseTitle], [CourseDeliveryType], [HoursOfInstruction], [DurationWeeks],
 					[StartDate], [EndDate], [CostPerParticipant], [ExpectedStartingSalary],
@@ -124,12 +188,11 @@ export async function POST(request: NextRequest) {
 				)
 				VALUES
 				(
-					@FamilyID, @MemberID, @MemberName, @PlanCategory, @CurrentBaselineIncome,
+					@FamilyID, @MemberID, @MemberName, @PlanCategory,
 					@FeasibilityType, @InvestmentRationale, @MarketBusinessAnalysis,
 					@TotalSalesRevenue, @TotalDirectCosts, @TotalIndirectCosts, @NetProfitLoss,
 					@TotalInvestmentRequired, @InvestmentFromPEProgram,
-					@MainTrade, @SubTrade, @SkillsDevelopmentInstitution,
-					@SubField, @Trade,
+					@Trade, @SubField,
 					@TrainingInstitution, @InstitutionType, @InstitutionCertifiedBy,
 					@CourseTitle, @CourseDeliveryType, @HoursOfInstruction, @DurationWeeks,
 					@StartDate, @EndDate, @CostPerParticipant, @ExpectedStartingSalary,

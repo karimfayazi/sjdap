@@ -23,7 +23,6 @@ type FeasibilityApprovalData = {
 	NetProfitLoss: number | null;
 	TotalInvestmentRequired: number | null;
 	InvestmentFromPEProgram: number | null;
-	PrimaryIndustry: string | null;
 	SubField: string | null;
 	Trade: string | null;
 	TrainingInstitution: string | null;
@@ -403,10 +402,6 @@ function FeasibilityApprovalViewContent() {
 						<div>
 							<h3 className="text-lg font-semibold text-gray-900 mb-3">Skills Development</h3>
 							<div className="grid grid-cols-2 gap-4 text-sm">
-								<div>
-									<p className="font-medium text-gray-700">Primary Industry</p>
-									<p className="text-gray-900">{record.PrimaryIndustry || "N/A"}</p>
-								</div>
 								<div>
 									<p className="font-medium text-gray-700">Sub Field</p>
 									<p className="text-gray-900">{record.SubField || "N/A"}</p>

@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { isSuperUser } from "@/lib/auth-utils";
 import { hasLoanAccess as checkLoanAccess } from "@/lib/loan-access-utils";
 import SectionAccessDenied from "@/components/SectionAccessDenied";
+import NoPermissionMessage from "@/components/NoPermissionMessage";
 
 type LoanData = {
 	Intervention_ID?: number;
@@ -41,10 +42,42 @@ export default function LoanProcessPage() {
 	const { userProfile, loading: authLoading } = useAuth();
 	const [isSuperFinanceOfficer, setIsSuperFinanceOfficer] = useState(false);
 	const [hasAccess, setHasAccess] = useState<boolean | null>(null);
+	const [isSuperUserState, setIsSuperUserState] = useState<boolean | null>(null);
 
-	// Check loan access permission
+	// Check if user is Super User
 	useEffect(() => {
 		if (authLoading) return;
+		
+		if (userProfile) {
+			const superUserValue = userProfile.supper_user;
+			const isAdmin = userProfile?.username && userProfile.username.toLowerCase() === 'admin';
+			setIsSuperUserState(isAdmin || isSuperUser(superUserValue));
+		} else {
+			// Fallback to localStorage
+			try {
+				const stored = localStorage.getItem("userData");
+				if (stored) {
+					const parsed = JSON.parse(stored);
+					const su = parsed.super_user || parsed.supper_user;
+					setIsSuperUserState(isSuperUser(su));
+				} else {
+					setIsSuperUserState(false);
+				}
+			} catch {
+				setIsSuperUserState(false);
+			}
+		}
+	}, [userProfile, authLoading]);
+
+	// Check loan access permission (only if not Super User)
+	useEffect(() => {
+		if (authLoading || isSuperUserState === null) return;
+
+		// Super Users have full access
+		if (isSuperUserState) {
+			setHasAccess(true);
+			return;
+		}
 
 		// Check multiple sources for access_loans value
 		let accessLoansValue = userProfile?.access_loans;
@@ -73,33 +106,12 @@ export default function LoanProcessPage() {
 		// Check if user has loan access (access_loans = 1 or "Yes")
 		const userHasLoanAccess = checkLoanAccess(accessLoansValue);
 
-		// Also check if user is admin or super user (has full access)
-		const isAdmin = userProfile?.username && userProfile.username.toLowerCase() === 'admin';
-		const supperUserValue = userProfile?.supper_user;
-		const userIsSuperUser = isAdmin || isSuperUser(supperUserValue);
-
-		// Debug logging
-		if (typeof window !== "undefined") {
-			console.log("===========================================");
-			console.log("=== LOAN PROCESS ACCESS CHECK ===");
-			console.log("Full userProfile:", userProfile);
-			console.log("access_loans from userProfile:", userProfile?.access_loans);
-			console.log("access_loans final value:", accessLoansValue);
-			console.log("access_loans type:", typeof accessLoansValue);
-			console.log("checkLoanAccess result:", userHasLoanAccess);
-			console.log("supper_user value:", supperUserValue);
-			console.log("isSuperUser result:", userIsSuperUser);
-			console.log("Final access decision:", userHasLoanAccess || userIsSuperUser);
-			console.log("===========================================");
-		}
-
-		if (!userHasLoanAccess && !userIsSuperUser) {
+		if (!userHasLoanAccess) {
 			setHasAccess(false);
-			// DO NOT redirect - user requested to stay on access denied page
 		} else {
 			setHasAccess(true);
 		}
-	}, [userProfile, authLoading]);
+	}, [userProfile, authLoading, isSuperUserState]);
 
 	// Determine if current user has Finance_Officer = 'All'
 	useEffect(() => {
@@ -438,6 +450,22 @@ export default function LoanProcessPage() {
 	}
 
 	// Show access denied if user doesn't have permission
+	// Check Super User status - only Super Users can access this page
+	if (isSuperUserState === null || authLoading) {
+		return (
+			<div className="space-y-6">
+				<div className="flex items-center justify-center py-12">
+					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
+					<span className="ml-3 text-gray-600">Checking permissions...</span>
+				</div>
+			</div>
+		);
+	}
+
+	if (!isSuperUserState) {
+		return <NoPermissionMessage />;
+	}
+
 	if (hasAccess === false) {
 		return <SectionAccessDenied sectionName="Loan Process" requiredPermission="access_loans" />;
 	}

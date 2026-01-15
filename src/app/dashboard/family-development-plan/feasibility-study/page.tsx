@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Save, AlertCircle, Upload, FileText, Edit, Eye } from "lucide-react";
+import { ArrowLeft, Save, AlertCircle, Upload, FileText, Edit, Eye, Briefcase, ExternalLink, CheckCircle, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 type FeasibilityFormData = {
@@ -26,9 +26,9 @@ type FeasibilityFormData = {
 	// Skills fields
 	MainTrade: string;
 	SubTrade: string;
+	SubTradeCode: string;
+	CategoriesOfBusinessAndJobs: string;
 	SkillsDevelopmentInstitution: string;
-	SubField: string;
-	Trade: string;
 	TrainingInstitution: string;
 	InstitutionType: string;
 	InstitutionCertifiedBy: string;
@@ -65,6 +65,90 @@ type BaselineData = {
 	Area_Type: string;
 };
 
+type SubTradeOption = {
+	mainCategory: string;
+	subTrades: string;
+	code: string;
+};
+
+const SUB_TRADE_OPTIONS: SubTradeOption[] = [
+	{
+		mainCategory: "EARLY CHILDHOOD DEVELOPMENT (ECD)",
+		subTrades: "ECD DIPLOMA",
+		code: "T-086"
+	},
+	{
+		mainCategory: "ELECTRONIC HARWARE TRAINING",
+		subTrades: "ELECTRICAL WIRING, INDUSTRIAL ELECTRICIAN, SOLAR SYSTEM TECHNICIAN, HOME APPLIANCE TECHNICIAN, MOBILE REPAIRING, ELECTRONIC REPAIR, AC/FRIDGE TECHNICIAN, GENERATOR MECHANIC, MOBILE REPAIR",
+		code: "T-087"
+	},
+	{
+		mainCategory: "MECHANICAL AND AUTOMOTIVE",
+		subTrades: "AUTO MECHANIC, MOTORCYCLE MECHANIC, VEHICLE ELECTRICIAN, DIESEL ENGINE TECHNICIAN, HEAVY VEHICLE OPERATOR",
+		code: "T-088"
+	},
+	{
+		mainCategory: "CONSTRUCTION AND BUILDING TRADES",
+		subTrades: "MASONRY, CARPENTRY, PLUMBING, WELDING, TILE FIXING, PAINTING, STEEL FIXING, INTERIOR FINISHING",
+		code: "T-089"
+	},
+	{
+		mainCategory: "HOTEL & RESTAURANT MANAGEMENT",
+		subTrades: "WAITER/STEWARD, HOUSEKEEPING, FRONT OFFICE ASSISTANT, COOK/CHEF, TOUR GUIDE, BAKERY AND CONFECTIONERY, FOOD PRESERVATION, CATERING, PICKLE/JAM MAKING",
+		code: "T-090"
+	},
+	{
+		mainCategory: "INFORMATION TECHNOLOGY AND SOFTWARE DEVELOPMENT",
+		subTrades: "COMPUTER OPERATOR, DATA ENTRY, GRAPHIC DESIGN, WEB DEVELOPMENT, NETWORKING, IT SUPPORT",
+		code: "T-091"
+	},
+	{
+		mainCategory: "HEALTH AND WELLNESS",
+		subTrades: "NURSE ASSISTANT, HEALTH TECHNICIAN, PHYSIOTHERAPY ASSISTANT, COMMUNITY HEALTH WORKER",
+		code: "T-092"
+	},
+	{
+		mainCategory: "TEXTILE AND APPAREL",
+		subTrades: "TAILORING, EMBROIDERY, HANDICRAFT, FASHION DESIGN, INDUSTRIAL SEWING MACHINE OPERATION",
+		code: "T-093"
+	},
+	{
+		mainCategory: "SECURITY AND SAFETY",
+		subTrades: "SECURITY GUARD, FIRE SAFETY ASSISTANT, SAFETY COMPLIANCE OFFICER",
+		code: "T-094"
+	},
+	{
+		mainCategory: "HANDICRAFTS AND ARTISAN SKILLS",
+		subTrades: "KNITTING, EMBROIDERY, CARPET WEAVING, WOODCRAFT, POTTERY, JEWELRY MAKING",
+		code: "T-095"
+	},
+	{
+		mainCategory: "BEAUTY AND PERSONAL CARE",
+		subTrades: "BEAUTICIAN, BARBER, MAKEUP ARTIST, HAIR STYLIST, SPA THERAPIST",
+		code: "T-096"
+	},
+	{
+		mainCategory: "SMALL MANUFACTURING",
+		subTrades: "BLOCK MAKING, FURNITURE CARPENTRY, WELDING FABRICATION, LEATHER GOODS",
+		code: "T-097"
+	},
+	{
+		mainCategory: "RETAIL AND TRADE",
+		subTrades: "SHOP MANAGEMENT, POINT OF SALE OPERATION, CUSTOMER DEALING, MERCHANDISING",
+		code: "T-098"
+	},
+	{
+		mainCategory: "VOCATIONAL AND SKILL ENHANCEMENT",
+		subTrades: "MAID/LAUNDRY/CLEANING, COOKING, LAUNDRY, PEST CONTROL, DOMESTIC HELP",
+		code: "T-099"
+	},
+	{
+		mainCategory: "LANGUAGE AND SOFTSKILLS TRAININGS",
+		subTrades: "PRIVATE TUITION, DAYCARE CENTER, EARLY LEARNING SUPPORT",
+		code: "T-100"
+	}
+];
+
 function FeasibilityStudyContent() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
@@ -91,11 +175,11 @@ function FeasibilityStudyContent() {
 		NetProfitLoss: 0,
 		TotalInvestmentRequired: 0,
 		InvestmentFromPEProgram: 0,
-		MainTrade: "",
+		MainTrade: "Technical/Vocational Skills Enhancement Training",
 		SubTrade: "",
+		SubTradeCode: "",
+		CategoriesOfBusinessAndJobs: "",
 		SkillsDevelopmentInstitution: "",
-		SubField: "",
-		Trade: "",
 		TrainingInstitution: "",
 		InstitutionType: "",
 		InstitutionCertifiedBy: "",
@@ -120,6 +204,8 @@ function FeasibilityStudyContent() {
 	const [success, setSuccess] = useState(false);
 	const [uploadingPdf, setUploadingPdf] = useState(false);
 	const [existingFeasibility, setExistingFeasibility] = useState<any[]>([]);
+	const [investmentError, setInvestmentError] = useState<string | null>(null);
+	const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 	
 	// Family-level information state
 	const [headName, setHeadName] = useState<string>("");
@@ -281,6 +367,20 @@ function FeasibilityStudyContent() {
 								memberBaselineIncome = selectedMember?.MonthlyIncome || 0;
 							}
 							
+							// If SubTrade exists but Categories/Code don't, populate them from the options
+							// Note: Database column is SubField, but frontend uses SubTrade
+							const subTradeValue = record.SubField || record.SubTrade || "";
+							let subTradeCode = record.SubTradeCode || "";
+							let categoriesOfBusinessAndJobs = record.CategoriesOfBusinessAndJobs || "";
+							
+							if (subTradeValue && (!subTradeCode || !categoriesOfBusinessAndJobs)) {
+								const selectedOption = SUB_TRADE_OPTIONS.find(opt => opt.mainCategory === subTradeValue);
+								if (selectedOption) {
+									subTradeCode = subTradeCode || selectedOption.code;
+									categoriesOfBusinessAndJobs = categoriesOfBusinessAndJobs || selectedOption.subTrades;
+								}
+							}
+							
 							setFormData({
 								FamilyID: record.FamilyID || formNumber || "",
 								MemberID: record.MemberID || memberNo || "",
@@ -296,11 +396,11 @@ function FeasibilityStudyContent() {
 								NetProfitLoss: record.NetProfitLoss || 0,
 								TotalInvestmentRequired: record.TotalInvestmentRequired || 0,
 								InvestmentFromPEProgram: record.InvestmentFromPEProgram || 0,
-								MainTrade: record.MainTrade || "",
-								SubTrade: record.SubTrade || "",
+								MainTrade: record.Trade || record.MainTrade || "Technical/Vocational Skills Enhancement Training",
+								SubTrade: subTradeValue,
+								SubTradeCode: subTradeCode,
+								CategoriesOfBusinessAndJobs: categoriesOfBusinessAndJobs,
 								SkillsDevelopmentInstitution: record.SkillsDevelopmentInstitution || "",
-								SubField: record.SubField || "",
-								Trade: record.Trade || "",
 								TrainingInstitution: record.TrainingInstitution || "",
 								InstitutionType: record.InstitutionType || "",
 								InstitutionCertifiedBy: record.InstitutionCertifiedBy || "",
@@ -415,11 +515,12 @@ function FeasibilityStudyContent() {
 		}
 	};
 
-	// Handle form submission
+	// Handle form submission - validate first, then show confirmation dialog
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
 		setError(null);
 		setSuccess(false);
+		setInvestmentError(null);
 
 		// Validation
 		if (!formData.PlanCategory) {
@@ -461,14 +562,65 @@ function FeasibilityStudyContent() {
 				setError("Investment from PE Program is required and must be 0 or greater");
 				return;
 			}
-		}
-
-		if (formData.PlanCategory === "SKILLS") {
-			if (!formData.MainTrade || !formData.SubTrade || !formData.SkillsDevelopmentInstitution || !formData.CourseTitle || !formData.CostPerParticipant || formData.CostPerParticipant <= 0) {
-				setError("Please fill in all required Skills fields (Main Trade, Sub Trade, Skills Development Institution, Course Title, and Cost Per Participant)");
+			// Validate that Investment from PE Program is less than or equal to Total Investment Required
+			if (formData.InvestmentFromPEProgram > formData.TotalInvestmentRequired) {
+				setError("Investment from PE Program must be equal to or less than Total Investment Required");
 				return;
 			}
 		}
+
+		if (formData.PlanCategory === "SKILLS") {
+			if (!formData.MainTrade || !formData.SubTrade || !formData.TrainingInstitution || !formData.CourseTitle || !formData.CostPerParticipant || formData.CostPerParticipant <= 0) {
+				setError("Please fill in all required Skills fields (Main Trade, Sub Trade, Skills Development Institution, Course Title, and Cost Per Participant)");
+				return;
+			}
+			if (!formData.InstitutionType || formData.InstitutionType.trim() === "") {
+				setError("Institution Type is required");
+				return;
+			}
+			if (!formData.InstitutionCertifiedBy || formData.InstitutionCertifiedBy.trim() === "") {
+				setError("Institution Certified By is required");
+				return;
+			}
+			if (!formData.CourseDeliveryType || formData.CourseDeliveryType.trim() === "") {
+				setError("Course Delivery Type is required");
+				return;
+			}
+			// Validate CourseDeliveryType is one of the allowed values
+			const allowedDeliveryTypes = ["In-Person", "Online", "Hybrid"];
+			if (!allowedDeliveryTypes.includes(formData.CourseDeliveryType)) {
+				setError("Course Delivery Type must be one of: In-Person, Online, or Hybrid");
+				return;
+			}
+			if (!formData.HoursOfInstruction || formData.HoursOfInstruction <= 0) {
+				setError("Hours of Instruction is required and must be greater than 0");
+				return;
+			}
+			if (!formData.DurationWeeks || formData.DurationWeeks <= 0) {
+				setError("Duration (Weeks) is required and must be greater than 0");
+				return;
+			}
+			if (!formData.StartDate || formData.StartDate.trim() === "") {
+				setError("Start Date is required");
+				return;
+			}
+			if (!formData.EndDate || formData.EndDate.trim() === "") {
+				setError("End Date is required");
+				return;
+			}
+			if (formData.ExpectedStartingSalary === null || formData.ExpectedStartingSalary === undefined || formData.ExpectedStartingSalary <= 0) {
+				setError("Expected Starting Salary (PKR) is required and must be greater than 0");
+				return;
+			}
+		}
+
+		// If validation passes, show confirmation dialog
+		setShowConfirmDialog(true);
+	};
+
+	// Handle actual save after confirmation
+	const handleConfirmSave = async () => {
+		setShowConfirmDialog(false);
 
 		try {
 			setSaving(true);
@@ -502,6 +654,11 @@ function FeasibilityStudyContent() {
 		} finally {
 			setSaving(false);
 		}
+	};
+
+	// Handle cancel confirmation
+	const handleCancelSave = () => {
+		setShowConfirmDialog(false);
 	};
 
 	const formatCurrency = (value: number | null | undefined): string => {
@@ -538,10 +695,33 @@ function FeasibilityStudyContent() {
 					<div>
 						<h1 className="text-3xl font-bold text-gray-900">Feasibility Study</h1>
 						<p className="text-gray-600 mt-1">
-							Form: {formNumber} | Member: {memberName || memberNo}
+							Form: {formNumber} | Member: {memberName || memberNo} | Member ID: {memberNo || formData.MemberID} | Member Name: {memberName || formData.MemberName}
 						</p>
 					</div>
 				</div>
+			</div>
+
+			{/* Show Trades Section */}
+			<div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+				<div className="flex items-center justify-between">
+					<div className="flex items-center gap-3">
+						<Briefcase className="h-6 w-6 text-[#0b4d2b]" />
+						<h2 className="text-xl font-semibold text-gray-900">Show Trades [After Feasibility Study]</h2>
+					</div>
+					<a
+						href={`/dashboard/family-development-plan/feasibility-study/trades?formNumber=${encodeURIComponent(formNumber || "")}&memberNo=${encodeURIComponent(memberNo || "")}&memberName=${encodeURIComponent(memberName || "")}`}
+						target="_blank"
+						rel="noopener noreferrer"
+						className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[#0b4d2b] to-[#0d5d35] text-white rounded-md hover:from-[#0a3d22] hover:to-[#0b4d2b] transition-all shadow-md hover:shadow-lg transform hover:scale-105"
+					>
+						<Briefcase className="h-5 w-5" />
+						<span>Show Trades</span>
+						<ExternalLink className="h-4 w-4" />
+					</a>
+				</div>
+				<p className="text-sm text-gray-600 mt-3 ml-9">
+					Click the button above to view all available trades for skills development in a new tab.
+				</p>
 			</div>
 
 			{/* Error/Success Messages */}
@@ -818,8 +998,21 @@ function FeasibilityStudyContent() {
 										type="number"
 										step="0.01"
 										value={formData.TotalInvestmentRequired}
-										onChange={(e) => setFormData(prev => ({ ...prev, TotalInvestmentRequired: parseFloat(e.target.value) || 0 }))}
-										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+										onChange={(e) => {
+											const newValue = parseFloat(e.target.value) || 0;
+											setFormData(prev => {
+												// Check if Investment from PE Program is valid with new Total Investment Required
+												if (prev.InvestmentFromPEProgram > newValue) {
+													setInvestmentError("Investment from PE Program must be equal to or less than Total Investment Required");
+												} else {
+													setInvestmentError(null);
+												}
+												return { ...prev, TotalInvestmentRequired: newValue };
+											});
+										}}
+										className={`w-full rounded-md border px-4 py-2 text-sm focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${
+											investmentError ? "border-red-500 focus:border-red-500" : "border-gray-300 focus:border-[#0b4d2b]"
+										}`}
 										required
 									/>
 								</div>
@@ -827,15 +1020,36 @@ function FeasibilityStudyContent() {
 							<div>
 								<label className="block text-sm font-medium text-gray-700 mb-2">
 									Investment from PE Program (PKR) <span className="text-red-500">*</span>
+									<span className="text-xs text-gray-500 ml-2">(Must be ≤ Total Investment Required)</span>
 								</label>
 								<input
 									type="number"
 									step="0.01"
+									max={formData.TotalInvestmentRequired}
 									value={formData.InvestmentFromPEProgram || 0}
-									onChange={(e) => setFormData(prev => ({ ...prev, InvestmentFromPEProgram: parseFloat(e.target.value) || 0 }))}
-									className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+									onChange={(e) => {
+										const newValue = parseFloat(e.target.value) || 0;
+										const totalInvestment = formData.TotalInvestmentRequired || 0;
+										
+										if (newValue > totalInvestment) {
+											setInvestmentError("Investment from PE Program must be equal to or less than Total Investment Required");
+										} else {
+											setInvestmentError(null);
+										}
+										
+										setFormData(prev => ({ ...prev, InvestmentFromPEProgram: newValue }));
+									}}
+									className={`w-full rounded-md border px-4 py-2 text-sm focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${
+										investmentError ? "border-red-500 focus:border-red-500" : "border-gray-300 focus:border-[#0b4d2b]"
+									}`}
 									required
 								/>
+								{investmentError && (
+									<p className="mt-1 text-sm text-red-600 flex items-center gap-1">
+										<AlertCircle className="h-4 w-4" />
+										{investmentError}
+									</p>
+								)}
 							</div>
 						</div>
 					</div>
@@ -854,8 +1068,8 @@ function FeasibilityStudyContent() {
 									<input
 										type="text"
 										value={formData.MainTrade}
-										onChange={(e) => setFormData(prev => ({ ...prev, MainTrade: e.target.value }))}
-										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+										readOnly
+										className="w-full rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-gray-600 cursor-not-allowed"
 										required
 									/>
 								</div>
@@ -863,73 +1077,137 @@ function FeasibilityStudyContent() {
 									<label className="block text-sm font-medium text-gray-700 mb-2">
 										Sub Trade <span className="text-red-500">*</span>
 									</label>
-									<input
-										type="text"
+									<select
 										value={formData.SubTrade}
-										onChange={(e) => setFormData(prev => ({ ...prev, SubTrade: e.target.value }))}
+										onChange={(e) => {
+											const selectedOption = SUB_TRADE_OPTIONS.find(opt => opt.mainCategory === e.target.value);
+											setFormData(prev => ({
+												...prev,
+												SubTrade: e.target.value,
+												SubTradeCode: selectedOption?.code || "",
+												CategoriesOfBusinessAndJobs: selectedOption?.subTrades || ""
+											}));
+										}}
 										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
 										required
-									/>
+									>
+										<option value="">Select Sub Trade</option>
+										{SUB_TRADE_OPTIONS.map((option) => (
+											<option key={option.code} value={option.mainCategory}>
+												{option.mainCategory}
+											</option>
+										))}
+									</select>
 								</div>
 							</div>
-							<div>
-								<label className="block text-sm font-medium text-gray-700 mb-2">
-									Skills Development Institution <span className="text-red-500">*</span>
-								</label>
-								<input
-									type="text"
-									value={formData.SkillsDevelopmentInstitution}
-									onChange={(e) => setFormData(prev => ({ ...prev, SkillsDevelopmentInstitution: e.target.value }))}
-									className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-									required
-								/>
-							</div>
+							{formData.SubTrade && (
+								<div className="mt-4 p-5 bg-gradient-to-r from-[#0b4d2b]/5 to-[#0b4d2b]/10 rounded-lg border-2 border-[#0b4d2b]/20">
+									<div className="flex items-start gap-4">
+										<div className="flex-1 space-y-2">
+											<label className="block text-base font-semibold text-[#0b4d2b] mb-3">
+												Categories of business and Jobs
+											</label>
+											<div className="bg-white rounded-lg border-2 border-[#0b4d2b]/30 p-4 shadow-sm min-h-[60px]">
+												<p className="text-sm font-medium text-gray-800 leading-relaxed break-words">
+													{formData.CategoriesOfBusinessAndJobs || "—"}
+												</p>
+											</div>
+										</div>
+										<div className="flex-shrink-0 space-y-2 w-32">
+											<label className="block text-base font-semibold text-[#0b4d2b] mb-3">
+												Sub Trade Code
+											</label>
+											<div className="bg-gradient-to-br from-[#0b4d2b] to-[#0a3d22] rounded-lg border-2 border-[#0b4d2b] p-3 shadow-md min-h-[60px] flex items-center justify-center">
+												<p className="text-base font-bold text-white tracking-wider text-center">
+													{formData.SubTradeCode || "—"}
+												</p>
+											</div>
+										</div>
+									</div>
+								</div>
+							)}
 							<div className="grid grid-cols-2 gap-4">
 								<div>
 									<label className="block text-sm font-medium text-gray-700 mb-2">
-										Sub Field
+										Skills Development Institution <span className="text-red-500">*</span>
 									</label>
-									<input
-										type="text"
-										value={formData.SubField}
-										onChange={(e) => setFormData(prev => ({ ...prev, SubField: e.target.value }))}
-										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-									/>
-								</div>
-							</div>
-							<div className="grid grid-cols-2 gap-4">
-								<div>
-									<label className="block text-sm font-medium text-gray-700 mb-2">
-										Trade
-									</label>
-									<input
-										type="text"
-										value={formData.Trade}
-										onChange={(e) => setFormData(prev => ({ ...prev, Trade: e.target.value }))}
-										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-									/>
-								</div>
-								<div>
-									<label className="block text-sm font-medium text-gray-700 mb-2">
-										Training Institution
-									</label>
-									<input
-										type="text"
+									<select
 										value={formData.TrainingInstitution}
 										onChange={(e) => setFormData(prev => ({ ...prev, TrainingInstitution: e.target.value }))}
 										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-									/>
+										required
+									>
+										<option value="">Select Training Institution</option>
+										<option value="2SHADES">2SHADES</option>
+										<option value="AGT INSTITUTE OF TECHNICAL AND PROFESSIONAL EDUCATION">AGT INSTITUTE OF TECHNICAL AND PROFESSIONAL EDUCATION</option>
+										<option value="AL HAYAT INSTITUTE OF MEDICAL SCIENCES & TECHNOLOGY">AL HAYAT INSTITUTE OF MEDICAL SCIENCES & TECHNOLOGY</option>
+										<option value="AL SANI INSTITUTE OF MONTESSORI TEACHER TRAINING">AL SANI INSTITUTE OF MONTESSORI TEACHER TRAINING</option>
+										<option value="APTECH LEARNING PAKISTAN">APTECH LEARNING PAKISTAN</option>
+										<option value="CHINIOT INSTITUTE OF NURSING AND MIDWIFERY">CHINIOT INSTITUTE OF NURSING AND MIDWIFERY</option>
+										<option value="CHITRAL INSTITUTE OF MEDICAL SCIENCES">CHITRAL INSTITUTE OF MEDICAL SCIENCES</option>
+										<option value="COLLEGE OF TOURISM AND HOTEL MANAGEMENT (COTHM)">COLLEGE OF TOURISM AND HOTEL MANAGEMENT (COTHM)</option>
+										<option value="FARKHANDA INSTITUTE OF NURSING AND PUBLIC HEALTH">FARKHANDA INSTITUTE OF NURSING AND PUBLIC HEALTH</option>
+										<option value="GHAZALI INSTITUTE OF MEDICAL SCIENCES PESHAWAR">GHAZALI INSTITUTE OF MEDICAL SCIENCES PESHAWAR</option>
+										<option value="GILGIT EMBASSY LODGE">GILGIT EMBASSY LODGE</option>
+										<option value="GILGIT INSTITUTE OF MEDICAL SCIENCES AND TECHNOLOGY">GILGIT INSTITUTE OF MEDICAL SCIENCES AND TECHNOLOGY</option>
+										<option value="HAFEEZ INSTITUTE OF MEDICAL SCIENCES">HAFEEZ INSTITUTE OF MEDICAL SCIENCES</option>
+										<option value="HASHOO FOUNDATION">HASHOO FOUNDATION</option>
+										<option value="HI-TECH VOCATIONAL TRAINING INSTITUTE">HI-TECH VOCATIONAL TRAINING INSTITUTE</option>
+										<option value="HORIZON HOME OF ENGLISH AND COMPUTER NETWORK">HORIZON HOME OF ENGLISH AND COMPUTER NETWORK</option>
+										<option value="HORIZON SCHOOL OF NURSING">HORIZON SCHOOL OF NURSING</option>
+										<option value="INSTITUTE OF EARLY CHILDHOOD EDUCATION AND DEVELOPMENT (IECED)">INSTITUTE OF EARLY CHILDHOOD EDUCATION AND DEVELOPMENT (IECED)</option>
+										<option value="IVY INSTITUTE OF MEDICAL SCIENCES">IVY INSTITUTE OF MEDICAL SCIENCES</option>
+										<option value="JINNAH INSTITUTE OF NURSING AND ALLIED HEALTH SCIENCES">JINNAH INSTITUTE OF NURSING AND ALLIED HEALTH SCIENCES</option>
+										<option value="KARACHI INSTITUE OF NURSING AND ALLIED SCIENCES">KARACHI INSTITUE OF NURSING AND ALLIED SCIENCES</option>
+										<option value="KARAKORAM AREA DEVELOPMENT ORGANIZATION (KADO)">KARAKORAM AREA DEVELOPMENT ORGANIZATION (KADO)</option>
+										<option value="LIAQUAT NATIONAL COLLEGE OF NURSING">LIAQUAT NATIONAL COLLEGE OF NURSING</option>
+										<option value="LOCAL AUTO MECHANIC SHOP">LOCAL AUTO MECHANIC SHOP</option>
+										<option value="LOCAL BEAUTY SALON">LOCAL BEAUTY SALON</option>
+										<option value="MEMON MEDICAL INSTITUTE HOSPITAL">MEMON MEDICAL INSTITUTE HOSPITAL</option>
+										<option value="MISBAH INSTITUTE OF FASHION DESIGNING">MISBAH INSTITUTE OF FASHION DESIGNING</option>
+										<option value="MULTI TRAINING INSTITUTE">MULTI TRAINING INSTITUTE</option>
+										<option value="NATIONAL LOGISTICS CORPORATION (NLC)">NATIONAL LOGISTICS CORPORATION (NLC)</option>
+										<option value="NATIONAL VOCATIONAL AND TECHNICAL TRAINING COMMISSION (NAVTTC)">NATIONAL VOCATIONAL AND TECHNICAL TRAINING COMMISSION (NAVTTC)</option>
+										<option value="NOTRE DAME INSTITUTE OF EDUCATION">NOTRE DAME INSTITUTE OF EDUCATION</option>
+										<option value="PAKISTAN INSTITUTE OF MANAGEMENT (PIM)">PAKISTAN INSTITUTE OF MANAGEMENT (PIM)</option>
+										<option value="PAKISTAN INSTITUTE OF TOURISM AND HOTEL MANAGEMENT (PITHM)">PAKISTAN INSTITUTE OF TOURISM AND HOTEL MANAGEMENT (PITHM)</option>
+										<option value="PAKISTAN TECHNICAL AND EDUCATIONAL COUNCIL (PTEC)">PAKISTAN TECHNICAL AND EDUCATIONAL COUNCIL (PTEC)</option>
+										<option value="PATEL INSTITUTE OF NURSING AND ALLIED HEALTH SCIENCES">PATEL INSTITUTE OF NURSING AND ALLIED HEALTH SCIENCES</option>
+										<option value="PESHAWAR INSTITUTE OF MEDICAL AND MANAGEMENT SCIENCES">PESHAWAR INSTITUTE OF MEDICAL AND MANAGEMENT SCIENCES</option>
+										<option value="REHMAN MEDICAL INSTITUTE">REHMAN MEDICAL INSTITUTE</option>
+										<option value="ROYAL INSTIUTE OF PARAMEDICAL AND MEDICAL SCIENCES (RIPMS)">ROYAL INSTIUTE OF PARAMEDICAL AND MEDICAL SCIENCES (RIPMS)</option>
+										<option value="SADQUIAN INSTITUTE OF ARTS KARACHI">SADQUIAN INSTITUTE OF ARTS KARACHI</option>
+										<option value="SEEDA">SEEDA</option>
+										<option value="SEHAT FOUNDATION">SEHAT FOUNDATION</option>
+										<option value="SERENA HOTEL">SERENA HOTEL</option>
+										<option value="SILSILA">SILSILA</option>
+										<option value="SINDH RANGERS INSTITUTE OF HEALTH SCIENCES">SINDH RANGERS INSTITUTE OF HEALTH SCIENCES</option>
+										<option value="SJDAP STAFF">SJDAP STAFF</option>
+										<option value="SKILLSTON">SKILLSTON</option>
+										<option value="SOUL VISION ADVISORS">SOUL VISION ADVISORS</option>
+										<option value="TAF">TAF</option>
+										<option value="TECHSCAPE">TECHSCAPE</option>
+										<option value="THE HEALTH CARE INSTITUE OF NURSING">THE HEALTH CARE INSTITUE OF NURSING</option>
+										<option value="THE PARAMEDICAL INSTITUTE">THE PARAMEDICAL INSTITUTE</option>
+										<option value="UNITED COLLEGE OF NURSING AND MIDWIFERY">UNITED COLLEGE OF NURSING AND MIDWIFERY</option>
+										<option value="YOUSAF UNIFORM CENTER">YOUSAF UNIFORM CENTER</option>
+										<option value="USTAD SHAGIRD MODEL">USTAD SHAGIRD MODEL</option>
+										<option value="VIRTUAL TRAINING AND EDUCATION CENTER (VTEC)">VIRTUAL TRAINING AND EDUCATION CENTER (VTEC)</option>
+										<option value="Gilgit Baltistan Institute of Medical Science (GBIST)">Gilgit Baltistan Institute of Medical Science (GBIST)</option>
+										<option value="Cowasjee School of Nursing / Lady Dufferin Hospital">Cowasjee School of Nursing / Lady Dufferin Hospital</option>
+									</select>
 								</div>
 							</div>
 							<div className="grid grid-cols-2 gap-4">
 								<div>
 									<label className="block text-sm font-medium text-gray-700 mb-2">
-										Institution Type
+										Institution Type <span className="text-red-500">*</span>
 									</label>
 									<select
 										value={formData.InstitutionType}
 										onChange={(e) => setFormData(prev => ({ ...prev, InstitutionType: e.target.value }))}
 										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+										required
 									>
 										<option value="">Select Type</option>
 										<option value="Government">Government</option>
@@ -939,13 +1217,14 @@ function FeasibilityStudyContent() {
 								</div>
 								<div>
 									<label className="block text-sm font-medium text-gray-700 mb-2">
-										Institution Certified By
+										Institution Certified By <span className="text-red-500">*</span>
 									</label>
 									<input
 										type="text"
 										value={formData.InstitutionCertifiedBy}
 										onChange={(e) => setFormData(prev => ({ ...prev, InstitutionCertifiedBy: e.target.value }))}
 										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+										required
 									/>
 								</div>
 							</div>
@@ -964,12 +1243,13 @@ function FeasibilityStudyContent() {
 							<div className="grid grid-cols-2 gap-4">
 								<div>
 									<label className="block text-sm font-medium text-gray-700 mb-2">
-										Course Delivery Type
+										Course Delivery Type <span className="text-red-500">*</span>
 									</label>
 									<select
 										value={formData.CourseDeliveryType}
 										onChange={(e) => setFormData(prev => ({ ...prev, CourseDeliveryType: e.target.value }))}
 										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+										required
 									>
 										<option value="">Select Type</option>
 										<option value="In-Person">In-Person</option>
@@ -979,26 +1259,30 @@ function FeasibilityStudyContent() {
 								</div>
 								<div>
 									<label className="block text-sm font-medium text-gray-700 mb-2">
-										Hours of Instruction
+										Hours of Instruction <span className="text-red-500">*</span>
 									</label>
 									<input
 										type="number"
 										value={formData.HoursOfInstruction}
 										onChange={(e) => setFormData(prev => ({ ...prev, HoursOfInstruction: parseInt(e.target.value) || 0 }))}
 										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+										required
+										min="1"
 									/>
 								</div>
 							</div>
 							<div className="grid grid-cols-2 gap-4">
 								<div>
 									<label className="block text-sm font-medium text-gray-700 mb-2">
-										Duration (Weeks)
+										Duration (Weeks) <span className="text-red-500">*</span>
 									</label>
 									<input
 										type="number"
 										value={formData.DurationWeeks}
 										onChange={(e) => setFormData(prev => ({ ...prev, DurationWeeks: parseInt(e.target.value) || 0 }))}
 										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+										required
+										min="1"
 									/>
 								</div>
 								<div>
@@ -1018,30 +1302,32 @@ function FeasibilityStudyContent() {
 							<div className="grid grid-cols-2 gap-4">
 								<div>
 									<label className="block text-sm font-medium text-gray-700 mb-2">
-										Start Date
+										Start Date <span className="text-red-500">*</span>
 									</label>
 									<input
 										type="date"
 										value={formData.StartDate}
 										onChange={(e) => setFormData(prev => ({ ...prev, StartDate: e.target.value }))}
 										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+										required
 									/>
 								</div>
 								<div>
 									<label className="block text-sm font-medium text-gray-700 mb-2">
-										End Date
+										End Date <span className="text-red-500">*</span>
 									</label>
 									<input
 										type="date"
 										value={formData.EndDate}
 										onChange={(e) => setFormData(prev => ({ ...prev, EndDate: e.target.value }))}
 										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+										required
 									/>
 								</div>
 							</div>
 							<div>
 								<label className="block text-sm font-medium text-gray-700 mb-2">
-									Expected Starting Salary (PKR)
+									Expected Starting Salary (PKR) <span className="text-red-500">*</span>
 								</label>
 								<input
 									type="number"
@@ -1049,6 +1335,7 @@ function FeasibilityStudyContent() {
 									value={formData.ExpectedStartingSalary}
 									onChange={(e) => setFormData(prev => ({ ...prev, ExpectedStartingSalary: parseFloat(e.target.value) || 0 }))}
 									className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+									required
 								/>
 							</div>
 						</div>
@@ -1146,6 +1433,63 @@ function FeasibilityStudyContent() {
 					</button>
 				</div>
 			</form>
+
+			{/* Confirmation Dialog */}
+			{showConfirmDialog && (
+				<div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+					<div className="bg-white rounded-2xl shadow-2xl max-w-md w-full transform transition-all animate-in zoom-in-95 duration-300 border border-gray-100">
+						{/* Dialog Header */}
+						<div className="bg-gradient-to-r from-[#0b4d2b] via-[#0d5d35] to-[#0b4d2b] px-6 py-5 rounded-t-2xl border-b-2 border-[#0a3d22]">
+							<div className="flex items-center gap-3">
+								<div className="flex-shrink-0 w-12 h-12 bg-white/20 rounded-full flex items-center justify-center shadow-lg">
+									<FileText className="h-6 w-6 text-white" />
+								</div>
+								<div>
+									<h3 className="text-xl font-bold text-white">Confirm Save</h3>
+									<p className="text-xs text-white/80 mt-0.5">Feasibility Study</p>
+								</div>
+							</div>
+						</div>
+
+						{/* Dialog Body */}
+						<div className="px-6 py-6 bg-gradient-to-br from-gray-50 to-white">
+							<div className="flex items-start gap-4">
+								<div className="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+									<AlertCircle className="h-5 w-5 text-blue-600" />
+								</div>
+								<div className="flex-1">
+									<p className="text-gray-800 text-base font-medium leading-relaxed mb-2">
+										Do you want to save the feasibility study?
+									</p>
+									<p className="text-sm text-gray-600 leading-relaxed">
+										Click <span className="font-semibold text-[#0b4d2b]">Yes</span> to save the feasibility study data, or <span className="font-semibold text-gray-600">No</span> to cancel and return to editing.
+									</p>
+								</div>
+							</div>
+						</div>
+
+						{/* Dialog Footer */}
+						<div className="px-6 py-4 bg-gradient-to-r from-gray-50 to-white rounded-b-2xl border-t border-gray-200 flex justify-end gap-3">
+							<button
+								type="button"
+								onClick={handleCancelSave}
+								className="px-6 py-2.5 border-2 border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 hover:border-gray-400 transition-all font-semibold shadow-sm hover:shadow-md transform hover:scale-105 flex items-center gap-2"
+							>
+								<X className="h-4 w-4" />
+								No
+							</button>
+							<button
+								type="button"
+								onClick={handleConfirmSave}
+								className="px-6 py-2.5 bg-gradient-to-r from-[#0b4d2b] to-[#0d5d35] text-white rounded-lg hover:from-[#0a3d22] hover:to-[#0b4d2b] transition-all font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center gap-2"
+							>
+								<CheckCircle className="h-4 w-4" />
+								Yes, Save
+							</button>
+						</div>
+					</div>
+				</div>
+			)}
 
 			{/* Existing Feasibility Plans Grid View */}
 			{existingFeasibility.length > 0 && (

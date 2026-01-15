@@ -44,12 +44,14 @@ export default function BaselineQOLPage() {
 		regionalCouncil: "",
 	});
 	const [isSuperUserState, setIsSuperUserState] = useState(false);
+	const [isMounted, setIsMounted] = useState(false);
 	const itemsPerPage = 50;
 	const isInitialMount = useRef(true);
 
 
 	// Check if user is Super User using utility function
 	useEffect(() => {
+		setIsMounted(true);
 		if (userProfile) {
 			const superUserValue = userProfile.supper_user;
 			setIsSuperUserState(isSuperUser(superUserValue));
@@ -508,10 +510,22 @@ export default function BaselineQOLPage() {
 												>
 													<Eye className="h-5 w-5" />
 												</button>
-												{isSuperUserState && (() => {
+												{(() => {
 													const status = app.ApprovalStatus?.toLowerCase() || '';
 													const isApproved = status.includes('approve') || status === 'approved' || status === 'complete';
-													const isDisabled = isApproved;
+													const isRejected = status.includes('reject') || status === 'rejected';
+													
+													// Show edit button if: (super user AND not approved) OR status is rejected
+													// For rejected status, show immediately (no hydration needed)
+													// For super user check, wait for hydration
+													const shouldShowForRejected = isRejected;
+													const shouldShowForSuperUser = isMounted && isSuperUserState && !isApproved;
+													const shouldShowEdit = shouldShowForRejected || shouldShowForSuperUser;
+													
+													// Enable edit button if: (super user AND not approved) OR status is rejected
+													const isDisabled = !shouldShowEdit || isApproved;
+													
+													if (!shouldShowEdit) return null;
 													
 													return (
 														<button

@@ -54,6 +54,9 @@ function FamilyDevelopmentPlanPageContent() {
 	const [selectedFamilyAreaType, setSelectedFamilyAreaType] = useState<string | null>(null);
 	const [selectedFamilyIncomeLevel, setSelectedFamilyIncomeLevel] = useState<string | null>(null);
 	const [debouncedFilters, setDebouncedFilters] = useState(filters);
+	const [allApproved, setAllApproved] = useState(false);
+	const [fdpStatus, setFdpStatus] = useState<string | null>(null);
+	const [loadingCRCStatus, setLoadingCRCStatus] = useState(false);
 
 	// Check URL parameters on mount and when they change
 	useEffect(() => {
@@ -210,6 +213,8 @@ function FamilyDevelopmentPlanPageContent() {
 		try {
 			setLoadingMembers(true);
 			setSelectedFormNumber(formNumber);
+			setAllApproved(false);
+			setFdpStatus(null);
 			
 			// Fetch family members
 			const response = await fetch(`/api/family-development-plan/members?formNumber=${encodeURIComponent(formNumber)}`);
@@ -233,6 +238,23 @@ function FamilyDevelopmentPlanPageContent() {
 					}
 				}
 				
+				// Check CRC approval status
+				setLoadingCRCStatus(true);
+				try {
+					const crcResponse = await fetch(`/api/family-development-plan/crc-approval-check?formNumber=${encodeURIComponent(formNumber)}`);
+					const crcData = await crcResponse.json();
+					
+					if (crcData.success) {
+						setAllApproved(crcData.allApproved || false);
+						// Set FDP Status - use the value from API, or null if not available
+						setFdpStatus(crcData.fdpStatus || null);
+					}
+				} catch (crcErr) {
+					console.error("Error checking CRC approval status:", crcErr);
+				} finally {
+					setLoadingCRCStatus(false);
+				}
+				
 				setShowMembersModal(true);
 			} else {
 				alert(data.message || "Failed to fetch family members");
@@ -251,6 +273,8 @@ function FamilyDevelopmentPlanPageContent() {
 		setFamilyMembers([]);
 		setSelectedFamilyAreaType(null);
 		setSelectedFamilyIncomeLevel(null);
+		setAllApproved(false);
+		setFdpStatus(null);
 	};
 
 	// Helper function to format date
@@ -455,33 +479,33 @@ function FamilyDevelopmentPlanPageContent() {
 							<col style={{ width: '10%' }} />
 							<col style={{ width: '24%' }} />
 						</colgroup>
-						<thead className="bg-gradient-to-r from-gray-700 to-gray-800">
+						<thead className="bg-white">
 							<tr>
-								<th className="px-4 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+								<th className="px-4 py-4 text-left text-xs font-bold text-gray-900 uppercase tracking-wider border-r border-gray-300">
 									Form #
 								</th>
-								<th className="px-4 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+								<th className="px-4 py-4 text-left text-xs font-bold text-gray-900 uppercase tracking-wider border-r border-gray-300">
 									Full Name
 								</th>
-								<th className="px-4 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+								<th className="px-4 py-4 text-left text-xs font-bold text-gray-900 uppercase tracking-wider border-r border-gray-300">
 									CNIC
 								</th>
-								<th className="px-4 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+								<th className="px-4 py-4 text-left text-xs font-bold text-gray-900 uppercase tracking-wider border-r border-gray-300">
 									Regional / Local
 								</th>
-								<th className="px-4 py-4 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+								<th className="px-4 py-4 text-center text-xs font-bold text-gray-900 uppercase tracking-wider border-r border-gray-300">
 									Members
 								</th>
-								<th className="px-4 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+								<th className="px-4 py-4 text-left text-xs font-bold text-gray-900 uppercase tracking-wider border-r border-gray-300">
 									Area
 								</th>
-								<th className="px-4 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+								<th className="px-4 py-4 text-left text-xs font-bold text-gray-900 uppercase tracking-wider border-r border-gray-300">
 									Income
 								</th>
-								<th className="px-4 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+								<th className="px-4 py-4 text-left text-xs font-bold text-gray-900 uppercase tracking-wider border-r border-gray-300">
 									Max Support
 								</th>
-								<th className="px-4 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
+								<th className="px-4 py-4 text-left text-xs font-bold text-gray-900 uppercase tracking-wider">
 									Actions
 								</th>
 							</tr>
@@ -616,65 +640,96 @@ function FamilyDevelopmentPlanPageContent() {
 
 			{/* Family Members Modal */}
 			{showMembersModal && (
-				<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-					<div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-						{/* Modal Header */}
-						<div className="flex justify-between items-center px-6 py-4 border-b border-gray-200">
-							<div>
-								<h2 className="text-2xl font-bold text-gray-900">Family Members</h2>
-								<p className="text-sm text-gray-600 mt-1">Form Number: {selectedFormNumber}</p>
+				<div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+					<div className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col border border-gray-100 animate-in zoom-in-95 duration-300">
+						{/* Modal Header with Gradient */}
+						<div className="bg-gradient-to-r from-[#0b4d2b] via-[#0d5d35] to-[#0b4d2b] px-8 py-6 border-b-2 border-[#0a3d22]">
+							<div className="flex justify-between items-start">
+								<div className="flex-1">
+									<div className="flex items-center gap-3 mb-2">
+										<div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+											<FileText className="h-6 w-6 text-white" />
+										</div>
+										<h2 className="text-3xl font-bold text-white tracking-tight">Family Members Information</h2>
+									</div>
+									<div className="mt-4 space-y-2">
+										<div className="flex items-center gap-2">
+											<span className="text-white/90 text-sm font-medium">Form Number:</span>
+											<span className="text-white text-sm font-bold bg-white/20 px-3 py-1 rounded-md backdrop-blur-sm">
+												{selectedFormNumber}
+											</span>
+										</div>
+										{loadingCRCStatus ? (
+											<div className="flex items-center gap-2">
+												<div className="animate-spin rounded-full h-4 w-4 border-2 border-white/30 border-t-white"></div>
+												<span className="text-white/80 text-xs">Checking approval status...</span>
+											</div>
+										) : (
+											<div className="flex items-center gap-2">
+												<span className="text-white/90 text-sm font-medium">Current FDP Status:</span>
+												<span className="text-white text-sm font-bold bg-white/20 px-3 py-1 rounded-md backdrop-blur-sm">
+													{fdpStatus || "Not found"}
+												</span>
+											</div>
+										)}
+									</div>
+								</div>
+								<button
+									onClick={closeMembersModal}
+									className="p-2 hover:bg-white/20 rounded-lg transition-all duration-200 group"
+									aria-label="Close modal"
+								>
+									<X className="h-6 w-6 text-white group-hover:scale-110 transition-transform" />
+								</button>
 							</div>
-							<button
-								onClick={closeMembersModal}
-								className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-							>
-								<X className="h-5 w-5 text-gray-500" />
-							</button>
 						</div>
 
 						{/* Modal Body */}
-						<div className="flex-1 overflow-y-auto p-6">
+						<div className="flex-1 overflow-y-auto p-8 bg-gradient-to-br from-gray-50 to-white">
 							{loadingMembers ? (
-								<div className="flex items-center justify-center py-12">
-									<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
-									<span className="ml-3 text-gray-600">Loading family members...</span>
+								<div className="flex flex-col items-center justify-center py-16">
+									<div className="animate-spin rounded-full h-12 w-12 border-4 border-[#0b4d2b]/20 border-t-[#0b4d2b] mb-4"></div>
+									<span className="text-gray-600 font-medium">Loading family members...</span>
 								</div>
 							) : familyMembers.length === 0 ? (
-								<div className="text-center py-12 text-gray-500">
-									No family members found for this form number.
+								<div className="text-center py-16">
+									<div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
+										<FileText className="h-8 w-8 text-gray-400" />
+									</div>
+									<p className="text-gray-600 font-medium">No family members found for this form number.</p>
 								</div>
 							) : (
-								<div className="overflow-x-auto">
+								<div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm bg-white">
 									<table className="min-w-full divide-y divide-gray-200">
-										<thead className="bg-gray-50">
+										<thead className="bg-gradient-to-r from-gray-700 to-gray-800">
 											<tr>
-												<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+												<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
 													Member No
 												</th>
-												<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+												<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
 													Full Name
 												</th>
-												<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+												<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
 													B-Form/CNIC
 												</th>
-												<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+												<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
 													Relationship
 												</th>
-												<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+												<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
 													Gender
 												</th>
-												<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+												<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
 													Date of Birth
 												</th>
-												<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+												<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
 													Monthly Income
 												</th>
-												<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+												<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
 													Actions
 												</th>
 											</tr>
 										</thead>
-										<tbody className="bg-white divide-y divide-gray-200">
+										<tbody className="bg-white divide-y divide-gray-100">
 											{familyMembers.map((member, index) => {
 												// Check if this is the first member (Self, -01)
 												const isSelf = member.MemberNo?.endsWith("-01") || member.Relationship?.toLowerCase() === "self";
@@ -687,32 +742,48 @@ function FamilyDevelopmentPlanPageContent() {
 												const hideAllButtons = selectedFamilyIncomeLevel === "Level +1" || selectedFamilyIncomeLevel === "Level 0";
 												
 												return (
-													<tr key={index} className="hover:bg-gray-50">
-														<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-															{member.MemberNo || "-"}
+													<tr key={index} className="hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-indigo-50/50 transition-all duration-150 border-b border-gray-100">
+														<td className="px-6 py-4 whitespace-nowrap">
+															<span className="text-sm font-semibold text-[#0b4d2b] bg-[#0b4d2b]/10 px-3 py-1 rounded-md">
+																{member.MemberNo || "-"}
+															</span>
 														</td>
-														<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-															{member.FullName || "-"}
+														<td className="px-6 py-4 whitespace-nowrap">
+															<span className="text-sm font-medium text-gray-900">
+																{member.FullName || "-"}
+															</span>
 														</td>
-														<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
-															{member.BFormOrCNIC || "-"}
+														<td className="px-6 py-4 whitespace-nowrap">
+															<span className="text-sm text-gray-700 font-mono">
+																{member.BFormOrCNIC || "-"}
+															</span>
 														</td>
-														<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
-															{member.Relationship || "-"}
+														<td className="px-6 py-4 whitespace-nowrap">
+															<span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+																{member.Relationship || "-"}
+															</span>
 														</td>
-														<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
-															{member.Gender || "-"}
+														<td className="px-6 py-4 whitespace-nowrap">
+															<span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+																{member.Gender || "-"}
+															</span>
 														</td>
-														<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
-															{formatDate(member.DOBMonth, member.DOBYear)}
+														<td className="px-6 py-4 whitespace-nowrap">
+															<span className="text-sm text-gray-700">
+																{formatDate(member.DOBMonth, member.DOBYear)}
+															</span>
 														</td>
-														<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
-															{formatCurrency(member.MonthlyIncome)}
+														<td className="px-6 py-4 whitespace-nowrap">
+															<span className="text-sm font-semibold text-green-700">
+																{formatCurrency(member.MonthlyIncome)}
+															</span>
 														</td>
-														<td className="px-4 py-3 whitespace-nowrap text-sm">
+														<td className="px-6 py-4 whitespace-nowrap">
 															<div className="flex flex-wrap gap-2">
 																{hideAllButtons ? (
-																	<span className="text-xs text-gray-500 italic">No support available (Income Level {selectedFamilyIncomeLevel})</span>
+																	<span className="text-xs text-gray-500 italic bg-gray-100 px-3 py-1.5 rounded-md">
+																		No support available (Income Level {selectedFamilyIncomeLevel})
+																	</span>
 																) : (
 																	<>
 																		{/* Feasibility Plan - Show only if age >= 18 */}
@@ -729,7 +800,7 @@ function FamilyDevelopmentPlanPageContent() {
 																			}
 																				router.push(`/dashboard/family-development-plan/feasibility-study?${params.toString()}`);
 																			}}
-																			className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
+																			className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-xs font-semibold rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-sm hover:shadow-md transform hover:scale-105"
 																		>
 																			Feasibility Plan
 																		</button>
@@ -748,7 +819,7 @@ function FamilyDevelopmentPlanPageContent() {
 																			}
 																				router.push(`/dashboard/family-development-plan/fdp-economic?${params.toString()}`);
 																			}}
-																			className="px-3 py-1.5 bg-green-600 text-white text-xs rounded-md hover:bg-green-700 transition-colors"
+																			className="px-3 py-1.5 bg-gradient-to-r from-green-600 to-green-700 text-white text-xs font-semibold rounded-lg hover:from-green-700 hover:to-green-800 transition-all shadow-sm hover:shadow-md transform hover:scale-105"
 																		>
 																			FDP Economic
 																		</button>
@@ -767,7 +838,7 @@ function FamilyDevelopmentPlanPageContent() {
 																			}
 																				router.push(`/dashboard/family-development-plan/education-support?${params.toString()}`);
 																			}}
-																			className="px-3 py-1.5 bg-purple-600 text-white text-xs rounded-md hover:bg-purple-700 transition-colors"
+																			className="px-3 py-1.5 bg-gradient-to-r from-purple-600 to-purple-700 text-white text-xs font-semibold rounded-lg hover:from-purple-700 hover:to-purple-800 transition-all shadow-sm hover:shadow-md transform hover:scale-105"
 																		>
 																			Education Support
 																		</button>
@@ -784,7 +855,7 @@ function FamilyDevelopmentPlanPageContent() {
 																				}
 																				router.push(`/dashboard/family-development-plan/health-support?${params.toString()}`);
 																			}}
-																			className="px-3 py-1.5 bg-red-600 text-white text-xs rounded-md hover:bg-red-700 transition-colors"
+																			className="px-3 py-1.5 bg-gradient-to-r from-red-600 to-red-700 text-white text-xs font-semibold rounded-lg hover:from-red-700 hover:to-red-800 transition-all shadow-sm hover:shadow-md transform hover:scale-105"
 																		>
 																			Health Support
 																		</button>
@@ -804,7 +875,7 @@ function FamilyDevelopmentPlanPageContent() {
 																							}
 																							router.push(`/dashboard/family-development-plan/housing-support?${params.toString()}`);
 																						}}
-																						className="px-3 py-1.5 bg-orange-600 text-white text-xs rounded-md hover:bg-orange-700 transition-colors"
+																						className="px-3 py-1.5 bg-gradient-to-r from-orange-600 to-orange-700 text-white text-xs font-semibold rounded-lg hover:from-orange-700 hover:to-orange-800 transition-all shadow-sm hover:shadow-md transform hover:scale-105"
 																					>
 																						Housing Support
 																					</button>
@@ -823,7 +894,7 @@ function FamilyDevelopmentPlanPageContent() {
 																							}
 																							router.push(`/dashboard/family-development-plan/food-support?${params.toString()}`);
 																						}}
-																						className="px-3 py-1.5 bg-yellow-600 text-white text-xs rounded-md hover:bg-yellow-700 transition-colors"
+																						className="px-3 py-1.5 bg-gradient-to-r from-yellow-600 to-yellow-700 text-white text-xs font-semibold rounded-lg hover:from-yellow-700 hover:to-yellow-800 transition-all shadow-sm hover:shadow-md transform hover:scale-105"
 																					>
 																						Food Support
 																					</button>
@@ -844,13 +915,29 @@ function FamilyDevelopmentPlanPageContent() {
 						</div>
 
 						{/* Modal Footer */}
-						<div className="px-6 py-4 border-t border-gray-200 flex justify-end">
-							<button
-								onClick={closeMembersModal}
-								className="px-6 py-2 bg-[#0b4d2b] text-white rounded-md hover:bg-[#0a3d22] transition-colors"
-							>
-								Close
-							</button>
+						<div className="px-8 py-5 bg-gradient-to-r from-gray-50 to-white border-t-2 border-gray-200 flex justify-between items-center">
+							{allApproved && (
+								<button
+									onClick={() => {
+										if (selectedFormNumber) {
+											router.push(`/dashboard/family-development-plan/crc-approval?formNumber=${encodeURIComponent(selectedFormNumber)}`);
+										}
+									}}
+									className="px-6 py-2.5 bg-gradient-to-r from-purple-600 via-purple-700 to-purple-600 text-white rounded-lg hover:from-purple-700 hover:via-purple-800 hover:to-purple-700 transition-all font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center gap-2"
+								>
+									<FileText className="h-4 w-4" />
+									CRC Approval
+								</button>
+							)}
+							<div className="ml-auto">
+								<button
+									onClick={closeMembersModal}
+									className="px-6 py-2.5 bg-gradient-to-r from-[#0b4d2b] to-[#0d5d35] text-white rounded-lg hover:from-[#0a3d22] hover:to-[#0b4d2b] transition-all font-semibold shadow-md hover:shadow-lg transform hover:scale-105 flex items-center gap-2"
+								>
+									<X className="h-4 w-4" />
+									Close
+								</button>
+							</div>
 						</div>
 					</div>
 				</div>

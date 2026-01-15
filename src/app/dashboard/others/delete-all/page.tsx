@@ -3,6 +3,9 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2, RefreshCw, AlertTriangle, CheckCircle, Loader2 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { isSuperUser } from "@/lib/auth-utils";
+import NoPermissionMessage from "@/components/NoPermissionMessage";
 
 interface Family {
 	FormNo: string;
@@ -17,12 +20,37 @@ interface Family {
 
 export default function DeleteAllPage() {
 	const router = useRouter();
+	const { userProfile, loading: authLoading } = useAuth();
+	const [isSuperUserState, setIsSuperUserState] = useState<boolean | null>(null);
 	const [families, setFamilies] = useState<Family[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [deletingFormNumber, setDeletingFormNumber] = useState<string | null>(null);
 	const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [success, setSuccess] = useState<string | null>(null);
+
+	// Check if user is Super User
+	useEffect(() => {
+		if (authLoading) return;
+		
+		if (userProfile) {
+			const superUserValue = userProfile.supper_user;
+			setIsSuperUserState(isSuperUser(superUserValue));
+		} else {
+			try {
+				const stored = localStorage.getItem("userData");
+				if (stored) {
+					const parsed = JSON.parse(stored);
+					const su = parsed.super_user || parsed.supper_user;
+					setIsSuperUserState(isSuperUser(su));
+				} else {
+					setIsSuperUserState(false);
+				}
+			} catch {
+				setIsSuperUserState(false);
+			}
+		}
+	}, [userProfile, authLoading]);
 
 	// Fetch all families from baseline
 	useEffect(() => {
@@ -87,6 +115,22 @@ export default function DeleteAllPage() {
 		setConfirmDelete(null);
 		setError(null);
 	};
+
+	// Check Super User status - only Super Users can access this page
+	if (isSuperUserState === null || authLoading) {
+		return (
+			<div className="space-y-6">
+				<div className="flex items-center justify-center py-12">
+					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
+					<span className="ml-3 text-gray-600">Checking permissions...</span>
+				</div>
+			</div>
+		);
+	}
+
+	if (!isSuperUserState) {
+		return <NoPermissionMessage />;
+	}
 
 	return (
 		<div className="space-y-6">

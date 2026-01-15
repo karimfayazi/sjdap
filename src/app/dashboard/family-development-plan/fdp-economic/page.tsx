@@ -746,6 +746,10 @@ function FDPEconomicContent() {
 				...prev,
 				FeasibilityID: feasibilityId,
 				InterventionType: interventionType,
+				Trade: selectedFeasibility.Trade || prev.Trade,
+				SubFieldOfInvestment: selectedFeasibility.SubField || prev.SubFieldOfInvestment,
+				SkillsDevelopmentCourse: selectedFeasibility.CourseTitle || prev.SkillsDevelopmentCourse,
+				Institution: selectedFeasibility.TrainingInstitution || prev.Institution,
 				InvestmentRequiredTotal: investmentRequired,
 				PlannedMonthlyIncome: selectedFeasibility.TotalSalesRevenue || 0,
 				CurrentMonthlyIncome: selectedFeasibility.CurrentBaselineIncome || prev.CurrentMonthlyIncome,
@@ -755,6 +759,10 @@ function FDPEconomicContent() {
 			setFormData(prev => ({
 				...prev,
 				InterventionType: "",
+				Trade: "",
+				SubFieldOfInvestment: "",
+				SkillsDevelopmentCourse: "",
+				Institution: "",
 				FeasibilityID: "",
 			}));
 		}
@@ -1373,7 +1381,8 @@ function FDPEconomicContent() {
 										type="text"
 										value={formData.Trade}
 										onChange={(e) => handleChange("Trade", e.target.value)}
-										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+										readOnly={!!selectedFeasibilityId}
+										className={`w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${selectedFeasibilityId ? 'bg-gray-100 cursor-not-allowed' : ''}`}
 										placeholder="Enter trade"
 									/>
 								</div>
@@ -1383,7 +1392,8 @@ function FDPEconomicContent() {
 										type="text"
 										value={formData.SubFieldOfInvestment}
 										onChange={(e) => handleChange("SubFieldOfInvestment", e.target.value)}
-										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+										readOnly={!!selectedFeasibilityId}
+										className={`w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${selectedFeasibilityId ? 'bg-gray-100 cursor-not-allowed' : ''}`}
 										placeholder="Enter sub trade"
 									/>
 								</div>
@@ -1397,7 +1407,8 @@ function FDPEconomicContent() {
 										type="text"
 										value={formData.SkillsDevelopmentCourse}
 										onChange={(e) => handleChange("SkillsDevelopmentCourse", e.target.value)}
-										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+										readOnly={!!selectedFeasibilityId}
+										className={`w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${selectedFeasibilityId ? 'bg-gray-100 cursor-not-allowed' : ''}`}
 										placeholder="Enter course name"
 									/>
 								</div>
@@ -1407,7 +1418,8 @@ function FDPEconomicContent() {
 										type="text"
 										value={formData.Institution}
 										onChange={(e) => handleChange("Institution", e.target.value)}
-										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+										readOnly={!!selectedFeasibilityId}
+										className={`w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${selectedFeasibilityId ? 'bg-gray-100 cursor-not-allowed' : ''}`}
 										placeholder="Enter institution name"
 									/>
 								</div>

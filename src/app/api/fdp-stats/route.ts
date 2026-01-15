@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPeDb } from "@/lib/db";
 import sql from "mssql";
+import { checkSuperUserFromDb } from "@/lib/auth-server-utils";
 
 export const maxDuration = 120;
 
@@ -23,33 +24,55 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		// Get user's full name to match with SubmittedBy
-		const userPool = await getPeDb();
-		const userResult = await userPool
-			.request()
-			.input("user_id", userId)
-			.query(
-				"SELECT TOP(1) [USER_FULL_NAME], [USER_ID] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
-			);
+		// Check if user is Super User
+		const isSuperUser = await checkSuperUserFromDb(userId);
 
-		const user = userResult.recordset?.[0];
-		if (!user) {
-			return NextResponse.json(
-				{ success: false, message: "User not found" },
-				{ status: 404 }
-			);
+		// Get user's full name to match with SubmittedBy (only needed if not Super User)
+		let userFullName: string | null = null;
+		let userName: string | null = null;
+		
+		if (!isSuperUser) {
+			const userPool = await getPeDb();
+			const userResult = await userPool
+				.request()
+				.input("user_id", userId)
+				.query(
+					"SELECT TOP(1) [USER_FULL_NAME], [USER_ID] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
+				);
+
+			const user = userResult.recordset?.[0];
+			if (!user) {
+				return NextResponse.json(
+					{ success: false, message: "User not found" },
+					{ status: 404 }
+				);
+			}
+
+			userFullName = user.USER_FULL_NAME;
+			userName = user.USER_ID;
 		}
 
-		const userFullName = user.USER_FULL_NAME;
-		const userName = user.USER_ID;
-
 		// Fetch Family Development Plan statistics
-		// Count unique families from all FDP tables, filtered by SubmittedBy
+		// Count unique families from all FDP tables
+		// Super Users see all families, others see only their own
 		const pool = await getPeDb();
 		const sqlRequest = pool.request();
 		(sqlRequest as any).timeout = 120000;
-		sqlRequest.input("userFullName", userFullName);
-		sqlRequest.input("userName", userName);
+
+		let submittedByFilter = "";
+		if (!isSuperUser && (userFullName || userName)) {
+			if (userFullName && userName) {
+				submittedByFilter = "AND (app.[SubmittedBy] = @userFullName OR app.[SubmittedBy] = @userName)";
+				sqlRequest.input("userFullName", userFullName);
+				sqlRequest.input("userName", userName);
+			} else if (userFullName) {
+				submittedByFilter = "AND app.[SubmittedBy] = @userFullName";
+				sqlRequest.input("userFullName", userFullName);
+			} else if (userName) {
+				submittedByFilter = "AND app.[SubmittedBy] = @userName";
+				sqlRequest.input("userName", userName);
+			}
+		}
 
 		const query = `
 			WITH AllFDPRecords AS (
@@ -107,7 +130,7 @@ export async function GET(request: NextRequest) {
 					END as ApprovalStatus
 				FROM AllFDPRecords r1
 				INNER JOIN [SJDA_Users].[dbo].[PE_Application_BasicInfo] app ON r1.FormNumber = app.[FormNumber]
-				WHERE app.[SubmittedBy] = @userFullName OR app.[SubmittedBy] = @userName
+				WHERE 1=1 ${submittedByFilter}
 			)
 			SELECT 
 				COUNT(*) as TotalFamilies,

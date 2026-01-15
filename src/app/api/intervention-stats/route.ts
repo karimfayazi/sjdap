@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPeDb } from "@/lib/db";
-import sql from "mssql";
+import { checkSuperUserFromDb } from "@/lib/auth-server-utils";
 
 export const maxDuration = 120;
 
@@ -23,80 +23,85 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		// Get user's full name to match with SubmittedBy
-		const userPool = await getPeDb();
-		const userResult = await userPool
-			.request()
-			.input("user_id", userId)
-			.query(
-				"SELECT TOP(1) [USER_FULL_NAME], [USER_ID] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
-			);
+		// Check if user is Super User
+		const isSuperUser = await checkSuperUserFromDb(userId);
 
-		const user = userResult.recordset?.[0];
-		if (!user) {
-			return NextResponse.json(
-				{ success: false, message: "User not found" },
-				{ status: 404 }
-			);
+		// Get user's full name to match with SubmittedBy (only needed if not Super User)
+		let userFullName: string | null = null;
+		
+		if (!isSuperUser) {
+			const userPool = await getPeDb();
+			const userResult = await userPool
+				.request()
+				.input("user_id", userId)
+				.query(
+					"SELECT TOP(1) [USER_FULL_NAME] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
+				);
+
+			const user = userResult.recordset?.[0];
+			if (!user) {
+				return NextResponse.json(
+					{ success: false, message: "User not found" },
+					{ status: 404 }
+				);
+			}
+
+			userFullName = user.USER_FULL_NAME;
 		}
 
-		const userFullName = user.USER_FULL_NAME;
-		const userName = user.USER_ID;
-
-		// Fetch Intervention statistics filtered by SubmittedBy
+		// Fetch Intervention statistics from PE_Interventions
+		// Super Users see all interventions, others see only their own (matching SubmittedBy with USER_FULL_NAME)
 		const pool = await getPeDb();
 		const sqlRequest = pool.request();
 		(sqlRequest as any).timeout = 120000;
-		sqlRequest.input("userFullName", userFullName);
-		sqlRequest.input("userName", userName);
 
-		const query = `
-			WITH FamilyStatus AS (
-				SELECT DISTINCT 
-					i1.[FormNumber],
-					CASE 
-						WHEN EXISTS (
-							SELECT 1 FROM [SJDA_Users].[dbo].[PE_Interventions] i2 
-							WHERE i2.[FormNumber] = i1.[FormNumber] 
-							AND (LOWER(LTRIM(RTRIM(i2.[ApprovalStatus]))) LIKE '%approve%' 
-								OR LOWER(LTRIM(RTRIM(i2.[ApprovalStatus]))) = 'approved' 
-								OR LOWER(LTRIM(RTRIM(i2.[ApprovalStatus]))) = 'complete')
-						) THEN 'Approved'
-						WHEN EXISTS (
-							SELECT 1 FROM [SJDA_Users].[dbo].[PE_Interventions] i2 
-							WHERE i2.[FormNumber] = i1.[FormNumber] 
-							AND (LOWER(LTRIM(RTRIM(i2.[ApprovalStatus]))) LIKE '%reject%' 
-								OR LOWER(LTRIM(RTRIM(i2.[ApprovalStatus]))) = 'rejected')
-						) THEN 'Rejected'
-						ELSE 'Pending'
-					END as ApprovalStatus
-				FROM [SJDA_Users].[dbo].[PE_Interventions] i1
-				INNER JOIN [SJDA_Users].[dbo].[PE_Application_BasicInfo] app ON i1.[FormNumber] = app.[FormNumber]
-				WHERE app.[SubmittedBy] = @userFullName OR app.[SubmittedBy] = @userName
-			)
+		// Build query based on user's SQL structure
+		// Simple query matching: SELECT [InterventionID], [FormNumber], [ApprovalStatus] FROM [SJDA_Users].[dbo].[PE_Interventions]
+		let query = `
 			SELECT 
-				COUNT(*) as TotalFamilies,
-				SUM(CASE WHEN ApprovalStatus = 'Pending' THEN 1 ELSE 0 END) as PendingFamilies,
-				SUM(CASE WHEN ApprovalStatus = 'Approved' THEN 1 ELSE 0 END) as ApprovedFamilies,
-				SUM(CASE WHEN ApprovalStatus = 'Rejected' THEN 1 ELSE 0 END) as RejectedFamilies
-			FROM FamilyStatus
+				COUNT(*) as TotalInterventions,
+				SUM(CASE 
+					WHEN i.[ApprovalStatus] IS NULL OR LOWER(LTRIM(RTRIM(i.[ApprovalStatus]))) = '' OR LOWER(LTRIM(RTRIM(i.[ApprovalStatus]))) = 'pending' 
+					THEN 1 
+					ELSE 0 
+				END) as PendingInterventions,
+				SUM(CASE 
+					WHEN LOWER(LTRIM(RTRIM(i.[ApprovalStatus]))) LIKE '%approve%' OR LOWER(LTRIM(RTRIM(i.[ApprovalStatus]))) = 'approved' OR LOWER(LTRIM(RTRIM(i.[ApprovalStatus]))) = 'complete'
+					THEN 1 
+					ELSE 0 
+				END) as ApprovedInterventions,
+				SUM(CASE 
+					WHEN LOWER(LTRIM(RTRIM(i.[ApprovalStatus]))) LIKE '%reject%' OR LOWER(LTRIM(RTRIM(i.[ApprovalStatus]))) = 'rejected'
+					THEN 1 
+					ELSE 0 
+				END) as RejectedInterventions
+			FROM [SJDA_Users].[dbo].[PE_Interventions] i
 		`;
+
+		// Add join and filter for non-Super Users
+		if (!isSuperUser && userFullName) {
+			query += `
+			INNER JOIN [SJDA_Users].[dbo].[PE_Application_BasicInfo] app ON i.[FormNumber] = app.[FormNumber]
+			WHERE app.[SubmittedBy] = @userFullName
+			`;
+			sqlRequest.input("userFullName", userFullName);
+		}
 
 		const result = await sqlRequest.query(query);
 		const stats = result.recordset[0] || {
-			TotalFamilies: 0,
-			PendingFamilies: 0,
-			ApprovedFamilies: 0,
-			RejectedFamilies: 0,
+			TotalInterventions: 0,
+			PendingInterventions: 0,
+			ApprovedInterventions: 0,
+			RejectedInterventions: 0,
 		};
 
 		return NextResponse.json({
 			success: true,
 			stats: {
-				total: parseInt(stats.TotalFamilies) || 0,
-				approved: parseInt(stats.ApprovedFamilies) || 0,
-				pending: parseInt(stats.PendingFamilies) || 0,
-				rejected: parseInt(stats.RejectedFamilies) || 0,
+				total: parseInt(stats.TotalInterventions) || 0,
+				approved: parseInt(stats.ApprovedInterventions) || 0,
+				pending: parseInt(stats.PendingInterventions) || 0,
+				rejected: parseInt(stats.RejectedInterventions) || 0,
 			},
 		});
 	} catch (error) {

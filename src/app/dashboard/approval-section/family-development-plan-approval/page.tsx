@@ -393,13 +393,14 @@ function FamilyDevelopmentPlanApprovalContent() {
 											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Investment Required</th>
 											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">PE Investment</th>
 											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Approval Status</th>
+											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
 										</tr>
 									</thead>
 									<tbody className="bg-white divide-y divide-gray-200">
 										{approvalData.economicSupport.map((record) => (
 											<tr key={record.FDP_EconomicID} className="hover:bg-gray-50">
 												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{record.FDP_EconomicID}</td>
-												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{record.FormNumber}</td>
+												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{record.FamilyID || "N/A"}</td>
 												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
 													{record.BeneficiaryID || "N/A"} {record.BeneficiaryName && `- ${record.BeneficiaryName}`}
 												</td>
@@ -408,6 +409,14 @@ function FamilyDevelopmentPlanApprovalContent() {
 												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(record.InvestmentRequiredTotal)}</td>
 												<td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{formatCurrency(record.InvestmentFromPEProgram)}</td>
 												<td className="px-6 py-4 whitespace-nowrap">{getStatusBadge(record.ApprovalStatus)}</td>
+												<td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+													<button
+														onClick={() => router.push(`/dashboard/approval-section/family-development-plan-approval/view?section=Economic&recordId=${record.FDP_EconomicID}&formNumber=${encodeURIComponent(formNumber)}`)}
+														className="text-[#0b4d2b] hover:text-[#0a3d22] font-medium"
+													>
+														View
+													</button>
+												</td>
 											</tr>
 										))}
 									</tbody>

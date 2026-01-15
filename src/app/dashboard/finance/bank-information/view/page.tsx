@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Download, Search, RefreshCw, Plus, Edit2, Trash2 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { isSuperUser } from "@/lib/auth-utils";
+import NoPermissionMessage from "@/components/NoPermissionMessage";
 
 type BankInformation = {
 	FAMILY_ID: string | null;
@@ -20,6 +23,8 @@ type BankInformation = {
 
 export default function ViewBankInformationPage() {
 	const router = useRouter();
+	const { userProfile, loading: authLoading } = useAuth();
+	const [isSuperUserState, setIsSuperUserState] = useState<boolean | null>(null);
 	const [banks, setBanks] = useState<BankInformation[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -46,6 +51,29 @@ export default function ViewBankInformationPage() {
 		accountNo: null,
 	});
 	const [deleting, setDeleting] = useState(false);
+
+	// Check if user is Super User
+	useEffect(() => {
+		if (authLoading) return;
+		
+		if (userProfile) {
+			const superUserValue = userProfile.supper_user;
+			setIsSuperUserState(isSuperUser(superUserValue));
+		} else {
+			try {
+				const stored = localStorage.getItem("userData");
+				if (stored) {
+					const parsed = JSON.parse(stored);
+					const su = parsed.super_user || parsed.supper_user;
+					setIsSuperUserState(isSuperUser(su));
+				} else {
+					setIsSuperUserState(false);
+				}
+			} catch {
+				setIsSuperUserState(false);
+			}
+		}
+	}, [userProfile, authLoading]);
 
 	const fetchBanks = async () => {
 		try {
@@ -195,6 +223,22 @@ export default function ViewBankInformationPage() {
 			(bank.CNIC && String(bank.CNIC).toLowerCase().includes(search))
 		);
 	});
+
+	// Check Super User status - only Super Users can access this page
+	if (isSuperUserState === null || authLoading) {
+		return (
+			<div className="space-y-6">
+				<div className="flex items-center justify-center py-12">
+					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
+					<span className="ml-3 text-gray-600">Checking permissions...</span>
+				</div>
+			</div>
+		);
+	}
+
+	if (!isSuperUserState) {
+		return <NoPermissionMessage />;
+	}
 
 	if (loading) {
 		return (

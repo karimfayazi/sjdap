@@ -74,6 +74,12 @@ export async function PUT(request: NextRequest) {
 				idColumn: "FDP_HabitatSupportID",
 				statusColumn: "ApprovalStatus",
 			},
+			economic: {
+				moduleName: "FDP-Economic",
+				tableName: "PE_FDP_EconomicDevelopment",
+				idColumn: "FDP_EconomicID",
+				statusColumn: "ApprovalStatus",
+			},
 		};
 
 		const sectionInfo = sectionMap[section.toLowerCase()];
@@ -93,11 +99,21 @@ export async function PUT(request: NextRequest) {
 
 		sqlRequest.input("RecordID", sql.Int, parseInt(recordId));
 		sqlRequest.input("ApprovalStatus", sql.VarChar, approvalStatus || null);
+		sqlRequest.input("ApprovalRemarks", sql.NVarChar, remarks || null);
 
-		const updateQuery = `
+		// Build update query - include ApprovalRemarks if provided
+		let updateQuery = `
 			UPDATE [SJDA_Users].[dbo].[${sectionInfo.tableName}]
 			SET 
 				[${sectionInfo.statusColumn}] = ISNULL(@ApprovalStatus, [${sectionInfo.statusColumn}])
+		`;
+		
+		// Add ApprovalRemarks update if the table has this column (Economic section)
+		if (section.toLowerCase() === "economic") {
+			updateQuery += `, [ApprovalRemarks] = @ApprovalRemarks`;
+		}
+		
+		updateQuery += `
 			WHERE [${sectionInfo.idColumn}] = @RecordID
 		`;
 

@@ -17,7 +17,7 @@ export default function DashboardPage() {
 		pending: 0,
 		rejected: 0,
 	});
-	const [fdpStats, setFdpStats] = useState<Stats>({
+	const [feasibilityStats, setFeasibilityStats] = useState<Stats>({
 		total: 0,
 		approved: 0,
 		pending: 0,
@@ -38,27 +38,27 @@ export default function DashboardPage() {
 			setError(null);
 
 			// Fetch all stats in parallel
-			const [baselineRes, fdpRes, interventionRes] = await Promise.all([
+			const [baselineRes, feasibilityRes, interventionRes] = await Promise.all([
 				fetch("/api/baseline-stats"),
-				fetch("/api/fdp-stats"),
+				fetch("/api/feasibility-stats"),
 				fetch("/api/intervention-stats"),
 			]);
 
 			const baselineData = await baselineRes.json();
-			const fdpData = await fdpRes.json();
+			const feasibilityData = await feasibilityRes.json();
 			const interventionData = await interventionRes.json();
 
 			if (baselineData.success) {
 				setBaselineStats(baselineData.stats);
 			}
-			if (fdpData.success) {
-				setFdpStats(fdpData.stats);
+			if (feasibilityData.success) {
+				setFeasibilityStats(feasibilityData.stats);
 			}
 			if (interventionData.success) {
 				setInterventionStats(interventionData.stats);
 			}
 
-			if (!baselineData.success || !fdpData.success || !interventionData.success) {
+			if (!baselineData.success || !feasibilityData.success || !interventionData.success) {
 				setError("Some statistics failed to load");
 			}
 		} catch (err) {
@@ -181,21 +181,21 @@ export default function DashboardPage() {
 						</div>
 					</div>
 
-					{/* Family Development Plan Statistics Cards */}
+					{/* Family Development Plan - Feasibility Section Statistics Cards */}
 					<div className="space-y-4">
 						<div>
-							<h2 className="text-2xl font-bold text-gray-900 mb-4">Family Development Plan Section</h2>
+							<h2 className="text-2xl font-bold text-gray-900 mb-4">Family Development Plan - Feasibility Section</h2>
 						</div>
 						<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-							{/* Total Families Card */}
+							{/* Total Feasibility Card */}
 							<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6 hover:shadow-md transition-shadow">
 								<div className="flex items-center justify-between">
 									<div>
 										<p className="text-sm font-medium text-gray-600 uppercase tracking-wide">
-											# of Families
+											# of Feasibility
 										</p>
 										<p className="text-3xl font-bold text-gray-900 mt-2">
-											{fdpStats.total.toLocaleString()}
+											{feasibilityStats.total.toLocaleString()}
 										</p>
 									</div>
 									<div className="bg-blue-100 p-3 rounded-full">
@@ -204,15 +204,15 @@ export default function DashboardPage() {
 								</div>
 							</div>
 
-							{/* Approved Families Card */}
+							{/* Approved Feasibility Card */}
 							<div className="bg-white rounded-lg border border-emerald-200 bg-emerald-50 shadow-sm p-6 hover:shadow-md transition-shadow">
 								<div className="flex items-center justify-between">
 									<div>
 										<p className="text-sm font-medium text-emerald-700 uppercase tracking-wide">
-											# of Approved Families
+											# of Approved
 										</p>
 										<p className="text-3xl font-bold text-emerald-900 mt-2">
-											{fdpStats.approved.toLocaleString()}
+											{feasibilityStats.approved.toLocaleString()}
 										</p>
 									</div>
 									<div className="bg-emerald-100 p-3 rounded-full">
@@ -221,15 +221,15 @@ export default function DashboardPage() {
 								</div>
 							</div>
 
-							{/* Pending Families Card */}
+							{/* Pending Feasibility Card */}
 							<div className="bg-white rounded-lg border border-amber-200 bg-amber-50 shadow-sm p-6 hover:shadow-md transition-shadow">
 								<div className="flex items-center justify-between">
 									<div>
 										<p className="text-sm font-medium text-amber-700 uppercase tracking-wide">
-											# of Pending Families
+											# of Pending
 										</p>
 										<p className="text-3xl font-bold text-amber-900 mt-2">
-											{fdpStats.pending.toLocaleString()}
+											{feasibilityStats.pending.toLocaleString()}
 										</p>
 									</div>
 									<div className="bg-amber-100 p-3 rounded-full">
@@ -238,15 +238,15 @@ export default function DashboardPage() {
 								</div>
 							</div>
 
-							{/* Rejected Families Card */}
+							{/* Rejected Feasibility Card */}
 							<div className="bg-white rounded-lg border border-red-200 bg-red-50 shadow-sm p-6 hover:shadow-md transition-shadow">
 								<div className="flex items-center justify-between">
 									<div>
 										<p className="text-sm font-medium text-red-700 uppercase tracking-wide">
-											# of Rejected Families
+											# of Rejected
 										</p>
 										<p className="text-3xl font-bold text-red-900 mt-2">
-											{fdpStats.rejected.toLocaleString()}
+											{feasibilityStats.rejected.toLocaleString()}
 										</p>
 									</div>
 									<div className="bg-red-100 p-3 rounded-full">
@@ -263,12 +263,12 @@ export default function DashboardPage() {
 							<h2 className="text-2xl font-bold text-gray-900 mb-4">Intervention Section</h2>
 						</div>
 						<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-							{/* Total Families Card */}
+							{/* Total Interventions Card */}
 							<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6 hover:shadow-md transition-shadow">
 								<div className="flex items-center justify-between">
 									<div>
 										<p className="text-sm font-medium text-gray-600 uppercase tracking-wide">
-											# of Families
+											# of Interventions
 										</p>
 										<p className="text-3xl font-bold text-gray-900 mt-2">
 											{interventionStats.total.toLocaleString()}
@@ -280,12 +280,12 @@ export default function DashboardPage() {
 								</div>
 							</div>
 
-							{/* Approved Families Card */}
+							{/* Approved Interventions Card */}
 							<div className="bg-white rounded-lg border border-emerald-200 bg-emerald-50 shadow-sm p-6 hover:shadow-md transition-shadow">
 								<div className="flex items-center justify-between">
 									<div>
 										<p className="text-sm font-medium text-emerald-700 uppercase tracking-wide">
-											# of Approved Families
+											# of Approved
 										</p>
 										<p className="text-3xl font-bold text-emerald-900 mt-2">
 											{interventionStats.approved.toLocaleString()}
@@ -297,12 +297,12 @@ export default function DashboardPage() {
 								</div>
 							</div>
 
-							{/* Pending Families Card */}
+							{/* Pending Interventions Card */}
 							<div className="bg-white rounded-lg border border-amber-200 bg-amber-50 shadow-sm p-6 hover:shadow-md transition-shadow">
 								<div className="flex items-center justify-between">
 									<div>
 										<p className="text-sm font-medium text-amber-700 uppercase tracking-wide">
-											# of Pending Families
+											# of Pending
 										</p>
 										<p className="text-3xl font-bold text-amber-900 mt-2">
 											{interventionStats.pending.toLocaleString()}
@@ -314,12 +314,12 @@ export default function DashboardPage() {
 								</div>
 							</div>
 
-							{/* Rejected Families Card */}
+							{/* Rejected Interventions Card */}
 							<div className="bg-white rounded-lg border border-red-200 bg-red-50 shadow-sm p-6 hover:shadow-md transition-shadow">
 								<div className="flex items-center justify-between">
 									<div>
 										<p className="text-sm font-medium text-red-700 uppercase tracking-wide">
-											# of Rejected Families
+											# of Rejected
 										</p>
 										<p className="text-3xl font-bold text-red-900 mt-2">
 											{interventionStats.rejected.toLocaleString()}

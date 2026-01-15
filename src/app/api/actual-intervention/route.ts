@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPeDb } from "@/lib/db";
 import sql from "mssql";
+import { checkSuperUserFromDb } from "@/lib/auth-server-utils";
 
 export const maxDuration = 120;
 
@@ -23,41 +24,43 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		// Get user's full name to match with SubmittedBy
-		const pool = await getPeDb();
-		const userResult = await pool
-			.request()
-			.input("user_id", userId)
-			.query(
-				"SELECT TOP(1) [USER_FULL_NAME], [USER_ID] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
-			);
+		// Check if user is Super User
+		const isSuperUser = await checkSuperUserFromDb(userId);
 
-		const user = userResult.recordset?.[0];
-		if (!user) {
-			return NextResponse.json(
-				{ success: false, message: "User not found", records: [] },
-				{ status: 404 }
-			);
+		// Get user's full name to match with SubmittedBy (only needed if not Super User)
+		let userFullName: string | null = null;
+		
+		if (!isSuperUser) {
+			const pool = await getPeDb();
+			const userResult = await pool
+				.request()
+				.input("user_id", userId)
+				.query(
+					"SELECT TOP(1) [USER_FULL_NAME] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
+				);
+
+			const user = userResult.recordset?.[0];
+			if (!user) {
+				return NextResponse.json(
+					{ success: false, message: "User not found", records: [] },
+					{ status: 404 }
+				);
+			}
+
+			userFullName = user.USER_FULL_NAME;
 		}
 
-		const userFullName = user.USER_FULL_NAME;
-		const userName = user.USER_ID;
-
-		// Fetch families with member counts, filtered by SubmittedBy
+		// Fetch families with member counts
+		// Super Users see all families, others see only their own (matching SubmittedBy with USER_FULL_NAME)
+		const pool = await getPeDb();
 		const sqlRequest = pool.request();
 		(sqlRequest as any).timeout = 120000;
 		
-		// Add user parameters
-		if (userFullName) sqlRequest.input("userFullName", userFullName);
-		if (userName) sqlRequest.input("userName", userName);
-
-		const whereClause = userFullName && userName 
-			? `WHERE (b.[SubmittedBy] = @userFullName OR b.[SubmittedBy] = @userName)`
-			: userFullName 
-			? `WHERE b.[SubmittedBy] = @userFullName`
-			: userName 
-			? `WHERE b.[SubmittedBy] = @userName`
-			: ``;
+		let whereClause = "";
+		if (!isSuperUser && userFullName) {
+			whereClause = `WHERE b.[SubmittedBy] = @userFullName`;
+			sqlRequest.input("userFullName", userFullName);
+		}
 
 		const query = `
 			SELECT 

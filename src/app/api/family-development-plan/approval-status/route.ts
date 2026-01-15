@@ -182,17 +182,42 @@ export async function GET(request: NextRequest) {
 			const economicQuery = `
 				SELECT 
 					[FDP_EconomicID],
-					[FormNumber],
+					[FamilyID],
+					[BaselineFamilyIncome],
+					[FamilyMembersCount],
+					[SelfSufficiencyIncomePerCapita],
+					[BaselinePovertyLevel],
 					[BeneficiaryID],
 					[BeneficiaryName],
+					[BeneficiaryAge],
+					[BeneficiaryGender],
+					[BeneficiaryCurrentOccupation],
 					[InterventionType],
-					[Trade],
+					[FieldOfInvestment],
 					[SubFieldOfInvestment],
+					[Trade],
+					[SkillsDevelopmentCourse],
+					[Institution],
 					[InvestmentRequiredTotal],
+					[ContributionFromBeneficiary],
 					[InvestmentFromPEProgram],
-					[ApprovalStatus]
-				FROM [SJDA_Users].[dbo].[PE_FDP_Economic]
-				WHERE [FormNumber] = @FormNumber
+					[GrantAmount],
+					[LoanAmount],
+					[InvestmentValidationStatus],
+					[PlannedMonthlyIncome],
+					[CurrentMonthlyIncome],
+					[FeasibilityID],
+					[ApprovalStatus],
+					[ApprovalDate],
+					[ApprovalRemarks],
+					[CreatedBy],
+					[CreatedAt],
+					[UpdatedBy],
+					[UpdatedAt],
+					[IsActive],
+					[IncrementalMonthlyIncome]
+				FROM [SJDA_Users].[dbo].[PE_FDP_EconomicDevelopment]
+				WHERE [FamilyID] = @FormNumber
 					AND [IsActive] = 1
 				ORDER BY [FDP_EconomicID] DESC
 			`;

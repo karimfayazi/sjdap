@@ -30,6 +30,7 @@ function FamilyDevelopmentPlanApprovalViewContent() {
 		food: "Food Support",
 		habitat: "Housing Support",
 		housing: "Housing Support",
+		economic: "Economic Support",
 	};
 
 	const moduleNames: Record<string, string> = {
@@ -38,6 +39,7 @@ function FamilyDevelopmentPlanApprovalViewContent() {
 		food: "FDP-Food",
 		habitat: "FDP-Habitat",
 		housing: "FDP-Habitat",
+		economic: "FDP-Economic",
 	};
 
 	useEffect(() => {
@@ -69,6 +71,9 @@ function FamilyDevelopmentPlanApprovalViewContent() {
 				case "habitat":
 				case "housing":
 					apiUrl = `/api/family-development-plan/housing-support?fdpHabitatSupportId=${recordId}`;
+					break;
+				case "economic":
+					apiUrl = `/api/family-development-plan/fdp-economic?fdpEconomicId=${recordId}`;
 					break;
 				default:
 					throw new Error("Invalid section");
@@ -328,6 +333,52 @@ function FamilyDevelopmentPlanApprovalViewContent() {
 				details.push({ label: "Total Family Contribution", value: formatCurrency(record.HabitatTotalFamilyContribution) });
 			if (record.HabitatTotalPEContribution !== undefined)
 				details.push({ label: "Total PE Contribution", value: formatCurrency(record.HabitatTotalPEContribution) });
+		} else if (section.toLowerCase() === "economic") {
+			if (record.FDP_EconomicID) details.push({ label: "FDP Economic ID", value: record.FDP_EconomicID });
+			if (record.FamilyID) details.push({ label: "Family ID", value: record.FamilyID });
+			if (record.BaselineFamilyIncome !== undefined)
+				details.push({ label: "Baseline Family Income", value: formatCurrency(record.BaselineFamilyIncome) });
+			if (record.FamilyMembersCount !== undefined)
+				details.push({ label: "Family Members Count", value: record.FamilyMembersCount });
+			if (record.SelfSufficiencyIncomePerCapita !== undefined)
+				details.push({ label: "Self-Sufficiency Income Per Capita", value: formatCurrency(record.SelfSufficiencyIncomePerCapita) });
+			if (record.BaselinePovertyLevel) details.push({ label: "Baseline Poverty Level", value: record.BaselinePovertyLevel });
+			if (record.BeneficiaryID) details.push({ label: "Beneficiary ID", value: record.BeneficiaryID });
+			if (record.BeneficiaryName) details.push({ label: "Beneficiary Name", value: record.BeneficiaryName });
+			if (record.BeneficiaryAge !== undefined) details.push({ label: "Beneficiary Age", value: record.BeneficiaryAge });
+			if (record.BeneficiaryGender) details.push({ label: "Beneficiary Gender", value: record.BeneficiaryGender });
+			if (record.BeneficiaryCurrentOccupation) details.push({ label: "Current Occupation", value: record.BeneficiaryCurrentOccupation });
+			if (record.InterventionType) details.push({ label: "Intervention Type", value: record.InterventionType });
+			if (record.FieldOfInvestment) details.push({ label: "Field of Investment", value: record.FieldOfInvestment });
+			if (record.SubFieldOfInvestment) details.push({ label: "Sub Field of Investment", value: record.SubFieldOfInvestment });
+			if (record.Trade) details.push({ label: "Trade", value: record.Trade });
+			if (record.SkillsDevelopmentCourse) details.push({ label: "Skills Development Course", value: record.SkillsDevelopmentCourse });
+			if (record.Institution) details.push({ label: "Institution", value: record.Institution });
+			if (record.InvestmentRequiredTotal !== undefined)
+				details.push({ label: "Investment Required Total", value: formatCurrency(record.InvestmentRequiredTotal) });
+			if (record.ContributionFromBeneficiary !== undefined)
+				details.push({ label: "Contribution from Beneficiary", value: formatCurrency(record.ContributionFromBeneficiary) });
+			if (record.InvestmentFromPEProgram !== undefined)
+				details.push({ label: "Investment from PE Program", value: formatCurrency(record.InvestmentFromPEProgram) });
+			if (record.GrantAmount !== undefined)
+				details.push({ label: "Grant Amount", value: formatCurrency(record.GrantAmount) });
+			if (record.LoanAmount !== undefined)
+				details.push({ label: "Loan Amount", value: formatCurrency(record.LoanAmount) });
+			if (record.InvestmentValidationStatus !== undefined)
+				details.push({ label: "Investment Validation Status", value: record.InvestmentValidationStatus === 1 ? "Valid" : "Invalid" });
+			if (record.PlannedMonthlyIncome !== undefined)
+				details.push({ label: "Planned Monthly Income", value: formatCurrency(record.PlannedMonthlyIncome) });
+			if (record.CurrentMonthlyIncome !== undefined)
+				details.push({ label: "Current Monthly Income", value: formatCurrency(record.CurrentMonthlyIncome) });
+			if (record.IncrementalMonthlyIncome !== undefined)
+				details.push({ label: "Incremental Monthly Income", value: formatCurrency(record.IncrementalMonthlyIncome) });
+			if (record.FeasibilityID) details.push({ label: "Feasibility ID", value: record.FeasibilityID });
+			if (record.ApprovalDate) details.push({ label: "Approval Date", value: new Date(record.ApprovalDate).toLocaleDateString() });
+			if (record.ApprovalRemarks) details.push({ label: "Approval Remarks", value: record.ApprovalRemarks });
+			if (record.CreatedBy) details.push({ label: "Created By", value: record.CreatedBy });
+			if (record.CreatedAt) details.push({ label: "Created At", value: new Date(record.CreatedAt).toLocaleString() });
+			if (record.UpdatedBy) details.push({ label: "Updated By", value: record.UpdatedBy });
+			if (record.UpdatedAt) details.push({ label: "Updated At", value: new Date(record.UpdatedAt).toLocaleString() });
 		}
 
 		// Approval status

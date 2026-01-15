@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPeDb } from "@/lib/db";
 import sql from "mssql";
+import { checkSuperUserFromDb } from "@/lib/auth-server-utils";
 
 export const maxDuration = 120;
 
@@ -25,24 +26,30 @@ export async function GET(request: NextRequest) {
 
 		const pool = await getPeDb();
 		
-		// Get user's full name to match with SubmittedBy
-		const userResult = await pool
-			.request()
-			.input("user_id", userId)
-			.query(
-				"SELECT TOP(1) [USER_FULL_NAME], [USER_ID] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
-			);
+		// Check if user is Super User
+		const isSuperUser = await checkSuperUserFromDb(userId);
 
-		const user = userResult.recordset?.[0];
-		if (!user) {
-			return NextResponse.json(
-				{ success: false, message: "User not found" },
-				{ status: 404 }
-			);
+		// Get user's full name to match with SubmittedBy (only needed if not Super User)
+		let userFullName: string | null = null;
+		
+		if (!isSuperUser) {
+			const userResult = await pool
+				.request()
+				.input("user_id", userId)
+				.query(
+					"SELECT TOP(1) [USER_FULL_NAME] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
+				);
+
+			const user = userResult.recordset?.[0];
+			if (!user) {
+				return NextResponse.json(
+					{ success: false, message: "User not found" },
+					{ status: 404 }
+				);
+			}
+
+			userFullName = user.USER_FULL_NAME;
 		}
-
-		const userFullName = user.USER_FULL_NAME;
-		const userName = user.USER_ID;
 
 		const { searchParams } = new URL(request.url);
 		
@@ -59,13 +66,9 @@ export async function GET(request: NextRequest) {
 		// Build WHERE clause for filters
 		const whereConditions: string[] = [];
 		
-		// Filter by SubmittedBy matching user's name or username
-		if (userFullName && userName) {
-			whereConditions.push(`(app.[SubmittedBy] = @userFullName OR app.[SubmittedBy] = @userName)`);
-		} else if (userFullName) {
+		// Filter by SubmittedBy matching user's full name (only if not Super User)
+		if (!isSuperUser && userFullName) {
 			whereConditions.push(`app.[SubmittedBy] = @userFullName`);
-		} else if (userName) {
-			whereConditions.push(`app.[SubmittedBy] = @userName`);
 		}
 		
 		if (formNumberFilter) {
@@ -89,7 +92,6 @@ export async function GET(request: NextRequest) {
 		// Query to get total count
 		const countRequest = pool.request();
 		if (userFullName) countRequest.input("userFullName", userFullName);
-		if (userName) countRequest.input("userName", userName);
 		
 		const countQuery = `
 			SELECT COUNT(*) as Total
@@ -139,7 +141,6 @@ export async function GET(request: NextRequest) {
 		// Execute query with user parameters
 		const dataRequest = pool.request();
 		if (userFullName) dataRequest.input("userFullName", userFullName);
-		if (userName) dataRequest.input("userName", userName);
 		
 		const result = await dataRequest.query(query);
 
