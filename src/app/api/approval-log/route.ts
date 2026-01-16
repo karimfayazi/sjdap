@@ -56,7 +56,8 @@ export async function GET(request: NextRequest) {
 				[ActionBy],
 				[ActionAt],
 				[ActionType],
-				[Remarks]
+				[Remarks],
+				[FormNumber]
 			FROM [SJDA_Users].[dbo].[Approval_Log]
 			WHERE [RecordID] = @RecordID 
 				AND [ModuleName] = @ModuleName

@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
 		sqlRequest.input("BeneficiaryName", sql.NVarChar, body.BeneficiaryName || null);
 		sqlRequest.input("BeneficiaryAge", sql.Int, body.BeneficiaryAge || null);
 		sqlRequest.input("BeneficiaryGender", sql.VarChar, body.BeneficiaryGender || null);
-		sqlRequest.input("EducationInterventionType", sql.VarChar, body.EducationInterventionType);
+		sqlRequest.input("EducationInterventionType", sql.VarChar, interventionType);
 		sqlRequest.input("BaselineReasonNotStudying", sql.NVarChar, isRegularSupport ? null : (body.BaselineReasonNotStudying || null));
 		sqlRequest.input("AdmittedToSchoolType", sql.VarChar, body.AdmittedToSchoolType || null);
 		sqlRequest.input("AdmittedToClassLevel", sql.VarChar, body.AdmittedToClassLevel || null);

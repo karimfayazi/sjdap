@@ -45,6 +45,9 @@ type UserData = {
 	Setting: boolean | number | null;
 	Other: boolean | number | null;
 	SWB_Families: boolean | number | null;
+	EDO: string | null;
+	JPO: string | null;
+	AM_REGION: string | null;
 };
 
 export default function EditUserPage() {
@@ -477,6 +480,39 @@ export default function EditUserPage() {
 										type="text"
 										name="LC"
 										value={formData.LC || ""}
+										onChange={handleChange}
+										className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+									/>
+								</div>
+
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-1">EDO</label>
+									<input
+										type="text"
+										name="EDO"
+										value={formData.EDO || ""}
+										onChange={handleChange}
+										className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+									/>
+								</div>
+
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-1">JPO</label>
+									<input
+										type="text"
+										name="JPO"
+										value={formData.JPO || ""}
+										onChange={handleChange}
+										className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+									/>
+								</div>
+
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-1">AM Region</label>
+									<input
+										type="text"
+										name="AM_REGION"
+										value={formData.AM_REGION || ""}
 										onChange={handleChange}
 										className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 									/>

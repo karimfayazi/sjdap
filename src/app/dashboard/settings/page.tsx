@@ -285,13 +285,506 @@ function PasswordTab() {
 // Add User Tab Component
 function AddUserTab() {
 	const router = useRouter();
+	const [saving, setSaving] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+	const [success, setSuccess] = useState(false);
+	
+	// Council data structure
+	const councilData: { [key: string]: string[] } = {
+		"CENTRAL REGION": ["HAFIZABAD", "LAHORE", "MULTAN & BAHAWALPUR", "PESHAWAR", "RAWALPINDI", "SARGODHA"],
+		"GILGIT REGION": ["GILGIT", "SKARDU", "SUL, DAN & OSHIKHANDAS"],
+		"GUPIS & YASIN REGION": ["GHOLAGHMULI", "GUPIS", "PHUNDER", "PINGAL", "SILGAN", "SULTANABAD", "THOI", "YASIN"],
+		"HUNZA REGION": ["ALTIT & KARIMABAD", "ALYABAD & HYDERABAD", "CHUPERSON", "GUJAL BALA", "GULMIT", "NASIRABAD", "SHIMSHAL"],
+		"ISHKOMAN & PUNIYAL REGION": ["CHATOORKHAND", "DAMAS", "GAHKUCH", "ISHKOMAN", "SHERQUILLA", "SINGAL"],
+		"LOWER CHITRAL REGION": ["ARKARI", "CHITRAL TOWN", "GARAMCHASHMA", "MADAKLASHT", "PARABEG", "SHOGHORE", "SUSUM"],
+		"SOUTHERN REGION": ["GARDEN", "GULSHAN", "HYDERABAD", "KARIMABAD", "KHARADAR", "TANDO TUREL", "THATTA & SHAH BUNDER"],
+		"UPPER CHITRAL REGION": ["BANG", "BOONI", "BREP", "KHOT", "MASTUJ", "MULKHOW", "YARKHOON LASHT"]
+	};
+
+	const regionalCouncils = Object.keys(councilData);
+	
+	// Function to generate a random password
+	const generatePassword = () => {
+		const length = 12;
+		const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+		let password = "";
+		for (let i = 0; i < length; i++) {
+			password += charset.charAt(Math.floor(Math.random() * charset.length));
+		}
+		return password;
+	};
+
+	const [formData, setFormData] = useState({
+		USER_ID: "",
+		USER_FULL_NAME: "",
+		PASSWORD: "",
+		RE_PASSWORD: "",
+		USER_TYPE: "",
+		DESIGNATION: "",
+		ACTIVE: false,
+		CAN_ADD: false,
+		CAN_UPDATE: false,
+		CAN_DELETE: false,
+		CAN_UPLOAD: false,
+		SEE_REPORTS: false,
+		RC: "",
+		LC: "",
+		REPORT_TO: "",
+		ROP_EDIT: false,
+		access_loans: false,
+		baseline_access: false,
+		bank_account: false,
+		Supper_User: false,
+		Finance_Officer: "",
+		BaselineQOL: false,
+		Dashboard: false,
+		PowerBI: false,
+		Family_Development_Plan: false,
+		Family_Approval_CRC: false,
+		Family_Income: false,
+		ROP: false,
+		Setting: false,
+		Other: false,
+		SWB_Families: false,
+		EDO: "",
+		JPO: "",
+		AM_REGION: "",
+	});
+
+	// Auto-generate password on component mount
+	useEffect(() => {
+		const autoPassword = generatePassword();
+		setFormData(prev => ({
+			...prev,
+			PASSWORD: autoPassword,
+			RE_PASSWORD: autoPassword
+		}));
+	}, []);
+
+	const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+		const { name, value, type } = e.target;
+		const checked = (e.target as HTMLInputElement).checked;
+
+		setFormData(prev => {
+			const newData = {
+				...prev,
+				[name]: type === "checkbox" ? checked : value
+			};
+			
+			// If Regional Council changes, reset Local Council
+			if (name === "RC" && value !== prev.RC) {
+				newData.LC = "";
+			}
+			
+			return newData;
+		});
+	};
+
+	const handleSubmit = async (e: React.FormEvent) => {
+		e.preventDefault();
+		
+		// Validate required fields
+		if (!formData.USER_ID || !formData.USER_FULL_NAME || !formData.PASSWORD || !formData.USER_TYPE) {
+			setError("USER_ID, USER_FULL_NAME, PASSWORD, and USER_TYPE are required.");
+			return;
+		}
+
+		try {
+			setSaving(true);
+			setError(null);
+			setSuccess(false);
+
+			const response = await fetch("/api/users", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(formData),
+			});
+
+			const result = await response.json();
+
+			if (!response.ok || !result.success) {
+				throw new Error(result.message || "Failed to create user");
+			}
+
+			setSuccess(true);
+			// Reset form and generate new password
+			const newPassword = generatePassword();
+			setFormData({
+				USER_ID: "",
+				USER_FULL_NAME: "",
+				PASSWORD: newPassword,
+				RE_PASSWORD: newPassword,
+				USER_TYPE: "",
+				DESIGNATION: "",
+				ACTIVE: false,
+				CAN_ADD: false,
+				CAN_UPDATE: false,
+				CAN_DELETE: false,
+				CAN_UPLOAD: false,
+				SEE_REPORTS: false,
+				RC: "",
+				LC: "",
+				REPORT_TO: "",
+				ROP_EDIT: false,
+				access_loans: false,
+				baseline_access: false,
+				bank_account: false,
+				Supper_User: false,
+				Finance_Officer: "",
+				BaselineQOL: false,
+				Dashboard: false,
+				PowerBI: false,
+				Family_Development_Plan: false,
+				Family_Approval_CRC: false,
+				Family_Income: false,
+				ROP: false,
+				Setting: false,
+				Other: false,
+				SWB_Families: false,
+				EDO: "",
+				JPO: "",
+				AM_REGION: "",
+			});
+
+			setTimeout(() => {
+				setSuccess(false);
+				router.push("/dashboard/settings?tab=users");
+			}, 2000);
+		} catch (err) {
+			setError(err instanceof Error ? err.message : "Failed to create user");
+		} finally {
+			setSaving(false);
+		}
+	};
+
 										return (
 												<div>
 			<h2 className="text-xl font-semibold text-gray-900 mb-6">Add New User</h2>
-			<p className="text-gray-600 mb-4">To add a new user, please use the API endpoint or contact the system administrator.</p>
-			<p className="text-gray-600">
-				You can also manage existing users from the "View Users" tab.
-			</p>
+			
+			{/* Success Message */}
+			{success && (
+				<div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4">
+					<p className="text-green-800 font-medium">User created successfully! Redirecting to users list...</p>
+				</div>
+			)}
+
+			{/* Error Message */}
+			{error && (
+				<div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+					<p className="text-red-800 font-medium">{error}</p>
+				</div>
+			)}
+
+			{/* Form */}
+			<form onSubmit={handleSubmit}>
+				<div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+					{/* Basic Information */}
+					<div className="p-6 border-b border-gray-200">
+						<h3 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h3>
+						<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1">
+									Email Address <span className="text-red-500">*</span>
+								</label>
+								<input
+									type="email"
+									name="USER_ID"
+									value={formData.USER_ID}
+									onChange={handleChange}
+									required
+									className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent"
+								/>
+							</div>
+
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1">
+									Full Name <span className="text-red-500">*</span>
+								</label>
+								<input
+									type="text"
+									name="USER_FULL_NAME"
+									value={formData.USER_FULL_NAME}
+									onChange={handleChange}
+									required
+									className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent"
+								/>
+							</div>
+
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1">
+									Password <span className="text-red-500">*</span>
+								</label>
+								<input
+									type="text"
+									name="PASSWORD"
+									value={formData.PASSWORD}
+									readOnly
+									required
+									className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
+								/>
+							</div>
+
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1">
+									Re-enter Password <span className="text-red-500">*</span>
+								</label>
+								<input
+									type="text"
+									name="RE_PASSWORD"
+									value={formData.RE_PASSWORD}
+									readOnly
+									required
+									className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
+								/>
+							</div>
+
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1">
+									User Type <span className="text-red-500">*</span>
+								</label>
+								<select
+									name="USER_TYPE"
+									value={formData.USER_TYPE}
+									onChange={handleChange}
+									required
+									className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent"
+								>
+									<option value="">Select User Type</option>
+									<option value="SuperAdmin">SuperAdmin</option>
+									<option value="Admin">Admin</option>
+									<option value="HeadOffice">HeadOffice</option>
+									<option value="RegionalManager">RegionalManager</option>
+									<option value="EDO">EDO</option>
+									<option value="Mentor">Mentor</option>
+									<option value="FinanceOfficer">FinanceOfficer</option>
+									<option value="Viewer">Viewer</option>
+								</select>
+							</div>
+
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1">
+									Designation
+								</label>
+								<input
+									type="text"
+									name="DESIGNATION"
+									value={formData.DESIGNATION}
+									onChange={handleChange}
+									className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent"
+								/>
+							</div>
+
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1">
+									Finance Officer
+								</label>
+								<input
+									type="text"
+									name="Finance_Officer"
+									value={formData.Finance_Officer}
+									onChange={handleChange}
+									className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent"
+								/>
+							</div>
+
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1">
+									Report To
+								</label>
+								<input
+									type="text"
+									name="REPORT_TO"
+									value={formData.REPORT_TO}
+									onChange={handleChange}
+									className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent"
+								/>
+							</div>
+						</div>
+					</div>
+
+					{/* Location Information */}
+					<div className="p-6 border-b border-gray-200">
+						<h3 className="text-lg font-semibold text-gray-900 mb-4">Location Information</h3>
+						<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1">Regional Council</label>
+								<select
+									name="RC"
+									value={formData.RC}
+									onChange={handleChange}
+									className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent"
+								>
+									<option value="">Select Regional Council</option>
+									{regionalCouncils.map((region) => (
+										<option key={region} value={region}>
+											{region}
+										</option>
+									))}
+								</select>
+							</div>
+
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1">Local Council</label>
+								<select
+									name="LC"
+									value={formData.LC}
+									onChange={handleChange}
+									disabled={!formData.RC}
+									className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+								>
+									<option value="">
+										{formData.RC ? "Select Local Council" : "Select Regional Council first"}
+									</option>
+									{formData.RC && councilData[formData.RC]?.map((localCouncil) => (
+										<option key={localCouncil} value={localCouncil}>
+											{localCouncil}
+										</option>
+									))}
+								</select>
+							</div>
+
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1">EDO</label>
+								<input
+									type="text"
+									name="EDO"
+									value={formData.EDO}
+									onChange={handleChange}
+									className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent"
+								/>
+							</div>
+
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1">JPO</label>
+								<input
+									type="text"
+									name="JPO"
+									value={formData.JPO}
+									onChange={handleChange}
+									className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent"
+								/>
+							</div>
+
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1">AM Region</label>
+								<input
+									type="text"
+									name="AM_REGION"
+									value={formData.AM_REGION}
+									onChange={handleChange}
+									className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent"
+								/>
+							</div>
+						</div>
+					</div>
+
+					{/* Permissions */}
+					<div className="p-6">
+						<h3 className="text-lg font-semibold text-gray-900 mb-4">Permissions</h3>
+						<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+							{[
+								{ key: "ACTIVE", label: "Active", desc: "User account is active" },
+								{ key: "CAN_ADD", label: "Can Add", desc: "Can add new records" },
+								{ key: "CAN_UPDATE", label: "Can Update", desc: "Can update records" },
+								{ key: "CAN_DELETE", label: "Can Delete", desc: "Can delete records" },
+								{ key: "CAN_UPLOAD", label: "Can Upload", desc: "Can upload files" },
+								{ key: "SEE_REPORTS", label: "See Reports", desc: "Can view reports" },
+								{ key: "ROP_EDIT", label: "ROP Edit", desc: "Can edit ROP" },
+								{ key: "access_loans", label: "Access Loans", desc: "Access loans module" },
+								{ key: "baseline_access", label: "Baseline Access", desc: "Access baseline data" },
+								{ key: "bank_account", label: "Bank Account", desc: "Bank account access" },
+								{ key: "Supper_User", label: "Super User", desc: "Admin privileges" },
+								{ key: "BaselineQOL", label: "Baseline QOL", desc: "Baseline QOL access" },
+								{ key: "Dashboard", label: "Dashboard", desc: "Dashboard access" },
+								{ key: "PowerBI", label: "Power BI", desc: "Power BI access" },
+								{ key: "Family_Development_Plan", label: "Family Development Plan", desc: "FDP access" },
+								{ key: "Family_Approval_CRC", label: "Family Approval CRC", desc: "CRC approval access" },
+								{ key: "Family_Income", label: "Family Income", desc: "Family income access" },
+								{ key: "ROP", label: "ROP", desc: "ROP access" },
+								{ key: "Setting", label: "Setting", desc: "Settings access" },
+								{ key: "Other", label: "Other", desc: "Other permissions" },
+								{ key: "SWB_Families", label: "SWB Families", desc: "SWB Families access" },
+							].map((item) => (
+								<div key={item.key} className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
+									<input
+										type="checkbox"
+										name={item.key}
+										checked={formData[item.key as keyof typeof formData] as boolean}
+										onChange={handleChange}
+										className="mt-1 w-4 h-4 text-[#0b4d2b] rounded focus:ring-2 focus:ring-[#0b4d2b]"
+									/>
+									<div className="flex-1 min-w-0">
+										<label className="block text-sm font-medium text-gray-900 cursor-pointer">
+											{item.label}
+										</label>
+										<p className="text-xs text-gray-500 mt-0.5">{item.desc}</p>
+									</div>
+								</div>
+							))}
+						</div>
+					</div>
+
+					{/* Action Buttons */}
+					<div className="p-6 bg-gray-50 border-t border-gray-200 flex items-center justify-end space-x-3">
+						<button
+							type="button"
+							onClick={() => {
+								const newPassword = generatePassword();
+								setFormData({
+									USER_ID: "",
+									USER_FULL_NAME: "",
+									PASSWORD: newPassword,
+									RE_PASSWORD: newPassword,
+									USER_TYPE: "",
+									DESIGNATION: "",
+									ACTIVE: false,
+									CAN_ADD: false,
+									CAN_UPDATE: false,
+									CAN_DELETE: false,
+									CAN_UPLOAD: false,
+									SEE_REPORTS: false,
+									RC: "",
+									LC: "",
+									REPORT_TO: "",
+									ROP_EDIT: false,
+									access_loans: false,
+									baseline_access: false,
+									bank_account: false,
+									Supper_User: false,
+									Finance_Officer: "",
+									BaselineQOL: false,
+									Dashboard: false,
+									PowerBI: false,
+									Family_Development_Plan: false,
+									Family_Approval_CRC: false,
+									Family_Income: false,
+									ROP: false,
+									Setting: false,
+									Other: false,
+									SWB_Families: false,
+									EDO: "",
+									JPO: "",
+									AM_REGION: "",
+								});
+								setError(null);
+								setSuccess(false);
+							}}
+							disabled={saving}
+							className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+						>
+							Reset
+						</button>
+						<button
+							type="submit"
+							disabled={saving}
+							className="px-6 py-2 bg-[#0b4d2b] text-white rounded-lg hover:bg-[#0a3d22] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+						>
+							<Save className="w-4 h-4" />
+							<span>{saving ? "Creating..." : "Create User"}</span>
+						</button>
+					</div>
+				</div>
+			</form>
 		</div>
 	);
 }

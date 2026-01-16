@@ -71,7 +71,10 @@ export async function GET(request: NextRequest) {
 				[ROP],
 				[Setting],
 				[Other],
-				[SWB_Families]
+				[SWB_Families],
+				[EDO],
+				[JPO],
+				[AM_REGION]
 			FROM [SJDA_Users].[dbo].[Table_User]
 			WHERE 1=1
 		`;
@@ -265,6 +268,9 @@ export async function POST(request: NextRequest) {
 		insertReq.input("Setting", toBoolValue(data.Setting));
 		insertReq.input("Other", toBoolValue(data.Other));
 		insertReq.input("SWB_Families", toBoolValue(data.SWB_Families));
+		insertReq.input("EDO", data.EDO || null);
+		insertReq.input("JPO", data.JPO || null);
+		insertReq.input("AM_REGION", data.AM_REGION || null);
 
 		const insertQuery = `
 			INSERT INTO [SJDA_Users].[dbo].[Table_User] (
@@ -306,7 +312,10 @@ export async function POST(request: NextRequest) {
 				[ROP],
 				[Setting],
 				[Other],
-				[SWB_Families]
+				[SWB_Families],
+				[EDO],
+				[JPO],
+				[AM_REGION]
 			)
 			VALUES (
 				@USER_ID,
@@ -347,7 +356,10 @@ export async function POST(request: NextRequest) {
 				@ROP,
 				@Setting,
 				@Other,
-				@SWB_Families
+				@SWB_Families,
+				@EDO,
+				@JPO,
+				@AM_REGION
 			)
 		`;
 
@@ -471,6 +483,9 @@ export async function PUT(request: NextRequest) {
 		updateReq.input("Setting", toBoolValue(data.Setting));
 		updateReq.input("Other", toBoolValue(data.Other));
 		updateReq.input("SWB_Families", toBoolValue(data.SWB_Families));
+		updateReq.input("EDO", data.EDO || null);
+		updateReq.input("JPO", data.JPO || null);
+		updateReq.input("AM_REGION", data.AM_REGION || null);
 
 		const updateQuery = `
 			UPDATE [SJDA_Users].[dbo].[Table_User]
@@ -510,7 +525,10 @@ export async function PUT(request: NextRequest) {
 				[ROP] = @ROP,
 				[Setting] = @Setting,
 				[Other] = @Other,
-				[SWB_Families] = @SWB_Families
+				[SWB_Families] = @SWB_Families,
+				[EDO] = @EDO,
+				[JPO] = @JPO,
+				[AM_REGION] = @AM_REGION
 			WHERE [USER_ID] = @USER_ID
 		`;
 

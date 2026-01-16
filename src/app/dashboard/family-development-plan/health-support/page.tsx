@@ -106,7 +106,8 @@ function HealthSupportContent() {
 		if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
 			age--;
 		}
-		return Math.max(0, age); // Ensure age is never negative
+		// Return age only if it's positive (> 0), otherwise return 0
+		return age > 0 ? age : 0;
 	};
 
 	// Calculate poverty level
@@ -155,7 +156,8 @@ function HealthSupportContent() {
 	// Auto-calculate PE Contribution
 	useEffect(() => {
 		const peContribution = formData.HealthMonthlyTotalCost - formData.HealthMonthlyFamilyContribution;
-		setFormData(prev => ({ ...prev, HealthMonthlyPEContribution: Math.max(0, peContribution) }));
+		// Only set positive values, otherwise set to 0
+		setFormData(prev => ({ ...prev, HealthMonthlyPEContribution: peContribution > 0 ? peContribution : 0 }));
 	}, [formData.HealthMonthlyTotalCost, formData.HealthMonthlyFamilyContribution]);
 
 	// Auto-calculate Total Values
@@ -273,7 +275,7 @@ function HealthSupportContent() {
 								...prev,
 								BeneficiaryID: selectedMember.MemberNo,
 								BeneficiaryName: selectedMember.FullName,
-								BeneficiaryAge: age || 0,
+								BeneficiaryAge: age > 0 ? age : 0,
 								BeneficiaryGender: selectedMember.Gender || "",
 							}));
 						}
@@ -296,7 +298,8 @@ function HealthSupportContent() {
 								// Calculate age if not available in record
 								let age = 0;
 								if (record.BeneficiaryAge && !isNaN(record.BeneficiaryAge)) {
-									age = parseInt(record.BeneficiaryAge) || 0;
+									const parsedAge = parseInt(record.BeneficiaryAge) || 0;
+									age = parsedAge > 0 ? parsedAge : 0;
 								} else if (record.BeneficiaryID) {
 									// Try to find member and calculate age from DOB
 									const member = familyMembers.find((m: FamilyMember) => m.MemberNo === record.BeneficiaryID);
@@ -316,7 +319,7 @@ function HealthSupportContent() {
 									HealthTotalPEContribution: record.HealthTotalPEContribution || 0,
 									BeneficiaryID: record.BeneficiaryID || "",
 									BeneficiaryName: record.BeneficiaryName || "",
-									BeneficiaryAge: age,
+									BeneficiaryAge: age > 0 ? age : 0,
 									BeneficiaryGender: record.BeneficiaryGender || "",
 									ApprovalStatus: record.ApprovalStatus || "Pending",
 									Remarks: record.Remarks || "",
@@ -392,7 +395,7 @@ function HealthSupportContent() {
 				...prev,
 				BeneficiaryID: selectedMember.MemberNo,
 				BeneficiaryName: selectedMember.FullName,
-				BeneficiaryAge: age || 0,
+				BeneficiaryAge: age > 0 ? age : 0,
 				BeneficiaryGender: selectedMember.Gender || "",
 			}));
 		}
@@ -694,7 +697,7 @@ function HealthSupportContent() {
 								<label className="block text-sm font-medium text-gray-700 mb-2">Beneficiary Age</label>
 								<input
 									type="number"
-									value={formData.BeneficiaryAge && !isNaN(formData.BeneficiaryAge) ? formData.BeneficiaryAge : ""}
+									value={formData.BeneficiaryAge && formData.BeneficiaryAge > 0 && !isNaN(formData.BeneficiaryAge) ? formData.BeneficiaryAge : ""}
 									readOnly
 									className="w-full rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-gray-600 cursor-not-allowed"
 								/>
@@ -721,8 +724,25 @@ function HealthSupportContent() {
 									<input
 										type="number"
 										step="0.01"
-										value={formData.HealthMonthlyTotalCost || ""}
-										onChange={(e) => handleChange("HealthMonthlyTotalCost", parseFloat(e.target.value) || 0)}
+										min="0.01"
+										value={formData.HealthMonthlyTotalCost > 0 ? formData.HealthMonthlyTotalCost : ""}
+										onChange={(e) => {
+											const inputValue = e.target.value;
+											if (inputValue === "") {
+												handleChange("HealthMonthlyTotalCost", 0);
+											} else {
+												const value = parseFloat(inputValue);
+												if (!isNaN(value) && value > 0) {
+													handleChange("HealthMonthlyTotalCost", value);
+												}
+											}
+										}}
+										onBlur={(e) => {
+											const value = parseFloat(e.target.value);
+											if (isNaN(value) || value <= 0) {
+												handleChange("HealthMonthlyTotalCost", 0);
+											}
+										}}
 										required
 										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
 									/>
@@ -734,8 +754,25 @@ function HealthSupportContent() {
 									<input
 										type="number"
 										step="0.01"
+										min="0"
 										value={formData.HealthMonthlyFamilyContribution > 0 ? formData.HealthMonthlyFamilyContribution : ""}
-										onChange={(e) => handleChange("HealthMonthlyFamilyContribution", parseFloat(e.target.value) || 0)}
+										onChange={(e) => {
+											const inputValue = e.target.value;
+											if (inputValue === "") {
+												handleChange("HealthMonthlyFamilyContribution", 0);
+											} else {
+												const value = parseFloat(inputValue);
+												if (!isNaN(value) && value >= 0) {
+													handleChange("HealthMonthlyFamilyContribution", value);
+												}
+											}
+										}}
+										onBlur={(e) => {
+											const value = parseFloat(e.target.value);
+											if (isNaN(value) || value < 0) {
+												handleChange("HealthMonthlyFamilyContribution", 0);
+											}
+										}}
 										required
 										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
 									/>
@@ -745,7 +782,7 @@ function HealthSupportContent() {
 									<input
 										type="number"
 										step="0.01"
-										value={formData.HealthMonthlyPEContribution || ""}
+										value={formData.HealthMonthlyPEContribution > 0 ? formData.HealthMonthlyPEContribution : ""}
 										readOnly
 										className="w-full rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-gray-600 cursor-not-allowed"
 									/>
@@ -756,8 +793,24 @@ function HealthSupportContent() {
 									</label>
 									<input
 										type="number"
-										value={formData.HealthNumberOfMonths || ""}
-										onChange={(e) => handleChange("HealthNumberOfMonths", parseInt(e.target.value) || 0)}
+										value={formData.HealthNumberOfMonths > 0 ? formData.HealthNumberOfMonths : ""}
+										onChange={(e) => {
+											const inputValue = e.target.value;
+											if (inputValue === "") {
+												handleChange("HealthNumberOfMonths", 0);
+											} else {
+												const value = parseInt(inputValue);
+												if (!isNaN(value) && value > 0) {
+													handleChange("HealthNumberOfMonths", value);
+												}
+											}
+										}}
+										onBlur={(e) => {
+											const value = parseInt(e.target.value);
+											if (isNaN(value) || value <= 0) {
+												handleChange("HealthNumberOfMonths", 0);
+											}
+										}}
 										required
 										min="1"
 										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"

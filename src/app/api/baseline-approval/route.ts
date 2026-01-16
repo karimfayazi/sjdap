@@ -84,12 +84,13 @@ export async function PUT(request: NextRequest) {
 			logRequest.input("ActionBy", sql.NVarChar, userFullName);
 			logRequest.input("ActionType", sql.VarChar, approvalStatus === "Approved" ? "Approval" : approvalStatus === "Rejected" ? "Rejection" : "Update");
 			logRequest.input("Remarks", sql.NVarChar, remarks || null);
+			logRequest.input("FormNumber", sql.VarChar, formNumber);
 
 			const insertLogQuery = `
 				INSERT INTO [SJDA_Users].[dbo].[Approval_Log]
-				([ModuleName], [RecordID], [ActionLevel], [ActionBy], [ActionAt], [ActionType], [Remarks])
+				([ModuleName], [RecordID], [ActionLevel], [ActionBy], [ActionAt], [ActionType], [Remarks], [FormNumber])
 				VALUES
-				(@ModuleName, @RecordID, @ActionLevel, @ActionBy, GETDATE(), @ActionType, @Remarks)
+				(@ModuleName, @RecordID, @ActionLevel, @ActionBy, GETDATE(), @ActionType, @Remarks, @FormNumber)
 			`;
 
 			await logRequest.query(insertLogQuery);

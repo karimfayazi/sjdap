@@ -176,6 +176,22 @@ export async function PUT(request: NextRequest) {
 			);
 		}
 
+		// Get FamilyID (FormNumber) from the feasibility record
+		let formNumber = null;
+		try {
+			const formNumberRequest = pool.request();
+			formNumberRequest.input("FDP_ID", sql.Int, fdpId);
+			const formNumberQuery = `
+				SELECT TOP 1 [FamilyID]
+				FROM [SJDA_Users].[dbo].[PE_FamilyDevelopmentPlan_Feasibility]
+				WHERE [FDP_ID] = @FDP_ID
+			`;
+			const formNumberResult = await formNumberRequest.query(formNumberQuery);
+			formNumber = formNumberResult.recordset?.[0]?.FamilyID || null;
+		} catch (formNumberError) {
+			console.error("Error fetching FormNumber:", formNumberError);
+		}
+
 		// Insert into Approval_Log
 		try {
 			const logRequest = pool.request();
@@ -185,12 +201,13 @@ export async function PUT(request: NextRequest) {
 			logRequest.input("ActionBy", sql.NVarChar, userFullName);
 			logRequest.input("ActionType", sql.VarChar, "Approval");
 			logRequest.input("Remarks", sql.NVarChar, approvalRemarks || null);
+			logRequest.input("FormNumber", sql.VarChar, formNumber);
 
 			const insertLogQuery = `
 				INSERT INTO [SJDA_Users].[dbo].[Approval_Log]
-				([ModuleName], [RecordID], [ActionLevel], [ActionBy], [ActionAt], [ActionType], [Remarks])
+				([ModuleName], [RecordID], [ActionLevel], [ActionBy], [ActionAt], [ActionType], [Remarks], [FormNumber])
 				VALUES
-				(@ModuleName, @RecordID, @ActionLevel, @ActionBy, GETDATE(), @ActionType, @Remarks)
+				(@ModuleName, @RecordID, @ActionLevel, @ActionBy, GETDATE(), @ActionType, @Remarks, @FormNumber)
 			`;
 
 			await logRequest.query(insertLogQuery);

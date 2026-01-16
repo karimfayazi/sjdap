@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
+import { sendPasswordChangeEmail } from "@/lib/email-service";
 
 // Increase timeout for this route to 120 seconds
 export const maxDuration = 120;
@@ -24,12 +25,12 @@ export async function POST(request: NextRequest) {
 
 		const pool = await getDb();
 		
-		// Verify old password
+		// Verify old password and get user details
 		const verifyRequest = pool.request();
 		verifyRequest.input("user_id", userId);
 		(verifyRequest as any).timeout = 120000;
 		const verifyResult = await verifyRequest.query(
-			"SELECT TOP(1) [PASSWORD] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id AND [ACTIVE] = 1"
+			"SELECT TOP(1) [PASSWORD], [USER_FULL_NAME] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id AND [ACTIVE] = 1"
 		);
 
 		const user = verifyResult.recordset?.[0];
@@ -59,6 +60,16 @@ export async function POST(request: NextRequest) {
 			 SET [PASSWORD] = @new_password, [RE_PASSWORD] = @re_password, [UPDATE_DATE] = GETDATE()
 			 WHERE [USER_ID] = @user_id`
 		);
+
+		// Send email notification (don't await - run in background)
+		sendPasswordChangeEmail(
+			userId, // User ID is the email address
+			user.USER_FULL_NAME || userId,
+			new Date()
+		).catch(error => {
+			// Log error but don't fail the password change
+			console.error('Failed to send password change email:', error);
+		});
 
 		return NextResponse.json({
 			success: true,

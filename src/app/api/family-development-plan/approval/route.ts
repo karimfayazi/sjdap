@@ -129,6 +129,24 @@ export async function PUT(request: NextRequest) {
 			);
 		}
 
+		// Get FormNumber (FamilyID) from the record
+		// Health Support uses FormNumber, others use FamilyID
+		let formNumber = null;
+		try {
+			const formNumberRequest = pool.request();
+			formNumberRequest.input("RecordID", sql.Int, parseInt(recordId));
+			const formNumberColumn = section.toLowerCase() === "health" ? "FormNumber" : "FamilyID";
+			const formNumberQuery = `
+				SELECT TOP 1 [${formNumberColumn}] AS FormNumber
+				FROM [SJDA_Users].[dbo].[${sectionInfo.tableName}]
+				WHERE [${sectionInfo.idColumn}] = @RecordID
+			`;
+			const formNumberResult = await formNumberRequest.query(formNumberQuery);
+			formNumber = formNumberResult.recordset?.[0]?.FormNumber || null;
+		} catch (formNumberError) {
+			console.error("Error fetching FormNumber:", formNumberError);
+		}
+
 		// Insert into Approval_Log
 		try {
 			const logRequest = pool.request();
@@ -138,12 +156,13 @@ export async function PUT(request: NextRequest) {
 			logRequest.input("ActionBy", sql.NVarChar, userFullName);
 			logRequest.input("ActionType", sql.VarChar, approvalStatus === "Approved" ? "Approval" : approvalStatus === "Rejected" ? "Rejection" : "Update");
 			logRequest.input("Remarks", sql.NVarChar, remarks || null);
+			logRequest.input("FormNumber", sql.VarChar, formNumber);
 
 			const insertLogQuery = `
 				INSERT INTO [SJDA_Users].[dbo].[Approval_Log]
-				([ModuleName], [RecordID], [ActionLevel], [ActionBy], [ActionAt], [ActionType], [Remarks])
+				([ModuleName], [RecordID], [ActionLevel], [ActionBy], [ActionAt], [ActionType], [Remarks], [FormNumber])
 				VALUES
-				(@ModuleName, @RecordID, @ActionLevel, @ActionBy, GETDATE(), @ActionType, @Remarks)
+				(@ModuleName, @RecordID, @ActionLevel, @ActionBy, GETDATE(), @ActionType, @Remarks, @FormNumber)
 			`;
 
 			await logRequest.query(insertLogQuery);

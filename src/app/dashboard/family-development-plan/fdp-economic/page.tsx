@@ -119,7 +119,7 @@ type FDPEconomicFormData = {
 	GrantAmount: number;
 	LoanAmount: number;
 	InvestmentValidationStatus: number; // 1 = Valid, 0 = Invalid
-	PlannedMonthlyIncome: number;
+	PlannedMonthlyIncome: number | null;
 	CurrentMonthlyIncome: number;
 	IncrementalMonthlyIncome: number;
 	FeasibilityID: string;
@@ -208,7 +208,7 @@ function FDPEconomicContent() {
 		GrantAmount: 0,
 		LoanAmount: 0,
 		InvestmentValidationStatus: 0, // 0 = Invalid, 1 = Valid
-		PlannedMonthlyIncome: 0,
+		PlannedMonthlyIncome: null,
 		CurrentMonthlyIncome: 0,
 		IncrementalMonthlyIncome: 0,
 		FeasibilityID: "",
@@ -262,50 +262,35 @@ function FDPEconomicContent() {
 		return age;
 	};
 
-	// Calculate poverty level
-	const calculatePovertyLevel = (perCapitaIncome: number, areaType: string): string => {
-		const thresholds: { [key: string]: { [key: number]: string } } = {
-			"Rural": {
-				0: "Level -3",
-				10800: "Level -2",
-				13500: "Level -1",
-				16200: "Level 0",
-				20250: "Level +1",
-				24300: "Level +2",
-				27000: "Level +3",
-			},
-			"Urban": {
-				0: "Level -3",
-				19200: "Level -2",
-				24000: "Level -1",
-				28800: "Level 0",
-				36000: "Level +1",
-				43200: "Level +2",
-				48000: "Level +3",
-			},
-			"Peri-Urban": {
-				0: "Level -3",
-				16100: "Level -2",
-				20125: "Level -1",
-				24150: "Level 0",
-				30187: "Level +1",
-				36225: "Level +2",
-				40250: "Level +3",
-			},
-		};
-
-		const areaThresholds = thresholds[areaType] || thresholds["Rural"];
-		const sortedLevels = Object.keys(areaThresholds)
-			.map(Number)
-			.sort((a, b) => b - a);
-
-		for (const threshold of sortedLevels) {
-			if (perCapitaIncome >= threshold) {
-				return areaThresholds[threshold];
-			}
+	// Calculate poverty level based on Baseline Income Per Capita as % of Self-Sufficiency
+	const calculatePovertyLevel = (selfSufficiencyPercent: number): string => {
+		// Less than 25% → Level -4
+		if (selfSufficiencyPercent < 25) {
+			return "Level -4";
 		}
-
-		return "Level -3";
+		// 25% to less than 50% → Level -3
+		if (selfSufficiencyPercent >= 25 && selfSufficiencyPercent < 50) {
+			return "Level -3";
+		}
+		// 50% to less than 75% → Level -2
+		if (selfSufficiencyPercent >= 50 && selfSufficiencyPercent < 75) {
+			return "Level -2";
+		}
+		// 75% to less than 100% → Level -1
+		if (selfSufficiencyPercent >= 75 && selfSufficiencyPercent < 100) {
+			return "Level -1";
+		}
+		// 100% to 124% → Level 0
+		if (selfSufficiencyPercent >= 100 && selfSufficiencyPercent <= 124) {
+			return "Level 0";
+		}
+		// 125% and above → Level +1
+		if (selfSufficiencyPercent >= 125) {
+			return "Level +1";
+		}
+		
+		// Default fallback
+		return "Level -4";
 	};
 
 	// Fetch baseline data, family members, and feasibility studies
@@ -331,8 +316,8 @@ function FDPEconomicContent() {
 					const perCapitaIncome = data.FamilyPerCapitaIncome || 0;
 					const selfSufficiencyPercent = data.BaselineIncomePerCapitaAsPercentOfSelfSufficiency || 0;
 					
-					// Calculate poverty level
-					const povertyLevel = calculatePovertyLevel(perCapitaIncome, data.Area_Type || "Rural");
+					// Calculate poverty level based on Baseline Income Per Capita as % of Self-Sufficiency
+					const povertyLevel = calculatePovertyLevel(selfSufficiencyPercent);
 					
 					setFormData(prev => ({
 						...prev,
@@ -438,7 +423,7 @@ function FDPEconomicContent() {
 									GrantAmount: existing.GrantAmount || 0,
 									LoanAmount: existing.LoanAmount || 0,
 									InvestmentValidationStatus: existing.InvestmentValidationStatus !== undefined ? existing.InvestmentValidationStatus : 0,
-									PlannedMonthlyIncome: Math.ceil(existing.PlannedMonthlyIncome || 0),
+									PlannedMonthlyIncome: existing.PlannedMonthlyIncome !== null && existing.PlannedMonthlyIncome !== undefined ? Math.ceil(existing.PlannedMonthlyIncome) : null,
 									CurrentMonthlyIncome: existing.CurrentMonthlyIncome || 0,
 									IncrementalMonthlyIncome: Math.ceil(existing.IncrementalMonthlyIncome || 0),
 									FeasibilityID: existing.FeasibilityID?.toString() || "",
@@ -601,7 +586,8 @@ function FDPEconomicContent() {
 
 	useEffect(() => {
 		// Calculate Incremental Monthly Income (rounded up)
-		const incremental = formData.PlannedMonthlyIncome - formData.CurrentMonthlyIncome;
+		const plannedIncome = formData.PlannedMonthlyIncome ?? 0;
+		const incremental = plannedIncome - formData.CurrentMonthlyIncome;
 		const roundedIncremental = Math.ceil(Math.max(0, incremental));
 		setFormData(prev => ({ ...prev, IncrementalMonthlyIncome: roundedIncremental }));
 	}, [formData.PlannedMonthlyIncome, formData.CurrentMonthlyIncome]);
@@ -713,7 +699,7 @@ function FDPEconomicContent() {
 				...prev,
 				FeasibilityID: feasibilityId,
 				InvestmentRequiredTotal: investmentRequired,
-				PlannedMonthlyIncome: Math.ceil(selectedFeasibility.TotalSalesRevenue || 0),
+				// Don't auto-populate PlannedMonthlyIncome - let user enter it manually
 				CurrentMonthlyIncome: selectedFeasibility.CurrentBaselineIncome || prev.CurrentMonthlyIncome,
 			}));
 			// Clear validation error when feasibility changes
@@ -752,7 +738,7 @@ function FDPEconomicContent() {
 				SkillsDevelopmentCourse: selectedFeasibility.CourseTitle || prev.SkillsDevelopmentCourse,
 				Institution: selectedFeasibility.TrainingInstitution || prev.Institution,
 				InvestmentRequiredTotal: investmentRequired,
-				PlannedMonthlyIncome: Math.ceil(selectedFeasibility.TotalSalesRevenue || 0),
+				// Don't auto-populate PlannedMonthlyIncome - let user enter it manually
 				CurrentMonthlyIncome: selectedFeasibility.CurrentBaselineIncome || prev.CurrentMonthlyIncome,
 			}));
 		} else if (!feasibilityId) {
@@ -853,7 +839,7 @@ function FDPEconomicContent() {
 				},
 				body: JSON.stringify({
 					...formData,
-					PlannedMonthlyIncome: Math.ceil(formData.PlannedMonthlyIncome || 0),
+					PlannedMonthlyIncome: formData.PlannedMonthlyIncome !== null ? Math.ceil(formData.PlannedMonthlyIncome) : null,
 					IncrementalMonthlyIncome: Math.ceil(formData.IncrementalMonthlyIncome || 0),
 					GrantAmount: finalGrantAmount,
 					LoanAmount: finalLoanAmount,
@@ -886,26 +872,26 @@ function FDPEconomicContent() {
 					}
 				}
 				// Reset form (preserve baseline data and beneficiary info)
-				setFormData(prev => ({
-					...prev,
-					InterventionType: "",
-					SubFieldOfInvestment: "",
-					Trade: "",
-					MainTrade: "",
-					SubTradeCode: "",
-					SkillsDevelopmentCourse: "",
-					Institution: "",
-					InvestmentRequiredTotal: 0,
-					ContributionFromBeneficiary: 0,
-					InvestmentFromPEProgram: 0,
-					GrantAmount: 0,
-					LoanAmount: 0,
-					InvestmentValidationStatus: 0,
-					PlannedMonthlyIncome: 0,
-					FeasibilityID: "",
-					ApprovalStatus: "Pending",
-					ApprovalRemarks: "",
-				}));
+								setFormData(prev => ({
+									...prev,
+									InterventionType: "",
+									SubFieldOfInvestment: "",
+									Trade: "",
+									MainTrade: "",
+									SubTradeCode: "",
+									SkillsDevelopmentCourse: "",
+									Institution: "",
+									InvestmentRequiredTotal: 0,
+									ContributionFromBeneficiary: 0,
+									InvestmentFromPEProgram: 0,
+									GrantAmount: 0,
+									LoanAmount: 0,
+									InvestmentValidationStatus: 0,
+									PlannedMonthlyIncome: null,
+									FeasibilityID: "",
+									ApprovalStatus: "Pending",
+									ApprovalRemarks: "",
+								}));
 				setSelectedRecordId(null);
 				setShowForm(false);
 				setTimeout(() => {
@@ -1000,7 +986,7 @@ function FDPEconomicContent() {
 									GrantAmount: 0,
 									LoanAmount: 0,
 									InvestmentValidationStatus: 0,
-									PlannedMonthlyIncome: 0,
+									PlannedMonthlyIncome: null,
 									FeasibilityID: "",
 									ApprovalStatus: "Pending",
 									ApprovalRemarks: "",
@@ -1554,22 +1540,28 @@ function FDPEconomicContent() {
 								<label className="block text-sm font-medium text-gray-700 mb-2">Planned Income per Month (Avg. of 12 Months)</label>
 								<input
 									type="number"
-									value={formData.PlannedMonthlyIncome || ""}
+									value={formData.PlannedMonthlyIncome ?? ""}
 									onChange={(e) => {
-										const value = parseFloat(e.target.value) || 0;
-										// Round up the value
-										const roundedValue = Math.ceil(value);
-										handleChange("PlannedMonthlyIncome", roundedValue);
+										const value = e.target.value === "" ? null : (parseFloat(e.target.value) || 0);
+										if (value !== null) {
+											// Round up the value
+											const roundedValue = Math.ceil(value);
+											handleChange("PlannedMonthlyIncome", roundedValue);
+										} else {
+											handleChange("PlannedMonthlyIncome", null);
+										}
 									}}
 									onBlur={(e) => {
 										// Ensure value is rounded up on blur as well
-										const value = parseFloat(e.target.value) || 0;
-										if (value !== Math.ceil(value)) {
+										const value = e.target.value === "" ? null : (parseFloat(e.target.value) || 0);
+										if (value !== null && value !== Math.ceil(value)) {
 											handleChange("PlannedMonthlyIncome", Math.ceil(value));
+										} else if (value === null) {
+											handleChange("PlannedMonthlyIncome", null);
 										}
 									}}
 									className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-									placeholder="0"
+									placeholder=""
 									min="0"
 									step="1"
 								/>
