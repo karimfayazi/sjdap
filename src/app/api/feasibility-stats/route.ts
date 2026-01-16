@@ -30,27 +30,27 @@ export async function GET(request: NextRequest) {
 		let userFullName: string | null = null;
 		
 		if (!isSuperUser) {
-			const userPool = await getPeDb();
-			const userResult = await userPool
-				.request()
-				.input("user_id", userId)
-				.query(
-					"SELECT TOP(1) [USER_FULL_NAME] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
+			try {
+				const userPool = await getPeDb();
+				const userRequest = userPool.request();
+				userRequest.input("user_id", userId);
+				userRequest.input("email_address", userId);
+				const userResult = await userRequest.query(
+					"SELECT TOP(1) [UserFullName] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
 				);
 
-			const user = userResult.recordset?.[0];
-			if (!user) {
-				return NextResponse.json(
-					{ success: false, message: "User not found" },
-					{ status: 404 }
-				);
+				const user = userResult.recordset?.[0];
+				if (user && user.UserFullName) {
+					userFullName = user.UserFullName;
+				}
+			} catch (userError) {
+				console.error("Error fetching user full name:", userError);
+				// Continue without user filter - will show all stats
 			}
-
-			userFullName = user.USER_FULL_NAME;
 		}
 
 		// Fetch Feasibility statistics from PE_FamilyDevelopmentPlan_Feasibility
-		// Super Users see all families, others see only their own (matching SubmittedBy with USER_FULL_NAME)
+		// Super Users see all families, others see only their own (matching SubmittedBy with UserFullName)
 		const pool = await getPeDb();
 		const sqlRequest = pool.request();
 		(sqlRequest as any).timeout = 120000;

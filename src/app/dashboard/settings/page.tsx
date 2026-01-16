@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { User, Shield, Lock, Users, Save } from "lucide-react";
+import { Lock, Users, Save, Search, Filter, Edit, Trash2, X, Check, Loader2, AlertTriangle, UserPlus } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { isSuperUser } from "@/lib/auth-utils";
 import NoPermissionMessage from "@/components/NoPermissionMessage";
@@ -11,7 +11,7 @@ function SettingsPageContent() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const { userProfile, loading: authLoading } = useAuth();
-	const [activeTab, setActiveTab] = useState("profile");
+	const [activeTab, setActiveTab] = useState("users");
 	const [isSuperUserState, setIsSuperUserState] = useState<boolean | null>(null);
 	
 	useEffect(() => {
@@ -25,15 +25,26 @@ function SettingsPageContent() {
 		if (authLoading) return;
 		
 		if (userProfile) {
+			// Check if user is Admin - either through supper_user or access_level (UserType)
 			const superUserValue = userProfile.supper_user;
-			setIsSuperUserState(isSuperUser(superUserValue));
+			const accessLevel = userProfile.access_level; // This contains UserType from PE_User
+			const isAdminByType = accessLevel && typeof accessLevel === 'string' && accessLevel.trim().toLowerCase() === 'admin';
+			const isSuperUserByValue = isSuperUser(superUserValue);
+			
+			// User is Admin if UserType='Admin' OR supper_user='Yes'
+			setIsSuperUserState(isAdminByType || isSuperUserByValue);
 		} else {
 			try {
 				const stored = localStorage.getItem("userData");
 				if (stored) {
 					const parsed = JSON.parse(stored);
 					const su = parsed.super_user || parsed.supper_user;
-					setIsSuperUserState(isSuperUser(su));
+					const accessLevel = parsed.access_level || parsed.user_type;
+					const isAdminByType = accessLevel && typeof accessLevel === 'string' && accessLevel.trim().toLowerCase() === 'admin';
+					const isSuperUserByValue = isSuperUser(su);
+					
+					// User is Admin if UserType='Admin' OR supper_user='Yes'
+					setIsSuperUserState(isAdminByType || isSuperUserByValue);
 				} else {
 					setIsSuperUserState(false);
 				}
@@ -43,7 +54,7 @@ function SettingsPageContent() {
 		}
 	}, [userProfile, authLoading]);
 
-	// Check Super User status - only Super Users can access this page
+	// Check Admin status - only users with UserType='Admin' can access this page
 	if (isSuperUserState === null || authLoading) {
 		return (
 			<div className="space-y-6">
@@ -60,15 +71,9 @@ function SettingsPageContent() {
 	}
 
 	const tabs = [
-		{ id: "profile", label: "Profile", icon: User },
-		...(isSuperUserState ? [{ id: "permissions", label: "Permissions", icon: Shield }] : []),
+		{ id: "users", label: "View Users", icon: Users },
+		{ id: "addUser", label: "Add New User", icon: UserPlus },
 		{ id: "password", label: "Password", icon: Lock },
-		...(isSuperUserState
-			? [
-					{ id: "addUser", label: "Add New User", icon: User },
-					{ id: "users", label: "View Users", icon: Users },
-			  ]
-			: []),
 	];
 
 	return (
@@ -110,91 +115,11 @@ function SettingsPageContent() {
 
 				{/* Tab Content */}
 			<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
-				{activeTab === "profile" && <ProfileTab />}
-				{activeTab === "permissions" && isSuperUserState && <PermissionsTab />}
-				{activeTab === "password" && <PasswordTab />}
-				{activeTab === "addUser" && isSuperUserState && <AddUserTab />}
 				{activeTab === "users" && isSuperUserState && <ViewUsersTab />}
+				{activeTab === "addUser" && isSuperUserState && <AddUserTab />}
+				{activeTab === "password" && <PasswordTab />}
 									</div>
 									</div>
-	);
-}
-
-// Profile Tab Component
-function ProfileTab() {
-	const { userProfile } = useAuth();
-	const [saving, setSaving] = useState(false);
-	const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-
-	const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-		e.preventDefault();
-		setSaving(true);
-		setMessage(null);
-		// Profile update logic would go here
-		setTimeout(() => {
-			setSaving(false);
-			setMessage({ type: "success", text: "Profile updated successfully!" });
-		}, 1000);
-	};
-
-	return (
-									<div>
-			<h2 className="text-xl font-semibold text-gray-900 mb-6">Profile Information</h2>
-			{message && (
-				<div
-					className={`mb-4 p-4 rounded-lg ${
-						message.type === "success" ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"
-					}`}
-				>
-					{message.text}
-									</div>
-			)}
-			<form onSubmit={handleSubmit} className="space-y-6">
-				<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-									<div>
-						<label className="block text-sm font-medium text-gray-700 mb-2">User ID</label>
-										<input
-											type="text"
-							value={userProfile?.username || ""}
-							disabled
-							className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm bg-gray-50 cursor-not-allowed"
-										/>
-									</div>
-									<div>
-						<label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
-										<input
-											type="text"
-							value={userProfile?.full_name || ""}
-							disabled
-							className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm bg-gray-50 cursor-not-allowed"
-										/>
-									</div>
-									</div>
-				<div className="flex justify-end">
-									<button
-										type="submit"
-										disabled={saving}
-						className="inline-flex items-center gap-2 px-6 py-2 bg-[#0b4d2b] text-white rounded-md hover:bg-[#0a3d22] transition-colors disabled:opacity-50"
-									>
-										<Save className="h-4 w-4" />
-										{saving ? "Saving..." : "Save Changes"}
-									</button>
-							</div>
-						</form>
-										</div>
-	);
-}
-
-// Permissions Tab Component
-function PermissionsTab() {
-	return (
-										<div>
-			<h2 className="text-xl font-semibold text-gray-900 mb-6">Permissions</h2>
-			<p className="text-gray-600">Permission management is available through the user edit page.</p>
-			<p className="text-gray-600 mt-2">
-				Please use the "View Users" tab to edit user permissions.
-			</p>
-										</div>
 	);
 }
 
@@ -208,20 +133,56 @@ function PasswordTab() {
 		confirmPassword: "",
 	});
 
+	const { userProfile } = useAuth();
+	
 	const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
 		if (formData.newPassword !== formData.confirmPassword) {
 			setMessage({ type: "error", text: "New passwords do not match" });
 			return;
 		}
+		
+		if (formData.newPassword.length < 6) {
+			setMessage({ type: "error", text: "New password must be at least 6 characters" });
+			return;
+		}
+		
 		setSaving(true);
 		setMessage(null);
-		// Password update logic would go here
-		setTimeout(() => {
-			setSaving(false);
+		
+		try {
+			// Get user identifier (email_address or UserId)
+			const userId = userProfile?.email || userProfile?.username || "";
+			
+			if (!userId) {
+				setMessage({ type: "error", text: "User information not found. Please log in again." });
+				setSaving(false);
+				return;
+			}
+			
+			const response = await fetch("/api/change-password", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					userId: userId,
+					oldPassword: formData.currentPassword,
+					newPassword: formData.newPassword,
+				}),
+			});
+			
+			const data = await response.json();
+			
+			if (!response.ok || !data.success) {
+				throw new Error(data.message || "Failed to change password");
+			}
+			
 			setMessage({ type: "success", text: "Password updated successfully!" });
 			setFormData({ currentPassword: "", newPassword: "", confirmPassword: "" });
-		}, 1000);
+		} catch (err: any) {
+			setMessage({ type: "error", text: err.message || "Failed to change password" });
+		} finally {
+			setSaving(false);
+		}
 	};
 
 	return (
@@ -315,51 +276,35 @@ function AddUserTab() {
 	};
 
 	const [formData, setFormData] = useState({
-		USER_ID: "",
-		USER_FULL_NAME: "",
-		PASSWORD: "",
-		RE_PASSWORD: "",
-		USER_TYPE: "",
-		DESIGNATION: "",
-		ACTIVE: false,
-		CAN_ADD: false,
-		CAN_UPDATE: false,
-		CAN_DELETE: false,
-		CAN_UPLOAD: false,
-		SEE_REPORTS: false,
-		RC: "",
-		LC: "",
-		REPORT_TO: "",
-		ROP_EDIT: false,
-		access_loans: false,
-		baseline_access: false,
-		bank_account: false,
-		Supper_User: false,
-		Finance_Officer: "",
-		BaselineQOL: false,
-		Dashboard: false,
-		PowerBI: false,
-		Family_Development_Plan: false,
-		Family_Approval_CRC: false,
-		Family_Income: false,
-		ROP: false,
+		UserId: "",
+		email_address: "",
+		UserFullName: "",
+		Password: "",
+		UserType: "",
+		Designation: "",
+		Active: false,
+		Regional_Council: "",
+		Local_Council: "",
 		Setting: false,
-		Other: false,
-		SWB_Families: false,
-		EDO: "",
-		JPO: "",
-		AM_REGION: "",
+		SwbFamilies: false,
+		ActualIntervention: false,
+		FinanceSection: false,
+		BankInformation: false,
+		BaselineApproval: false,
+		FeasibilityApproval: false,
+		FdpApproval: false,
+		InterventionApproval: false,
+		BankAccountApproval: false,
 	});
 
-	// Auto-generate password on component mount
-	useEffect(() => {
-		const autoPassword = generatePassword();
-		setFormData(prev => ({
-			...prev,
-			PASSWORD: autoPassword,
-			RE_PASSWORD: autoPassword
-		}));
-	}, []);
+		// Auto-generate password on component mount
+		useEffect(() => {
+			const autoPassword = generatePassword();
+			setFormData(prev => ({
+				...prev,
+				Password: autoPassword
+			}));
+		}, []);
 
 	const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
 		const { name, value, type } = e.target;
@@ -372,8 +317,8 @@ function AddUserTab() {
 			};
 			
 			// If Regional Council changes, reset Local Council
-			if (name === "RC" && value !== prev.RC) {
-				newData.LC = "";
+			if (name === "Regional_Council" && value !== prev.Regional_Council) {
+				newData.Local_Council = "";
 			}
 			
 			return newData;
@@ -384,8 +329,8 @@ function AddUserTab() {
 		e.preventDefault();
 		
 		// Validate required fields
-		if (!formData.USER_ID || !formData.USER_FULL_NAME || !formData.PASSWORD || !formData.USER_TYPE) {
-			setError("USER_ID, USER_FULL_NAME, PASSWORD, and USER_TYPE are required.");
+		if (!formData.email_address || !formData.UserFullName || !formData.Password || !formData.UserType) {
+			setError("Email Address, Full Name, Password, and User Type are required.");
 			return;
 		}
 
@@ -410,40 +355,25 @@ function AddUserTab() {
 			// Reset form and generate new password
 			const newPassword = generatePassword();
 			setFormData({
-				USER_ID: "",
-				USER_FULL_NAME: "",
-				PASSWORD: newPassword,
-				RE_PASSWORD: newPassword,
-				USER_TYPE: "",
-				DESIGNATION: "",
-				ACTIVE: false,
-				CAN_ADD: false,
-				CAN_UPDATE: false,
-				CAN_DELETE: false,
-				CAN_UPLOAD: false,
-				SEE_REPORTS: false,
-				RC: "",
-				LC: "",
-				REPORT_TO: "",
-				ROP_EDIT: false,
-				access_loans: false,
-				baseline_access: false,
-				bank_account: false,
-				Supper_User: false,
-				Finance_Officer: "",
-				BaselineQOL: false,
-				Dashboard: false,
-				PowerBI: false,
-				Family_Development_Plan: false,
-				Family_Approval_CRC: false,
-				Family_Income: false,
-				ROP: false,
+				UserId: "",
+				email_address: "",
+				UserFullName: "",
+				Password: newPassword,
+				UserType: "",
+				Designation: "",
+				Active: false,
+				Regional_Council: "",
+				Local_Council: "",
 				Setting: false,
-				Other: false,
-				SWB_Families: false,
-				EDO: "",
-				JPO: "",
-				AM_REGION: "",
+				SwbFamilies: false,
+				ActualIntervention: false,
+				FinanceSection: false,
+				BankInformation: false,
+				BaselineApproval: false,
+				FeasibilityApproval: false,
+				FdpApproval: false,
+				InterventionApproval: false,
+				BankAccountApproval: false,
 			});
 
 			setTimeout(() => {
@@ -488,10 +418,23 @@ function AddUserTab() {
 								</label>
 								<input
 									type="email"
-									name="USER_ID"
-									value={formData.USER_ID}
+									name="email_address"
+									value={formData.email_address}
 									onChange={handleChange}
 									required
+									className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent"
+								/>
+							</div>
+
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1">
+									User ID (Optional - auto-generated if empty)
+								</label>
+								<input
+									type="text"
+									name="UserId"
+									value={formData.UserId}
+									onChange={handleChange}
 									className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent"
 								/>
 							</div>
@@ -502,8 +445,8 @@ function AddUserTab() {
 								</label>
 								<input
 									type="text"
-									name="USER_FULL_NAME"
-									value={formData.USER_FULL_NAME}
+									name="UserFullName"
+									value={formData.UserFullName}
 									onChange={handleChange}
 									required
 									className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent"
@@ -516,22 +459,8 @@ function AddUserTab() {
 								</label>
 								<input
 									type="text"
-									name="PASSWORD"
-									value={formData.PASSWORD}
-									readOnly
-									required
-									className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
-								/>
-							</div>
-
-							<div>
-								<label className="block text-sm font-medium text-gray-700 mb-1">
-									Re-enter Password <span className="text-red-500">*</span>
-								</label>
-								<input
-									type="text"
-									name="RE_PASSWORD"
-									value={formData.RE_PASSWORD}
+									name="Password"
+									value={formData.Password}
 									readOnly
 									required
 									className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
@@ -543,14 +472,13 @@ function AddUserTab() {
 									User Type <span className="text-red-500">*</span>
 								</label>
 								<select
-									name="USER_TYPE"
-									value={formData.USER_TYPE}
+									name="UserType"
+									value={formData.UserType}
 									onChange={handleChange}
 									required
 									className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent"
 								>
 									<option value="">Select User Type</option>
-									<option value="SuperAdmin">SuperAdmin</option>
 									<option value="Admin">Admin</option>
 									<option value="HeadOffice">HeadOffice</option>
 									<option value="RegionalManager">RegionalManager</option>
@@ -567,34 +495,8 @@ function AddUserTab() {
 								</label>
 								<input
 									type="text"
-									name="DESIGNATION"
-									value={formData.DESIGNATION}
-									onChange={handleChange}
-									className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent"
-								/>
-							</div>
-
-							<div>
-								<label className="block text-sm font-medium text-gray-700 mb-1">
-									Finance Officer
-								</label>
-								<input
-									type="text"
-									name="Finance_Officer"
-									value={formData.Finance_Officer}
-									onChange={handleChange}
-									className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent"
-								/>
-							</div>
-
-							<div>
-								<label className="block text-sm font-medium text-gray-700 mb-1">
-									Report To
-								</label>
-								<input
-									type="text"
-									name="REPORT_TO"
-									value={formData.REPORT_TO}
+									name="Designation"
+									value={formData.Designation}
 									onChange={handleChange}
 									className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent"
 								/>
@@ -609,8 +511,8 @@ function AddUserTab() {
 							<div>
 								<label className="block text-sm font-medium text-gray-700 mb-1">Regional Council</label>
 								<select
-									name="RC"
-									value={formData.RC}
+									name="Regional_Council"
+									value={formData.Regional_Council}
 									onChange={handleChange}
 									className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent"
 								>
@@ -626,54 +528,21 @@ function AddUserTab() {
 							<div>
 								<label className="block text-sm font-medium text-gray-700 mb-1">Local Council</label>
 								<select
-									name="LC"
-									value={formData.LC}
+									name="Local_Council"
+									value={formData.Local_Council}
 									onChange={handleChange}
-									disabled={!formData.RC}
+									disabled={!formData.Regional_Council}
 									className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
 								>
 									<option value="">
-										{formData.RC ? "Select Local Council" : "Select Regional Council first"}
+										{formData.Regional_Council ? "Select Local Council" : "Select Regional Council first"}
 									</option>
-									{formData.RC && councilData[formData.RC]?.map((localCouncil) => (
+									{formData.Regional_Council && councilData[formData.Regional_Council]?.map((localCouncil) => (
 										<option key={localCouncil} value={localCouncil}>
 											{localCouncil}
 										</option>
 									))}
 								</select>
-							</div>
-
-							<div>
-								<label className="block text-sm font-medium text-gray-700 mb-1">EDO</label>
-								<input
-									type="text"
-									name="EDO"
-									value={formData.EDO}
-									onChange={handleChange}
-									className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent"
-								/>
-							</div>
-
-							<div>
-								<label className="block text-sm font-medium text-gray-700 mb-1">JPO</label>
-								<input
-									type="text"
-									name="JPO"
-									value={formData.JPO}
-									onChange={handleChange}
-									className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent"
-								/>
-							</div>
-
-							<div>
-								<label className="block text-sm font-medium text-gray-700 mb-1">AM Region</label>
-								<input
-									type="text"
-									name="AM_REGION"
-									value={formData.AM_REGION}
-									onChange={handleChange}
-									className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent"
-								/>
 							</div>
 						</div>
 					</div>
@@ -683,27 +552,17 @@ function AddUserTab() {
 						<h3 className="text-lg font-semibold text-gray-900 mb-4">Permissions</h3>
 						<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 							{[
-								{ key: "ACTIVE", label: "Active", desc: "User account is active" },
-								{ key: "CAN_ADD", label: "Can Add", desc: "Can add new records" },
-								{ key: "CAN_UPDATE", label: "Can Update", desc: "Can update records" },
-								{ key: "CAN_DELETE", label: "Can Delete", desc: "Can delete records" },
-								{ key: "CAN_UPLOAD", label: "Can Upload", desc: "Can upload files" },
-								{ key: "SEE_REPORTS", label: "See Reports", desc: "Can view reports" },
-								{ key: "ROP_EDIT", label: "ROP Edit", desc: "Can edit ROP" },
-								{ key: "access_loans", label: "Access Loans", desc: "Access loans module" },
-								{ key: "baseline_access", label: "Baseline Access", desc: "Access baseline data" },
-								{ key: "bank_account", label: "Bank Account", desc: "Bank account access" },
-								{ key: "Supper_User", label: "Super User", desc: "Admin privileges" },
-								{ key: "BaselineQOL", label: "Baseline QOL", desc: "Baseline QOL access" },
-								{ key: "Dashboard", label: "Dashboard", desc: "Dashboard access" },
-								{ key: "PowerBI", label: "Power BI", desc: "Power BI access" },
-								{ key: "Family_Development_Plan", label: "Family Development Plan", desc: "FDP access" },
-								{ key: "Family_Approval_CRC", label: "Family Approval CRC", desc: "CRC approval access" },
-								{ key: "Family_Income", label: "Family Income", desc: "Family income access" },
-								{ key: "ROP", label: "ROP", desc: "ROP access" },
+								{ key: "Active", label: "Active", desc: "User account is active" },
 								{ key: "Setting", label: "Setting", desc: "Settings access" },
-								{ key: "Other", label: "Other", desc: "Other permissions" },
-								{ key: "SWB_Families", label: "SWB Families", desc: "SWB Families access" },
+								{ key: "SwbFamilies", label: "SWB Families", desc: "SWB Families access" },
+								{ key: "ActualIntervention", label: "Actual Intervention", desc: "Actual intervention access" },
+								{ key: "FinanceSection", label: "Finance Section", desc: "Finance section access" },
+								{ key: "BankInformation", label: "Bank Information", desc: "Bank information access" },
+								{ key: "BaselineApproval", label: "Baseline Approval", desc: "Baseline approval access" },
+								{ key: "FeasibilityApproval", label: "Feasibility Approval", desc: "Feasibility approval access" },
+								{ key: "FdpApproval", label: "FDP Approval", desc: "FDP approval access" },
+								{ key: "InterventionApproval", label: "Intervention Approval", desc: "Intervention approval access" },
+								{ key: "BankAccountApproval", label: "Bank Account Approval", desc: "Bank account approval access" },
 							].map((item) => (
 								<div key={item.key} className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
 									<input
@@ -731,40 +590,25 @@ function AddUserTab() {
 							onClick={() => {
 								const newPassword = generatePassword();
 								setFormData({
-									USER_ID: "",
-									USER_FULL_NAME: "",
-									PASSWORD: newPassword,
-									RE_PASSWORD: newPassword,
-									USER_TYPE: "",
-									DESIGNATION: "",
-									ACTIVE: false,
-									CAN_ADD: false,
-									CAN_UPDATE: false,
-									CAN_DELETE: false,
-									CAN_UPLOAD: false,
-									SEE_REPORTS: false,
-									RC: "",
-									LC: "",
-									REPORT_TO: "",
-									ROP_EDIT: false,
-									access_loans: false,
-									baseline_access: false,
-									bank_account: false,
-									Supper_User: false,
-									Finance_Officer: "",
-									BaselineQOL: false,
-									Dashboard: false,
-									PowerBI: false,
-									Family_Development_Plan: false,
-									Family_Approval_CRC: false,
-									Family_Income: false,
-									ROP: false,
+									UserId: "",
+									email_address: "",
+									UserFullName: "",
+									Password: newPassword,
+									UserType: "",
+									Designation: "",
+									Active: false,
+									Regional_Council: "",
+									Local_Council: "",
 									Setting: false,
-									Other: false,
-									SWB_Families: false,
-									EDO: "",
-									JPO: "",
-									AM_REGION: "",
+									SwbFamilies: false,
+									ActualIntervention: false,
+									FinanceSection: false,
+									BankInformation: false,
+									BaselineApproval: false,
+									FeasibilityApproval: false,
+									FdpApproval: false,
+									InterventionApproval: false,
+									BankAccountApproval: false,
 								});
 								setError(null);
 								setSuccess(false);
@@ -795,6 +639,18 @@ function ViewUsersTab() {
 	const [users, setUsers] = useState<any[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
+	const [searchTerm, setSearchTerm] = useState("");
+	const [filterUserType, setFilterUserType] = useState("");
+	const [filterActive, setFilterActive] = useState<"all" | "active" | "inactive">("all");
+	const [editingUser, setEditingUser] = useState<string | null>(null);
+	const [editFormData, setEditFormData] = useState<any>(null);
+	const [updating, setUpdating] = useState(false);
+	const [deleteConfirm, setDeleteConfirm] = useState<{ show: boolean; userId: string | null; userName: string | null }>({
+		show: false,
+		userId: null,
+		userName: null,
+	});
+	const [deleting, setDeleting] = useState(false);
 
 	useEffect(() => {
 		const fetchUsers = async () => {
@@ -804,7 +660,7 @@ function ViewUsersTab() {
 				const data = await response.json();
 				if (data.success) {
 					setUsers(data.users || []);
-					} else {
+				} else {
 					setError(data.message || "Failed to fetch users");
 				}
 			} catch (err: any) {
@@ -816,6 +672,116 @@ function ViewUsersTab() {
 		};
 		fetchUsers();
 	}, []);
+
+	// Get unique user types for filter
+	const userTypes = Array.from(new Set(users.map((u) => u.UserType).filter(Boolean))).sort();
+
+	// Filter users
+	const filteredUsers = users.filter((user) => {
+		const matchesSearch =
+			!searchTerm ||
+			(user.UserId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+				user.email_address?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+				user.UserFullName?.toLowerCase().includes(searchTerm.toLowerCase()));
+		const matchesType = !filterUserType || user.UserType === filterUserType;
+		const matchesActive =
+			filterActive === "all" ||
+			(filterActive === "active" && user.Active) ||
+			(filterActive === "inactive" && !user.Active);
+		return matchesSearch && matchesType && matchesActive;
+	});
+
+	const handleEditClick = (user: any) => {
+		const userId = user.UserId || user.email_address;
+		setEditingUser(userId);
+		setEditFormData({
+			UserFullName: user.UserFullName || "",
+			UserType: user.UserType || "",
+			Designation: user.Designation || "",
+			Active: user.Active === 1 || user.Active === true || user.Active === "1" || user.Active === "true",
+		});
+	};
+
+	const handleCancelEdit = () => {
+		setEditingUser(null);
+		setEditFormData(null);
+	};
+
+	const handleUpdateUser = async (userId: string) => {
+		if (!editFormData) return;
+
+		try {
+			setUpdating(true);
+			const response = await fetch("/api/users", {
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					email_address: userId,
+					UserId: userId,
+					UserFullName: editFormData.UserFullName,
+					UserType: editFormData.UserType,
+					Designation: editFormData.Designation,
+					Active: editFormData.Active,
+				}),
+			});
+
+			const result = await response.json();
+
+			if (!response.ok || !result.success) {
+				throw new Error(result.message || "Failed to update user");
+			}
+
+			// Refresh users list
+			const refreshResponse = await fetch("/api/users");
+			const refreshData = await refreshResponse.json();
+			if (refreshData.success) {
+				setUsers(refreshData.users || []);
+			}
+
+			setEditingUser(null);
+			setEditFormData(null);
+		} catch (err: any) {
+			console.error("Error updating user:", err);
+			alert(err.message || "Failed to update user");
+		} finally {
+			setUpdating(false);
+		}
+	};
+
+	const handleDeleteClick = (userId: string, userName: string) => {
+		setDeleteConfirm({ show: true, userId, userName });
+	};
+
+	const handleConfirmDelete = async () => {
+		if (!deleteConfirm.userId) return;
+
+		try {
+			setDeleting(true);
+			const response = await fetch(`/api/users?userId=${encodeURIComponent(deleteConfirm.userId)}`, {
+				method: "DELETE",
+			});
+
+			const result = await response.json();
+
+			if (!response.ok || !result.success) {
+				throw new Error(result.message || "Failed to delete user");
+			}
+
+			// Refresh users list
+			const refreshResponse = await fetch("/api/users");
+			const refreshData = await refreshResponse.json();
+			if (refreshData.success) {
+				setUsers(refreshData.users || []);
+			}
+
+			setDeleteConfirm({ show: false, userId: null, userName: null });
+		} catch (err: any) {
+			console.error("Error deleting user:", err);
+			alert(err.message || "Failed to delete user");
+		} finally {
+			setDeleting(false);
+		}
+	};
 
 	if (loading) {
 		return (
@@ -831,7 +797,7 @@ function ViewUsersTab() {
 
 	if (error) {
 		return (
-					<div>
+			<div>
 				<h2 className="text-xl font-semibold text-gray-900 mb-6">View Users</h2>
 				<div className="bg-red-50 border border-red-200 rounded-lg p-4">
 					<p className="text-red-800">{error}</p>
@@ -841,48 +807,249 @@ function ViewUsersTab() {
 	}
 
 	return (
-					<div>
-			<h2 className="text-xl font-semibold text-gray-900 mb-6">View Users</h2>
-			<div className="overflow-x-auto">
-				<table className="min-w-full divide-y divide-gray-200">
-					<thead className="bg-gray-50">
-						<tr>
-							<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User ID</th>
-							<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Full Name</th>
-							<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User Type</th>
-							<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Active</th>
-							<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-						</tr>
-					</thead>
-					<tbody className="bg-white divide-y divide-gray-200">
-						{users.length === 0 ? (
-							<tr>
-								<td colSpan={5} className="px-4 py-8 text-center text-gray-500">No users found</td>
-							</tr>
-						) : (
-							users.map((user) => (
-								<tr key={user.USER_ID} className="hover:bg-gray-50">
-									<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{user.USER_ID || "N/A"}</td>
-									<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{user.USER_FULL_NAME || "N/A"}</td>
-									<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{user.USER_TYPE || "N/A"}</td>
-									<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-										{user.ACTIVE ? "Yes" : "No"}
-									</td>
-									<td className="px-4 py-3 whitespace-nowrap text-sm">
-										<button
-											onClick={() => router.push(`/dashboard/settings/edit/${user.USER_ID}`)}
-											className="px-3 py-1 bg-[#0b4d2b] text-white rounded-md hover:bg-[#0a3d22] transition-colors text-sm"
-										>
-											Edit
-										</button>
-									</td>
-								</tr>
-							))
-						)}
-					</tbody>
-				</table>
+		<div>
+			<div className="flex items-center justify-between mb-6">
+				<h2 className="text-xl font-semibold text-gray-900">View Users</h2>
+				<div className="text-sm text-gray-600">
+					Total: <span className="font-semibold text-gray-900">{filteredUsers.length}</span> user{filteredUsers.length !== 1 ? "s" : ""}
+				</div>
+			</div>
+
+			{/* Filters */}
+			<div className="bg-gray-50 rounded-lg p-4 mb-6 border border-gray-200">
+				<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+					{/* Search */}
+					<div className="relative">
+						<Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+						<input
+							type="text"
+							placeholder="Search by Email, User ID or Name..."
+							value={searchTerm}
+							onChange={(e) => setSearchTerm(e.target.value)}
+							className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent text-sm"
+						/>
+					</div>
+
+					{/* User Type Filter */}
+					<div className="relative">
+						<Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+						<select
+							value={filterUserType}
+							onChange={(e) => setFilterUserType(e.target.value)}
+							className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent text-sm appearance-none bg-white"
+						>
+							<option value="">All User Types</option>
+							{userTypes.map((type) => (
+								<option key={type} value={type}>
+									{type}
+								</option>
+							))}
+						</select>
+					</div>
+
+					{/* Active Status Filter */}
+					<select
+						value={filterActive}
+						onChange={(e) => setFilterActive(e.target.value as "all" | "active" | "inactive")}
+						className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent text-sm bg-white"
+					>
+						<option value="all">All Status</option>
+						<option value="active">Active Only</option>
+						<option value="inactive">Inactive Only</option>
+					</select>
+				</div>
+			</div>
+
+			{/* Users Grid View */}
+			{filteredUsers.length === 0 ? (
+				<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-12">
+					<div className="flex flex-col items-center justify-center">
+						<Users className="h-12 w-12 text-gray-400 mb-3" />
+						<p className="text-gray-500 font-medium">No users found</p>
+						<p className="text-sm text-gray-400 mt-1">
+							{searchTerm || filterUserType || filterActive !== "all"
+								? "Try adjusting your filters"
+								: "No users in the system"}
+						</p>
 					</div>
 				</div>
+			) : (
+				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+					{filteredUsers.map((user) => {
+						const userId = user.UserId || user.email_address;
+						return (
+							<div
+								key={userId}
+								className="bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-6"
+							>
+								{editingUser === userId ? (
+									<div className="space-y-4">
+										<div>
+											<label className="block text-xs font-medium text-gray-500 mb-1">Full Name</label>
+											<input
+												type="text"
+												value={editFormData?.UserFullName || ""}
+												onChange={(e) =>
+													setEditFormData({ ...editFormData, UserFullName: e.target.value })
+												}
+												className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent text-sm"
+											/>
+										</div>
+										<div>
+											<label className="block text-xs font-medium text-gray-500 mb-1">User Type</label>
+											<input
+												type="text"
+												value={editFormData?.UserType || ""}
+												onChange={(e) =>
+													setEditFormData({ ...editFormData, UserType: e.target.value })
+												}
+												className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent text-sm"
+											/>
+										</div>
+										<div>
+											<label className="block text-xs font-medium text-gray-500 mb-1">Designation</label>
+											<input
+												type="text"
+												value={editFormData?.Designation || ""}
+												onChange={(e) =>
+													setEditFormData({ ...editFormData, Designation: e.target.value })
+												}
+												className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent text-sm"
+											/>
+										</div>
+										<div className="flex items-center space-x-2 pt-2">
+											<button
+												onClick={() => handleUpdateUser(userId)}
+												disabled={updating}
+												className="flex-1 inline-flex items-center justify-center px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+											>
+												{updating ? (
+													<Loader2 className="h-3 w-3 animate-spin mr-1" />
+												) : (
+													<Check className="h-3 w-3 mr-1" />
+												)}
+												Save
+											</button>
+											<button
+												onClick={handleCancelEdit}
+												disabled={updating}
+												className="flex-1 inline-flex items-center justify-center px-3 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+											>
+												<X className="h-3 w-3 mr-1" />
+												Cancel
+											</button>
+										</div>
+									</div>
+								) : (
+									<div className="space-y-4">
+										{/* User Full Name */}
+										<div>
+											<p className="text-xs font-medium text-gray-500 mb-1">Full Name</p>
+											<p className="text-base font-semibold text-gray-900">
+												{user.UserFullName || "N/A"}
+											</p>
+										</div>
+
+										{/* User Type */}
+										<div>
+											<p className="text-xs font-medium text-gray-500 mb-1">User Type</p>
+											<span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+												{user.UserType || "N/A"}
+											</span>
+										</div>
+
+										{/* Designation */}
+										<div>
+											<p className="text-xs font-medium text-gray-500 mb-1">Designation</p>
+											<p className="text-sm text-gray-700">
+												{user.Designation || "N/A"}
+											</p>
+										</div>
+
+										{/* Email/User ID (small text) */}
+										<div className="pt-2 border-t border-gray-200">
+											<p className="text-xs text-gray-400">
+												{user.email_address || user.UserId || "N/A"}
+											</p>
+										</div>
+
+										{/* Actions */}
+										<div className="flex items-center justify-end space-x-2 pt-2 border-t border-gray-200">
+											<button
+												onClick={() => router.push(`/dashboard/settings/edit/${encodeURIComponent(userId)}`)}
+												className="inline-flex items-center px-2 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-xs"
+												title="Full Edit"
+											>
+												<Edit className="h-3 w-3 mr-1" />
+												Update
+											</button>
+											<button
+												onClick={() => handleDeleteClick(userId, user.UserFullName || userId)}
+												className="inline-flex items-center px-2 py-1.5 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors text-xs"
+												title="Delete User"
+											>
+												<Trash2 className="h-3 w-3 mr-1" />
+												Delete
+											</button>
+										</div>
+									</div>
+								)}
+							</div>
+						);
+					})}
+				</div>
+			)}
+
+			{/* Delete Confirmation Modal */}
+			{deleteConfirm.show && (
+				<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+					<div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+						<div className="p-6">
+							<div className="flex items-start gap-4 mb-4">
+								<div className="flex-shrink-0 w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+									<AlertTriangle className="h-6 w-6 text-red-600" />
+								</div>
+								<div className="flex-1">
+									<h3 className="text-lg font-bold text-gray-900 mb-2">Confirm Deletion</h3>
+									<p className="text-gray-700 mb-2">
+										Are you sure you want to delete user <strong>{deleteConfirm.userName}</strong>?
+									</p>
+									<p className="text-sm text-red-600 font-semibold">
+										This action cannot be undone. All user data will be permanently deleted.
+									</p>
+								</div>
+							</div>
+							<div className="flex justify-end gap-3">
+								<button
+									onClick={() => setDeleteConfirm({ show: false, userId: null, userName: null })}
+									disabled={deleting}
+									className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+								>
+									Cancel
+								</button>
+								<button
+									onClick={handleConfirmDelete}
+									disabled={deleting}
+									className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+								>
+									{deleting ? (
+										<>
+											<Loader2 className="h-4 w-4 animate-spin" />
+											Deleting...
+										</>
+									) : (
+										<>
+											<Trash2 className="h-4 w-4" />
+											Delete User
+										</>
+									)}
+								</button>
+							</div>
+						</div>
+					</div>
+				</div>
+			)}
+		</div>
 	);
 }
 

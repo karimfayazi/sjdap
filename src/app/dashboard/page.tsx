@@ -37,29 +37,81 @@ export default function DashboardPage() {
 			setLoading(true);
 			setError(null);
 
-			// Fetch all stats in parallel
-			const [baselineRes, feasibilityRes, interventionRes] = await Promise.all([
+			// Fetch all stats in parallel with individual error handling
+			const results = await Promise.allSettled([
 				fetch("/api/baseline-stats"),
 				fetch("/api/feasibility-stats"),
 				fetch("/api/intervention-stats"),
 			]);
 
-			const baselineData = await baselineRes.json();
-			const feasibilityData = await feasibilityRes.json();
-			const interventionData = await interventionRes.json();
+			const errors: string[] = [];
 
-			if (baselineData.success) {
-				setBaselineStats(baselineData.stats);
-			}
-			if (feasibilityData.success) {
-				setFeasibilityStats(feasibilityData.stats);
-			}
-			if (interventionData.success) {
-				setInterventionStats(interventionData.stats);
+			// Process baseline stats
+			if (results[0].status === "fulfilled") {
+				try {
+					const baselineData = await results[0].value.json();
+					if (baselineData.success && baselineData.stats) {
+						setBaselineStats(baselineData.stats);
+					} else if (baselineData.stats) {
+						// Use stats even if success is false
+						setBaselineStats(baselineData.stats);
+						errors.push("Baseline stats: " + (baselineData.message || "Failed to load"));
+					} else {
+						errors.push("Baseline stats: Failed to load");
+					}
+				} catch (err) {
+					errors.push("Baseline stats: " + (err instanceof Error ? err.message : "Failed to load"));
+				}
+			} else {
+				errors.push("Baseline stats: " + (results[0].reason?.message || "Failed to load"));
 			}
 
-			if (!baselineData.success || !feasibilityData.success || !interventionData.success) {
-				setError("Some statistics failed to load");
+			// Process feasibility stats
+			if (results[1].status === "fulfilled") {
+				try {
+					const feasibilityData = await results[1].value.json();
+					if (feasibilityData.success && feasibilityData.stats) {
+						setFeasibilityStats(feasibilityData.stats);
+					} else if (feasibilityData.stats) {
+						// Use stats even if success is false
+						setFeasibilityStats(feasibilityData.stats);
+						errors.push("Feasibility stats: " + (feasibilityData.message || "Failed to load"));
+					} else {
+						errors.push("Feasibility stats: Failed to load");
+					}
+				} catch (err) {
+					errors.push("Feasibility stats: " + (err instanceof Error ? err.message : "Failed to load"));
+				}
+			} else {
+				errors.push("Feasibility stats: " + (results[1].reason?.message || "Failed to load"));
+			}
+
+			// Process intervention stats
+			if (results[2].status === "fulfilled") {
+				try {
+					const interventionData = await results[2].value.json();
+					if (interventionData.success && interventionData.stats) {
+						setInterventionStats(interventionData.stats);
+					} else if (interventionData.stats) {
+						// Use stats even if success is false
+						setInterventionStats(interventionData.stats);
+						errors.push("Intervention stats: " + (interventionData.message || "Failed to load"));
+					} else {
+						errors.push("Intervention stats: Failed to load");
+					}
+				} catch (err) {
+					errors.push("Intervention stats: " + (err instanceof Error ? err.message : "Failed to load"));
+				}
+			} else {
+				errors.push("Intervention stats: " + (results[2].reason?.message || "Failed to load"));
+			}
+
+			// Only show error if all stats failed or if there are critical errors
+			if (errors.length > 0 && errors.length === 3) {
+				setError("All statistics failed to load. Please try again.");
+			} else if (errors.length > 0) {
+				// Show warning but don't block the UI
+				console.warn("Some statistics had issues:", errors);
 			}
 		} catch (err) {
 			console.error("Error fetching stats:", err);

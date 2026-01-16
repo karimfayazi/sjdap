@@ -24,7 +24,7 @@ export default function LoginPage() {
 		event.preventDefault();
 		setError(null);
 		if (!email || !password) {
-			setError("User ID and password are required");
+			setError("Email address and password are required");
 			return;
 		}
 		setLoading(true);
@@ -171,14 +171,14 @@ export default function LoginPage() {
 					<h1 className="mb-6 text-2xl font-bold text-center text-gray-800">Sign in to SJDA</h1>
 					<form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
 						<div>
-							<label className="mb-2 block text-sm font-medium text-gray-700">User ID</label>
+							<label className="mb-2 block text-sm font-medium text-gray-700">Email Address</label>
 							<input
-								type="text"
+								type="email"
 								className="w-full rounded-md border border-gray-300 px-4 py-3 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none transition"
 								value={email}
 								onChange={(e) => setEmail(e.target.value)}
-								placeholder="Enter User ID"
-								autoComplete="off"
+								placeholder="Enter Email Address"
+								autoComplete="email"
 								required
 							/>
 						</div>
@@ -249,16 +249,16 @@ export default function LoginPage() {
 
 							<div>
 								<label className="block text-sm font-medium text-gray-700 mb-2">
-									User ID <span className="text-red-500">*</span>
+									Email Address <span className="text-red-500">*</span>
 								</label>
 								<input
-									type="text"
+									type="email"
 									value={changePasswordUserId}
 									onChange={(e) => setChangePasswordUserId(e.target.value)}
 									className="w-full rounded-md border border-gray-300 px-4 py-3 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none transition"
-									placeholder="Enter User ID"
+									placeholder="Enter Email Address"
 									required
-									autoComplete="off"
+									autoComplete="email"
 								/>
 							</div>
 

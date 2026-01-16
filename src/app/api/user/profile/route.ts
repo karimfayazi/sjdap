@@ -26,9 +26,10 @@ export async function GET(request: NextRequest) {
 		const pool = await getDb();
 		const request_query = pool.request();
 		request_query.input("user_id", userId);
+		request_query.input("email_address", userId);
 		(request_query as any).timeout = 120000;
 		const result = await request_query.query(
-			"SELECT TOP(1) * FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
+			"SELECT TOP(1) * FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
 		);
 
 		const user = result.recordset?.[0];
@@ -41,7 +42,7 @@ export async function GET(request: NextRequest) {
 		}
 
 		// Don't return password fields
-		const { PASSWORD, RE_PASSWORD, ...userData } = user;
+		const { Password, ...userData } = user;
 
 		return NextResponse.json({
 			success: true,
@@ -229,11 +230,48 @@ export async function PUT(request: NextRequest) {
 			);
 		}
 
+		// Note: PE_User has different fields, so we'll only update fields that exist
+		// Map old field names to new field names
+		const peUpdateFields: string[] = [];
+		const peDbRequest = pool.request().input("user_id", userId).input("email_address", userId);
+		
+		// Map available fields from PE_User
+		if (data.USER_FULL_NAME !== undefined) {
+			peUpdateFields.push("[UserFullName] = @UserFullName");
+			peDbRequest.input("UserFullName", data.USER_FULL_NAME);
+		}
+		if (data.USER_TYPE !== undefined) {
+			peUpdateFields.push("[UserType] = @UserType");
+			peDbRequest.input("UserType", data.USER_TYPE);
+		}
+		if (data.DESIGNATION !== undefined) {
+			peUpdateFields.push("[Designation] = @Designation");
+			peDbRequest.input("Designation", data.DESIGNATION);
+		}
+		if (data.ACTIVE !== undefined) {
+			peUpdateFields.push("[Active] = @Active");
+			peDbRequest.input("Active", data.ACTIVE ? 1 : 0);
+		}
+
+		// Always update user_update_date
+		peUpdateFields.push("[user_update_date] = GETDATE()");
+
+		if (peUpdateFields.length === 1) {
+			// Only user_update_date was added, nothing to update
+			return NextResponse.json(
+				{ success: false, message: "No fields to update" },
+				{ status: 400 }
+			);
+		}
+
 		const query = `
-			UPDATE [SJDA_Users].[dbo].[Table_User]
-			SET ${updateFields.join(", ")}
-			WHERE [USER_ID] = @user_id
+			UPDATE [SJDA_Users].[dbo].[PE_User]
+			SET ${peUpdateFields.join(", ")}
+			WHERE [UserId] = @user_id OR [email_address] = @email_address
 		`;
+
+		(peDbRequest as any).timeout = 120000;
+		await peDbRequest.query(query);
 
 		(dbRequest as any).timeout = 120000;
 		await dbRequest.query(query);

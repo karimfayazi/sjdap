@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
 
 		if (!userId || !oldPassword || !newPassword) {
 			return NextResponse.json(
-				{ success: false, message: "User ID, old password, and new password are required" },
+				{ success: false, message: "Email address, old password, and new password are required" },
 				{ status: 400 }
 			);
 		}
@@ -26,11 +26,13 @@ export async function POST(request: NextRequest) {
 		const pool = await getDb();
 		
 		// Verify old password and get user details
+		// Try email_address first, then UserId as fallback
 		const verifyRequest = pool.request();
+		verifyRequest.input("email_address", userId);
 		verifyRequest.input("user_id", userId);
 		(verifyRequest as any).timeout = 120000;
 		const verifyResult = await verifyRequest.query(
-			"SELECT TOP(1) [PASSWORD], [USER_FULL_NAME] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id AND [ACTIVE] = 1"
+			"SELECT TOP(1) [Password], [UserFullName], [UserId], [email_address] FROM [SJDA_Users].[dbo].[PE_User] WHERE ([email_address] = @email_address OR [UserId] = @user_id) AND [Active] = 1"
 		);
 
 		const user = verifyResult.recordset?.[0];
@@ -42,29 +44,29 @@ export async function POST(request: NextRequest) {
 			);
 		}
 
-		if (String(user.PASSWORD) !== String(oldPassword)) {
+		if (String(user.Password) !== String(oldPassword)) {
 			return NextResponse.json(
 				{ success: false, message: "Old password is incorrect" },
 				{ status: 401 }
 			);
 		}
 
-		// Update password
+		// Update password - use email_address or UserId for update
 		const updateRequest = pool.request();
-		updateRequest.input("user_id", userId);
+		const lookupValue = user.email_address || user.UserId;
+		updateRequest.input("lookup_value", lookupValue);
 		updateRequest.input("new_password", newPassword);
-		updateRequest.input("re_password", newPassword);
 		(updateRequest as any).timeout = 120000;
 		await updateRequest.query(
-			`UPDATE [SJDA_Users].[dbo].[Table_User]
-			 SET [PASSWORD] = @new_password, [RE_PASSWORD] = @re_password, [UPDATE_DATE] = GETDATE()
-			 WHERE [USER_ID] = @user_id`
+			`UPDATE [SJDA_Users].[dbo].[PE_User]
+			 SET [Password] = @new_password, [user_update_date] = GETDATE()
+			 WHERE ([email_address] = @lookup_value OR [UserId] = @lookup_value)`
 		);
 
 		// Send email notification (don't await - run in background)
 		sendPasswordChangeEmail(
-			userId, // User ID is the email address
-			user.USER_FULL_NAME || userId,
+			user.email_address || user.UserId || userId, // Use email_address if available
+			user.UserFullName || userId,
 			new Date()
 		).catch(error => {
 			// Log error but don't fail the password change

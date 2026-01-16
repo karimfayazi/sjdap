@@ -26,9 +26,10 @@ export async function GET(request: NextRequest) {
 		const pool = await getDb();
 		const request_query = pool.request();
 		request_query.input("user_id", userId);
+		request_query.input("email_address", userId);
 		(request_query as any).timeout = 120000;
 		const result = await request_query.query(
-			"SELECT TOP(1) [USER_ID], [USER_FULL_NAME], [REGION], [PROGRAM] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
+			"SELECT TOP(1) [UserId], [email_address], [UserFullName], [Regional_Council], [Local_Council] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
 		);
 
 		const user = result.recordset?.[0];
@@ -42,11 +43,11 @@ export async function GET(request: NextRequest) {
 
 		// Map database fields to UserInfo type
 		const userInfo = {
-			id: user.USER_ID,
-			name: user.USER_FULL_NAME,
-			username: user.USER_ID,
-			department: user.PROGRAM || null,
-			region: user.REGION || null,
+			id: user.UserId || user.email_address,
+			name: user.UserFullName,
+			username: user.UserId || user.email_address,
+			department: null, // PE_User doesn't have PROGRAM field
+			region: user.Regional_Council || null,
 		};
 
 		return NextResponse.json({

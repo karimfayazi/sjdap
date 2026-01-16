@@ -533,7 +533,10 @@ function FamilyDevelopmentPlanPageContent() {
 												: 'bg-gray-50 hover:bg-blue-100'
 										}`}
 									>
-										<td className="px-4 py-3 text-sm font-semibold text-[#0b4d2b] truncate border-r border-gray-200" title={app.FormNumber || "-"}>
+										<td className="px-4 py-3 text-sm font-semibold text-[#0b4d2b] truncate border-r border-gray-200 cursor-pointer hover:underline" 
+											title={app.FormNumber || "-"}
+											onClick={() => app.FormNumber && fetchFamilyMembers(app.FormNumber)}
+										>
 											{app.FormNumber || "-"}
 										</td>
 										<td className="px-4 py-3 text-sm font-medium text-gray-900 truncate border-r border-gray-200" title={app.Full_Name || "-"}>
@@ -700,31 +703,41 @@ function FamilyDevelopmentPlanPageContent() {
 								</div>
 							) : (
 								<div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm bg-white">
-									<table className="min-w-full divide-y divide-gray-200">
+									<table className="w-full divide-y divide-gray-200" style={{ tableLayout: 'fixed' }}>
+										<colgroup>
+											<col style={{ width: '8%' }} />
+											<col style={{ width: '15%' }} />
+											<col style={{ width: '12%' }} />
+											<col style={{ width: '10%' }} />
+											<col style={{ width: '8%' }} />
+											<col style={{ width: '10%' }} />
+											<col style={{ width: '12%' }} />
+											<col style={{ width: '25%' }} />
+										</colgroup>
 										<thead className="bg-gradient-to-r from-gray-700 to-gray-800">
 											<tr>
-												<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+												<th className="px-3 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
 													Member No
 												</th>
-												<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+												<th className="px-3 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
 													Full Name
 												</th>
-												<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+												<th className="px-3 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
 													B-Form/CNIC
 												</th>
-												<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+												<th className="px-3 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
 													Relationship
 												</th>
-												<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+												<th className="px-3 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
 													Gender
 												</th>
-												<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+												<th className="px-3 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
 													Date of Birth
 												</th>
-												<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+												<th className="px-3 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
 													Monthly Income
 												</th>
-												<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
+												<th className="px-3 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">
 													Actions
 												</th>
 											</tr>
@@ -743,46 +756,46 @@ function FamilyDevelopmentPlanPageContent() {
 												
 												return (
 													<tr key={index} className="hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-indigo-50/50 transition-all duration-150 border-b border-gray-100">
-														<td className="px-6 py-4 whitespace-nowrap">
-															<span className="text-sm font-semibold text-[#0b4d2b] bg-[#0b4d2b]/10 px-3 py-1 rounded-md">
+														<td className="px-3 py-3 whitespace-nowrap">
+															<span className="text-xs font-semibold text-[#0b4d2b] bg-[#0b4d2b]/10 px-2 py-1 rounded-md">
 																{member.MemberNo || "-"}
 															</span>
 														</td>
-														<td className="px-6 py-4 whitespace-nowrap">
-															<span className="text-sm font-medium text-gray-900">
+														<td className="px-3 py-3 whitespace-nowrap">
+															<span className="text-xs font-medium text-gray-900 truncate block" title={member.FullName || "-"}>
 																{member.FullName || "-"}
 															</span>
 														</td>
-														<td className="px-6 py-4 whitespace-nowrap">
-															<span className="text-sm text-gray-700 font-mono">
+														<td className="px-3 py-3 whitespace-nowrap">
+															<span className="text-xs text-gray-700 font-mono truncate block" title={member.BFormOrCNIC || "-"}>
 																{member.BFormOrCNIC || "-"}
 															</span>
 														</td>
-														<td className="px-6 py-4 whitespace-nowrap">
-															<span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+														<td className="px-3 py-3 whitespace-nowrap">
+															<span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
 																{member.Relationship || "-"}
 															</span>
 														</td>
-														<td className="px-6 py-4 whitespace-nowrap">
-															<span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+														<td className="px-3 py-3 whitespace-nowrap">
+															<span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
 																{member.Gender || "-"}
 															</span>
 														</td>
-														<td className="px-6 py-4 whitespace-nowrap">
-															<span className="text-sm text-gray-700">
+														<td className="px-3 py-3 whitespace-nowrap">
+															<span className="text-xs text-gray-700">
 																{formatDate(member.DOBMonth, member.DOBYear)}
 															</span>
 														</td>
-														<td className="px-6 py-4 whitespace-nowrap">
-															<span className="text-sm font-semibold text-green-700">
+														<td className="px-3 py-3 whitespace-nowrap">
+															<span className="text-xs font-semibold text-green-700">
 																{formatCurrency(member.MonthlyIncome)}
 															</span>
 														</td>
-														<td className="px-6 py-4 whitespace-nowrap">
-															<div className="flex flex-wrap gap-2">
+														<td className="px-3 py-3 whitespace-nowrap">
+															<div className="flex flex-wrap gap-1">
 																{hideAllButtons ? (
-																	<span className="text-xs text-gray-500 italic bg-gray-100 px-3 py-1.5 rounded-md">
-																		No support available (Income Level {selectedFamilyIncomeLevel})
+																	<span className="text-xs text-gray-500 italic bg-gray-100 px-2 py-1 rounded-md">
+																		No support
 																	</span>
 																) : (
 																	<>
@@ -800,9 +813,10 @@ function FamilyDevelopmentPlanPageContent() {
 																			}
 																				router.push(`/dashboard/family-development-plan/feasibility-study?${params.toString()}`);
 																			}}
-																			className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-xs font-semibold rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-sm hover:shadow-md transform hover:scale-105"
+																			className="px-2 py-1 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-xs font-semibold rounded hover:from-blue-700 hover:to-blue-800 transition-all shadow-sm hover:shadow-md"
+																			title="Feasibility Plan"
 																		>
-																			Feasibility Plan
+																			Feasibility
 																		</button>
 																		)}
 																		{/* FDP Economic - Show only if age >= 18 */}
@@ -819,9 +833,10 @@ function FamilyDevelopmentPlanPageContent() {
 																			}
 																				router.push(`/dashboard/family-development-plan/fdp-economic?${params.toString()}`);
 																			}}
-																			className="px-3 py-1.5 bg-gradient-to-r from-green-600 to-green-700 text-white text-xs font-semibold rounded-lg hover:from-green-700 hover:to-green-800 transition-all shadow-sm hover:shadow-md transform hover:scale-105"
+																			className="px-2 py-1 bg-gradient-to-r from-green-600 to-green-700 text-white text-xs font-semibold rounded hover:from-green-700 hover:to-green-800 transition-all shadow-sm hover:shadow-md"
+																			title="FDP Economic"
 																		>
-																			FDP Economic
+																			Economic
 																		</button>
 																		)}
 																		{/* Education Support - Show only if age < 18 */}
@@ -838,9 +853,10 @@ function FamilyDevelopmentPlanPageContent() {
 																			}
 																				router.push(`/dashboard/family-development-plan/education-support?${params.toString()}`);
 																			}}
-																			className="px-3 py-1.5 bg-gradient-to-r from-purple-600 to-purple-700 text-white text-xs font-semibold rounded-lg hover:from-purple-700 hover:to-purple-800 transition-all shadow-sm hover:shadow-md transform hover:scale-105"
+																			className="px-2 py-1 bg-gradient-to-r from-purple-600 to-purple-700 text-white text-xs font-semibold rounded hover:from-purple-700 hover:to-purple-800 transition-all shadow-sm hover:shadow-md"
+																			title="Education Support"
 																		>
-																			Education Support
+																			Education
 																		</button>
 																		)}
 																		<button
@@ -855,9 +871,10 @@ function FamilyDevelopmentPlanPageContent() {
 																				}
 																				router.push(`/dashboard/family-development-plan/health-support?${params.toString()}`);
 																			}}
-																			className="px-3 py-1.5 bg-gradient-to-r from-red-600 to-red-700 text-white text-xs font-semibold rounded-lg hover:from-red-700 hover:to-red-800 transition-all shadow-sm hover:shadow-md transform hover:scale-105"
+																			className="px-2 py-1 bg-gradient-to-r from-red-600 to-red-700 text-white text-xs font-semibold rounded hover:from-red-700 hover:to-red-800 transition-all shadow-sm hover:shadow-md"
+																			title="Health Support"
 																		>
-																			Health Support
+																			Health
 																		</button>
 																		{isSelf && (
 																			<>
@@ -875,9 +892,10 @@ function FamilyDevelopmentPlanPageContent() {
 																							}
 																							router.push(`/dashboard/family-development-plan/housing-support?${params.toString()}`);
 																						}}
-																						className="px-3 py-1.5 bg-gradient-to-r from-orange-600 to-orange-700 text-white text-xs font-semibold rounded-lg hover:from-orange-700 hover:to-orange-800 transition-all shadow-sm hover:shadow-md transform hover:scale-105"
+																						className="px-2 py-1 bg-gradient-to-r from-orange-600 to-orange-700 text-white text-xs font-semibold rounded hover:from-orange-700 hover:to-orange-800 transition-all shadow-sm hover:shadow-md"
+																						title="Housing Support"
 																					>
-																						Housing Support
+																						Housing
 																					</button>
 																				)}
 																				{/* Food Support - Show only for Poverty Levels -3 and -4 */}
@@ -894,9 +912,10 @@ function FamilyDevelopmentPlanPageContent() {
 																							}
 																							router.push(`/dashboard/family-development-plan/food-support?${params.toString()}`);
 																						}}
-																						className="px-3 py-1.5 bg-gradient-to-r from-yellow-600 to-yellow-700 text-white text-xs font-semibold rounded-lg hover:from-yellow-700 hover:to-yellow-800 transition-all shadow-sm hover:shadow-md transform hover:scale-105"
+																						className="px-2 py-1 bg-gradient-to-r from-yellow-600 to-yellow-700 text-white text-xs font-semibold rounded hover:from-yellow-700 hover:to-yellow-800 transition-all shadow-sm hover:shadow-md"
+																						title="Food Support"
 																					>
-																						Food Support
+																						Food
 																					</button>
 																				)}
 																			</>

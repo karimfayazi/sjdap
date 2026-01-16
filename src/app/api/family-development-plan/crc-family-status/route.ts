@@ -40,9 +40,12 @@ export async function GET(request: NextRequest) {
 				const basicInfoRequest = pool.request();
 				basicInfoRequest.input("FormNumber", sql.VarChar, record.Form_Number);
 				const basicInfoQuery = `
-					SELECT TOP 1 [SubmittedBy], [SubmittedAt]
-					FROM [SJDA_Users].[dbo].[PE_Application_BasicInfo]
-					WHERE [FormNumber] = @FormNumber
+					SELECT TOP 1 
+						ISNULL(u.[UserFullName], app.[SubmittedBy]) as SubmittedBy,
+						app.[SubmittedAt]
+					FROM [SJDA_Users].[dbo].[PE_Application_BasicInfo] app
+					LEFT JOIN [SJDA_Users].[dbo].[PE_User] u ON app.[SubmittedBy] = u.[UserFullName]
+					WHERE app.[FormNumber] = @FormNumber
 				`;
 				const basicInfoResult = await basicInfoRequest.query(basicInfoQuery);
 				mentor = basicInfoResult.recordset?.[0]?.SubmittedBy || null;
@@ -61,9 +64,12 @@ export async function GET(request: NextRequest) {
 			
 			// Get Mentor and SubmittedAt from PE_Application_BasicInfo
 			const basicInfoQuery = `
-				SELECT TOP 1 [SubmittedBy], [SubmittedAt]
-				FROM [SJDA_Users].[dbo].[PE_Application_BasicInfo]
-				WHERE [FormNumber] = @FormNumber
+				SELECT TOP 1 
+					ISNULL(u.[UserFullName], app.[SubmittedBy]) as SubmittedBy,
+					app.[SubmittedAt]
+				FROM [SJDA_Users].[dbo].[PE_Application_BasicInfo] app
+				LEFT JOIN [SJDA_Users].[dbo].[PE_User] u ON app.[SubmittedBy] = u.[UserFullName]
+				WHERE app.[FormNumber] = @FormNumber
 			`;
 			const basicInfoResult = await sqlRequest.query(basicInfoQuery);
 			const mentor = basicInfoResult.recordset?.[0]?.SubmittedBy || null;
@@ -129,9 +135,10 @@ export async function POST(request: NextRequest) {
 						.request()
 						.input("user_id", userId)
 						.query(
-							"SELECT TOP(1) [USER_NAME] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
+							"SELECT TOP(1) [UserId], [email_address] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
 						);
-					userName = userResult.recordset?.[0]?.USER_NAME || userId;
+					const user = userResult.recordset?.[0];
+					userName = user?.UserId || user?.email_address || userId;
 				}
 			}
 		} catch (userError) {
@@ -265,9 +272,10 @@ export async function PUT(request: NextRequest) {
 						.request()
 						.input("user_id", userId)
 						.query(
-							"SELECT TOP(1) [USER_NAME] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
+							"SELECT TOP(1) [UserId], [email_address] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
 						);
-					userName = userResult.recordset?.[0]?.USER_NAME || userId;
+					const user = userResult.recordset?.[0];
+					userName = user?.UserId || user?.email_address || userId;
 				}
 			}
 		} catch (userError) {

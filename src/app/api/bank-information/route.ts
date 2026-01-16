@@ -30,15 +30,16 @@ export async function GET(request: NextRequest) {
 		const userResult = await userPool
 			.request()
 			.input("user_id", userId)
+			.input("email_address", userId)
 			.query(
-				"SELECT TOP(1) [USER_FULL_NAME], [USER_TYPE], [PROGRAM], [AREA] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
+				"SELECT TOP(1) [UserFullName], [UserType] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
 			);
 
 		const user = userResult.recordset?.[0];
-		const userFullName = user?.USER_FULL_NAME || null;
-		const isAdmin = user?.USER_TYPE?.toLowerCase() === "admin";
-		const userProgram = user?.PROGRAM || null;
-		const userArea = user?.AREA || null;
+		const userFullName = user?.UserFullName || null;
+		const isAdmin = user?.UserType?.toLowerCase() === "admin";
+		const userProgram = null; // PE_User doesn't have PROGRAM field
+		const userArea = null; // PE_User doesn't have AREA field
 
 		const searchParams = request.nextUrl.searchParams;
 		const familyId = searchParams.get("familyId") || "";
@@ -220,11 +221,12 @@ export async function POST(request: NextRequest) {
 		const userFullNameResult = await userPool
 			.request()
 			.input("user_id", userId)
+			.input("email_address", userId)
 			.query(
-				"SELECT TOP(1) [USER_FULL_NAME] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
+				"SELECT TOP(1) [UserFullName] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
 			);
 
-		const userFullName = userFullNameResult.recordset?.[0]?.USER_FULL_NAME || null;
+		const userFullName = userFullNameResult.recordset?.[0]?.UserFullName || null;
 
 		if (!userFullName) {
 			return NextResponse.json(
@@ -407,8 +409,9 @@ export async function PUT(request: NextRequest) {
 			const userResult = await userPool
 				.request()
 				.input("user_id", userId)
+				.input("email_address", userId)
 				.query(
-					"SELECT TOP(1) [bank_account], [USER_FULL_NAME] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
+					"SELECT TOP(1) [BankAccountApproval], [UserFullName] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
 				);
 
 			const user = userResult.recordset?.[0];
@@ -420,8 +423,8 @@ export async function PUT(request: NextRequest) {
 				);
 			}
 
-			// Check if bank_account is "Yes" (case-insensitive)
-			const bankAccount = user.bank_account;
+			// Check if BankAccountApproval is "Yes" (case-insensitive)
+			const bankAccount = user.BankAccountApproval;
 			const hasPermission = 
 				bankAccount === "Yes" || 
 				bankAccount === "yes" || 
@@ -568,8 +571,9 @@ export async function DELETE(request: NextRequest) {
 			const userResult = await userPool
 				.request()
 				.input("user_id", userId)
+				.input("email_address", userId)
 				.query(
-					"SELECT TOP(1) [bank_account] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
+					"SELECT TOP(1) [BankAccountApproval] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
 				);
 
 			const user = userResult.recordset?.[0];
@@ -581,8 +585,8 @@ export async function DELETE(request: NextRequest) {
 				);
 			}
 
-			// Check if bank_account is "Yes" (case-insensitive)
-			const bankAccount = user.bank_account;
+			// Check if BankAccountApproval is "Yes" (case-insensitive)
+			const bankAccount = user.BankAccountApproval;
 			const hasPermission = 
 				bankAccount === "Yes" || 
 				bankAccount === "yes" || 

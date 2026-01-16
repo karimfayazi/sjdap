@@ -117,14 +117,15 @@ export async function PUT(request: NextRequest) {
 			);
 		}
 
-		// Check if user has Super User permission
+		// Check if user has Admin permission (UserType='Admin')
 		const userPool = await getDb();
 		const userRequest = userPool.request();
 		(userRequest as any).timeout = 120000;
 		userRequest.input("user_id", userId);
+		userRequest.input("email_address", userId);
 		
 		const userResult = await userRequest.query(
-			"SELECT TOP(1) [Supper_User] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
+			"SELECT TOP(1) [UserType], [UserId], [email_address] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
 		);
 
 		const user = userResult.recordset?.[0];
@@ -135,18 +136,16 @@ export async function PUT(request: NextRequest) {
 			);
 		}
 
-		// Check if user is Super User
-		const isSuperUser =
-			user.Supper_User === 1 ||
-			user.Supper_User === "1" ||
-			user.Supper_User === true ||
-			user.Supper_User === "true" ||
-			user.Supper_User === "Yes" ||
-			user.Supper_User === "yes";
+		// Check if user is Admin (UserType='Admin' or username='admin')
+		const userIdentifier = user.UserId || user.email_address;
+		const isAdminByIdentifier = userIdentifier && userIdentifier.toLowerCase() === 'admin';
+		const userType = user.UserType;
+		const isAdminByType = userType && typeof userType === 'string' && userType.trim().toLowerCase() === 'admin';
+		const isSuperUser = isAdminByIdentifier || isAdminByType;
 
 		if (!isSuperUser) {
 			return NextResponse.json(
-				{ success: false, message: "Access denied. Only Super Users can update location hierarchy." },
+				{ success: false, message: "Access denied. Only Admin users can update location hierarchy." },
 				{ status: 403 }
 			);
 		}
@@ -215,14 +214,15 @@ export async function DELETE(request: NextRequest) {
 			);
 		}
 
-		// Check if user has Super User permission
+		// Check if user has Admin permission (UserType='Admin')
 		const userPool = await getDb();
 		const userRequest = userPool.request();
 		(userRequest as any).timeout = 120000;
 		userRequest.input("user_id", userId);
+		userRequest.input("email_address", userId);
 		
 		const userResult = await userRequest.query(
-			"SELECT TOP(1) [Supper_User] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
+			"SELECT TOP(1) [UserType], [UserId], [email_address] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
 		);
 
 		const user = userResult.recordset?.[0];
@@ -233,18 +233,16 @@ export async function DELETE(request: NextRequest) {
 			);
 		}
 
-		// Check if user is Super User
-		const isSuperUser =
-			user.Supper_User === 1 ||
-			user.Supper_User === "1" ||
-			user.Supper_User === true ||
-			user.Supper_User === "true" ||
-			user.Supper_User === "Yes" ||
-			user.Supper_User === "yes";
+		// Check if user is Admin (UserType='Admin' or username='admin')
+		const userIdentifier = user.UserId || user.email_address;
+		const isAdminByIdentifier = userIdentifier && userIdentifier.toLowerCase() === 'admin';
+		const userType = user.UserType;
+		const isAdminByType = userType && typeof userType === 'string' && userType.trim().toLowerCase() === 'admin';
+		const isSuperUser = isAdminByIdentifier || isAdminByType;
 
 		if (!isSuperUser) {
 			return NextResponse.json(
-				{ success: false, message: "Access denied. Only Super Users can delete location hierarchy." },
+				{ success: false, message: "Access denied. Only Admin users can delete location hierarchy." },
 				{ status: 403 }
 			);
 		}

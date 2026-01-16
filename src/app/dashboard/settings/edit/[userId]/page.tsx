@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { Save, ArrowLeft, Loader2 } from "lucide-react";
 import { isSuperUser as checkIsSuperUser } from "@/lib/auth-utils";
+import { useAuth } from "@/hooks/useAuth";
 
 type UserData = {
 	USER_ID: string;
@@ -48,6 +49,11 @@ type UserData = {
 	EDO: string | null;
 	JPO: string | null;
 	AM_REGION: string | null;
+	ActualIntervention: boolean | number | null;
+	FinanceSection: boolean | number | null;
+	FeasibilityApproval: boolean | number | null;
+	InterventionApproval: boolean | number | null;
+	BankAccountApproval: boolean | number | null;
 };
 
 export default function EditUserPage() {
@@ -56,28 +62,36 @@ export default function EditUserPage() {
 	const userId = decodeURIComponent(params.userId as string);
 
 	const [formData, setFormData] = useState<UserData | null>(null);
+	const [originalUser, setOriginalUser] = useState<any>(null); // Store original user data for email_address
 	const [loading, setLoading] = useState(true);
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [success, setSuccess] = useState(false);
 
-	// Check Super User access
+	// Check Admin access - user must be Admin (UserType='Admin') or super user
+	const { userProfile, loading: authLoading } = useAuth();
 	const [isSuperUser, setIsSuperUser] = useState(false);
 	const [checkingAccess, setCheckingAccess] = useState(true);
 
 	useEffect(() => {
-		if (typeof window === "undefined") return;
+		if (authLoading) return;
 		
-		const stored = localStorage.getItem("userData");
-		if (stored) {
-			const parsed = JSON.parse(stored);
-			const supperUserValue = parsed.super_user;
-			// Use utility function for consistent checking
-			const hasAccess = checkIsSuperUser(supperUserValue);
+		if (userProfile) {
+			// Check if user is Admin - either through supper_user or access_level (UserType)
+			const superUserValue = userProfile.supper_user;
+			const accessLevel = userProfile.access_level; // This contains UserType from PE_User
+			const isAdminByType = accessLevel && typeof accessLevel === 'string' && accessLevel.trim().toLowerCase() === 'admin';
+			const isSuperUserByValue = checkIsSuperUser(superUserValue);
+			
+			// User is Admin if UserType='Admin' OR supper_user='Yes'
+			const hasAccess = isAdminByType || isSuperUserByValue;
 			
 			console.log("=== EDIT USER PAGE ACCESS CHECK ===", {
-				supperUserValue,
-				isSuperUser: hasAccess
+				accessLevel,
+				superUserValue,
+				isAdminByType,
+				isSuperUserByValue,
+				hasAccess
 			});
 			
 			setIsSuperUser(hasAccess);
@@ -87,11 +101,37 @@ export default function EditUserPage() {
 				setLoading(false);
 			}
 		} else {
-			setIsSuperUser(false);
-			setCheckingAccess(false);
-			setLoading(false);
+			// Fallback to localStorage
+			try {
+				const stored = localStorage.getItem("userData");
+				if (stored) {
+					const parsed = JSON.parse(stored);
+					const su = parsed.super_user || parsed.supper_user;
+					const accessLevel = parsed.access_level || parsed.user_type;
+					const isAdminByType = accessLevel && typeof accessLevel === 'string' && accessLevel.trim().toLowerCase() === 'admin';
+					const isSuperUserByValue = checkIsSuperUser(su);
+					
+					// User is Admin if UserType='Admin' OR supper_user='Yes'
+					const hasAccess = isAdminByType || isSuperUserByValue;
+					
+					setIsSuperUser(hasAccess);
+					setCheckingAccess(false);
+
+					if (!hasAccess) {
+						setLoading(false);
+					}
+				} else {
+					setIsSuperUser(false);
+					setCheckingAccess(false);
+					setLoading(false);
+				}
+			} catch {
+				setIsSuperUser(false);
+				setCheckingAccess(false);
+				setLoading(false);
+			}
 		}
-	}, []);
+	}, [userProfile, authLoading]);
 
 	useEffect(() => {
 		if (!isSuperUser || !userId) return;
@@ -113,17 +153,86 @@ export default function EditUserPage() {
 				
 				if (result.success && result.users) {
 					console.log("Total users fetched:", result.users.length);
-					console.log("Looking for USER_ID:", userId);
+					console.log("Looking for userId:", userId);
 					
-					const user = result.users.find((u: UserData) => u.USER_ID === userId);
+					// API returns users with fields: UserId, email_address, UserFullName, etc.
+					// Check both UserId and email_address (case-insensitive)
+					const user = result.users.find((u: any) => {
+						const uId = (u.UserId || "").toString().toLowerCase();
+						const uEmail = (u.email_address || "").toString().toLowerCase();
+						const searchId = userId.toString().toLowerCase();
+						return uId === searchId || uEmail === searchId;
+					});
+					
 					console.log("Found user:", user ? "Yes" : "No");
 					
 					if (user) {
-						console.log("Setting form data for user:", user.USER_FULL_NAME);
-						setFormData(user);
+						console.log("Setting form data for user:", user.UserFullName);
+						// Store original user data for email_address
+						setOriginalUser(user);
+						// Map API response fields to form data structure
+						// API returns: UserId, UserFullName, UserType, etc.
+						// Form expects: USER_ID, USER_FULL_NAME, USER_TYPE, etc.
+						// Helper function to normalize boolean/number values
+						const normalizeBool = (val: any): boolean | null => {
+							if (val === null || val === undefined) return null;
+							return val === 1 || val === true || val === "1" || val === "Yes" || val === "yes";
+						};
+
+						const mappedUser: UserData = {
+							USER_ID: user.UserId || user.email_address || "",
+							USER_FULL_NAME: user.UserFullName || null,
+							PASSWORD: user.Password || null,
+							RE_PASSWORD: user.Password || null,
+							USER_TYPE: user.UserType || null,
+							DESIGNATION: user.Designation || null,
+							ACTIVE: normalizeBool(user.Active),
+							CAN_ADD: null,
+							CAN_UPDATE: null,
+							CAN_DELETE: null,
+							CAN_UPLOAD: null,
+							SEE_REPORTS: null,
+							UPDATE_DATE: user.user_update_date || null,
+							PROGRAM: null,
+							REGION: null,
+							AREA: null,
+							SECTION: null,
+							FDP: null,
+							PLAN_INTERVENTION: null,
+							TRACKING_SYSTEM: null,
+							RC: user.Regional_Council || null,
+							LC: user.Local_Council || null,
+							REPORT_TO: null,
+							ROP_EDIT: null,
+							access_loans: null,
+							baseline_access: null,
+							bank_account: normalizeBool(user.BankInformation),
+							Supper_User: null,
+							Finance_Officer: null,
+							BaselineQOL: normalizeBool(user.BaselineApproval),
+							Dashboard: null,
+							PowerBI: null,
+							Family_Development_Plan: normalizeBool(user.FdpApproval),
+							Family_Approval_CRC: null,
+							Family_Income: null,
+							ROP: null,
+							Setting: normalizeBool(user.Setting),
+							Other: null,
+							SWB_Families: normalizeBool(user.SwbFamilies),
+							EDO: null,
+							JPO: null,
+							AM_REGION: null,
+							// Add missing fields from database
+							ActualIntervention: normalizeBool(user.ActualIntervention),
+							FinanceSection: normalizeBool(user.FinanceSection),
+							FeasibilityApproval: normalizeBool(user.FeasibilityApproval),
+							InterventionApproval: normalizeBool(user.InterventionApproval),
+							BankAccountApproval: normalizeBool(user.BankAccountApproval),
+						};
+						setFormData(mappedUser);
 					} else {
-						const availableIds = result.users.map((u: UserData) => u.USER_ID).slice(0, 5);
-						console.log("First 5 available USER_IDs:", availableIds);
+						const availableIds = result.users.slice(0, 5).map((u: any) => u.UserId || u.email_address);
+						console.log("First 5 available UserIds:", availableIds);
 						setError(`User not found: ${userId}`);
 					}
 				} else {
@@ -160,10 +269,39 @@ export default function EditUserPage() {
 			setError(null);
 			setSuccess(false);
 
+			// Helper function to convert boolean/number to 0 or 1
+			const toBoolValue = (val: any): number => {
+				if (val === true || val === 1 || val === "1" || val === "true" || val === "Yes" || val === "yes") return 1;
+				if (val === false || val === 0 || val === "0" || val === "false" || val === "No" || val === "no") return 0;
+				return 0;
+			};
+
+			// Map form data (USER_ID, USER_FULL_NAME, etc.) to API format (UserId, UserFullName, etc.)
+			const apiData: any = {
+				UserId: formData.USER_ID,
+				email_address: originalUser?.email_address || formData.USER_ID, // Use original email_address if available
+				UserFullName: formData.USER_FULL_NAME,
+				UserType: formData.USER_TYPE,
+				Designation: formData.DESIGNATION,
+				Active: toBoolValue(formData.ACTIVE),
+				Regional_Council: formData.RC,
+				Local_Council: formData.LC,
+				Setting: toBoolValue(formData.Setting),
+				SwbFamilies: toBoolValue(formData.SWB_Families),
+				ActualIntervention: toBoolValue(formData.ActualIntervention),
+				FinanceSection: toBoolValue(formData.FinanceSection),
+				BankInformation: toBoolValue(formData.bank_account),
+				BaselineApproval: toBoolValue(formData.BaselineQOL),
+				FeasibilityApproval: toBoolValue(formData.FeasibilityApproval),
+				FdpApproval: toBoolValue(formData.Family_Development_Plan),
+				InterventionApproval: toBoolValue(formData.InterventionApproval),
+				BankAccountApproval: toBoolValue(formData.BankAccountApproval),
+			};
+
 			const response = await fetch("/api/users", {
 				method: "PUT",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(formData),
+				body: JSON.stringify(apiData),
 			});
 
 			const result = await response.json();
@@ -174,7 +312,7 @@ export default function EditUserPage() {
 
 			setSuccess(true);
 			setTimeout(() => {
-				router.push("/dashboard/settings?tab=view-users");
+				router.push("/dashboard/settings?tab=users");
 			}, 1500);
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Failed to update user");
@@ -239,7 +377,7 @@ export default function EditUserPage() {
 							</ul>
 						</div>
 						<button
-							onClick={() => router.push("/dashboard/settings?tab=view-users")}
+							onClick={() => router.push("/dashboard/settings?tab=users")}
 							className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
 						>
 							Back to User List
@@ -269,7 +407,7 @@ export default function EditUserPage() {
 				<div className="mb-6 flex items-center justify-between">
 					<div>
 						<button
-							onClick={() => router.push("/dashboard/settings?tab=view-users")}
+							onClick={() => router.push("/dashboard/settings?tab=users")}
 							className="flex items-center text-gray-600 hover:text-gray-900 mb-2 transition-colors"
 						>
 							<ArrowLeft className="w-4 h-4 mr-2" />
@@ -534,18 +672,23 @@ export default function EditUserPage() {
 									{ key: "ROP_EDIT", label: "ROP Edit", desc: "Can edit ROP" },
 									{ key: "access_loans", label: "Access Loans", desc: "Access loans module" },
 									{ key: "baseline_access", label: "Baseline Access", desc: "Access baseline data" },
-									{ key: "bank_account", label: "Bank Account", desc: "Bank account access" },
+									{ key: "bank_account", label: "Bank Information", desc: "Bank information access" },
 									{ key: "Supper_User", label: "Super User", desc: "Admin privileges" },
-									{ key: "BaselineQOL", label: "Baseline QOL", desc: "Baseline QOL access" },
+									{ key: "BaselineQOL", label: "Baseline Approval", desc: "Baseline approval access" },
 									{ key: "Dashboard", label: "Dashboard", desc: "Dashboard access" },
 									{ key: "PowerBI", label: "Power BI", desc: "Power BI access" },
-									{ key: "Family_Development_Plan", label: "Family Development Plan", desc: "FDP access" },
+									{ key: "Family_Development_Plan", label: "FDP Approval", desc: "FDP approval access" },
 									{ key: "Family_Approval_CRC", label: "Family Approval CRC", desc: "CRC approval access" },
 									{ key: "Family_Income", label: "Family Income", desc: "Family income access" },
 									{ key: "ROP", label: "ROP", desc: "ROP access" },
 									{ key: "Setting", label: "Setting", desc: "Settings access" },
 									{ key: "Other", label: "Other", desc: "Other permissions" },
 									{ key: "SWB_Families", label: "SWB Families", desc: "SWB Families access" },
+									{ key: "ActualIntervention", label: "Actual Intervention", desc: "Actual intervention access" },
+									{ key: "FinanceSection", label: "Finance Section", desc: "Finance section access" },
+									{ key: "FeasibilityApproval", label: "Feasibility Approval", desc: "Feasibility approval access" },
+									{ key: "InterventionApproval", label: "Intervention Approval", desc: "Intervention approval access" },
+									{ key: "BankAccountApproval", label: "Bank Account Approval", desc: "Bank account approval access" },
 								].map((item) => {
 									const value = formData[item.key as keyof UserData];
 									// Explicitly convert to boolean: 1, true, "1", "true" = checked; 0, false, "0", "false", null, undefined = unchecked
@@ -576,7 +719,7 @@ export default function EditUserPage() {
 						<div className="p-6 bg-gray-50 border-t border-gray-200 flex items-center justify-end space-x-3">
 							<button
 								type="button"
-								onClick={() => router.push("/dashboard/settings?tab=view-users")}
+								onClick={() => router.push("/dashboard/settings?tab=users")}
 								disabled={saving}
 								className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
 							>

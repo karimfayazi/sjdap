@@ -42,21 +42,22 @@ export async function GET(request: NextRequest) {
 		// Build query for PE_BankInformation table
 		let query = `
 			SELECT TOP (1000) 
-				[BankNo],
-				[FormNumber],
-				[BeneficiaryID],
-				[BankName],
-				[AccountTitle],
-				[AccountNo],
-				[CNIC],
-				[BankCode],
-				[SubmittedAt],
-				[SubmittedBy],
-				[ApprovalStatus],
-				[Remarks],
-				[BankChequeImagePath]
-			FROM [SJDA_Users].[dbo].[PE_BankInformation]
-			WHERE LTRIM(RTRIM([FormNumber])) = LTRIM(RTRIM(@formNumber))
+				b.[BankNo],
+				b.[FormNumber],
+				b.[BeneficiaryID],
+				b.[BankName],
+				b.[AccountTitle],
+				b.[AccountNo],
+				b.[CNIC],
+				b.[BankCode],
+				b.[SubmittedAt],
+				ISNULL(u.[UserFullName], b.[SubmittedBy]) as SubmittedBy,
+				b.[ApprovalStatus],
+				b.[Remarks],
+				b.[BankChequeImagePath]
+			FROM [SJDA_Users].[dbo].[PE_BankInformation] b
+			LEFT JOIN [SJDA_Users].[dbo].[PE_User] u ON b.[SubmittedBy] = u.[UserFullName]
+			WHERE LTRIM(RTRIM(b.[FormNumber])) = LTRIM(RTRIM(@formNumber))
 		`;
 
 		const request_query = pool.request();
@@ -64,11 +65,11 @@ export async function GET(request: NextRequest) {
 
 		if (beneficiaryId) {
 			// Match exact BeneficiaryID (with trim) or NULL (for family-level accounts)
-			query += " AND (LTRIM(RTRIM([BeneficiaryID])) = LTRIM(RTRIM(@beneficiaryId)) OR [BeneficiaryID] IS NULL)";
+			query += " AND (LTRIM(RTRIM(b.[BeneficiaryID])) = LTRIM(RTRIM(@beneficiaryId)) OR b.[BeneficiaryID] IS NULL)";
 			request_query.input("beneficiaryId", beneficiaryId);
 		}
 
-		query += " ORDER BY [SubmittedAt] DESC";
+		query += " ORDER BY b.[SubmittedAt] DESC";
 
 		// Set request timeout to 120 seconds
 		(request_query as any).timeout = 120000;
@@ -153,11 +154,12 @@ export async function POST(request: NextRequest) {
 		const userFullNameResult = await userPool
 			.request()
 			.input("user_id", userId)
+			.input("email_address", userId)
 			.query(
-				"SELECT TOP(1) [USER_FULL_NAME] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
+				"SELECT TOP(1) [UserFullName] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
 			);
 
-		const userFullName = userFullNameResult.recordset?.[0]?.USER_FULL_NAME || null;
+		const userFullName = userFullNameResult.recordset?.[0]?.UserFullName || null;
 
 		if (!userFullName) {
 			return NextResponse.json(

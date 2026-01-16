@@ -514,29 +514,19 @@ export default function BaselineQOLPage() {
 													const status = app.ApprovalStatus?.toLowerCase() || '';
 													const isApproved = status.includes('approve') || status === 'approved' || status === 'complete';
 													const isRejected = status.includes('reject') || status === 'rejected';
+													const isPending = !isApproved && !isRejected && (status === '' || status === 'pending' || !status);
 													
-													// Show edit button if: (super user AND not approved) OR status is rejected
-													// For rejected status, show immediately (no hydration needed)
-													// For super user check, wait for hydration
-													const shouldShowForRejected = isRejected;
-													const shouldShowForSuperUser = isMounted && isSuperUserState && !isApproved;
-													const shouldShowEdit = shouldShowForRejected || shouldShowForSuperUser;
+													// Show update button only if status is 'Pending' or 'Rejection'
+													// Hide update button if status is 'Approved'
+													const shouldShowUpdate = isPending || isRejected;
 													
-													// Enable edit button if: (super user AND not approved) OR status is rejected
-													const isDisabled = !shouldShowEdit || isApproved;
-													
-													if (!shouldShowEdit) return null;
+													if (!shouldShowUpdate) return null;
 													
 													return (
 														<button
-															onClick={() => !isDisabled && router.push(`/dashboard/baseline-qol/add?formNo=${encodeURIComponent(app.FormNo || "")}`)}
-															disabled={isDisabled}
-															className={`p-2 rounded-lg transition-all duration-200 shadow-sm ${
-																isDisabled
-																	? 'text-gray-400 bg-gray-100 cursor-not-allowed opacity-50'
-																	: 'text-blue-600 hover:bg-blue-600 hover:text-white hover:shadow-md'
-															}`}
-															title={isDisabled ? "Cannot edit approved application" : "Edit"}
+															onClick={() => router.push(`/dashboard/baseline-qol/add?formNo=${encodeURIComponent(app.FormNo || "")}`)}
+															className="p-2 text-blue-600 hover:bg-blue-600 hover:text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
+															title="Update"
 														>
 															<Edit2 className="h-5 w-5" />
 														</button>

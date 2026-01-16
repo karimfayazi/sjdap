@@ -36,8 +36,9 @@ export async function GET(request: NextRequest) {
 			const userResult = await userPool
 				.request()
 				.input("user_id", userId)
+				.input("email_address", userId)
 				.query(
-					"SELECT TOP(1) [USER_FULL_NAME], [USER_ID] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
+					"SELECT TOP(1) [UserFullName], [UserId], [email_address] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
 				);
 
 			const user = userResult.recordset?.[0];
@@ -48,8 +49,8 @@ export async function GET(request: NextRequest) {
 				);
 			}
 
-			userFullName = user.USER_FULL_NAME;
-			userName = user.USER_ID;
+			userFullName = user.UserFullName;
+			userName = user.UserId || user.email_address;
 		}
 
 		// Fetch Family Development Plan statistics

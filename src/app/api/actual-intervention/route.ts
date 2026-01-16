@@ -35,8 +35,9 @@ export async function GET(request: NextRequest) {
 			const userResult = await pool
 				.request()
 				.input("user_id", userId)
+				.input("email_address", userId)
 				.query(
-					"SELECT TOP(1) [USER_FULL_NAME] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
+					"SELECT TOP(1) [UserFullName] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
 				);
 
 			const user = userResult.recordset?.[0];
@@ -47,11 +48,11 @@ export async function GET(request: NextRequest) {
 				);
 			}
 
-			userFullName = user.USER_FULL_NAME;
+			userFullName = user.UserFullName;
 		}
 
 		// Fetch families with member counts
-		// Super Users see all families, others see only their own (matching SubmittedBy with USER_FULL_NAME)
+		// Super Users see all families, others see only their own (matching SubmittedBy with UserFullName)
 		const pool = await getPeDb();
 		const sqlRequest = pool.request();
 		(sqlRequest as any).timeout = 120000;
@@ -69,7 +70,8 @@ export async function GET(request: NextRequest) {
 				b.[CNICNumber],
 				b.[RegionalCommunity],
 				b.[LocalCommunity],
-				ISNULL(m.[TotalMembers], 0) AS TotalMembers
+				ISNULL(m.[TotalMembers], 0) AS TotalMembers,
+				ISNULL(u.[UserFullName], b.[SubmittedBy]) AS SubmittedBy
 			FROM [SJDA_Users].[dbo].[PE_Application_BasicInfo] b
 			LEFT JOIN (
 				SELECT 
@@ -78,6 +80,7 @@ export async function GET(request: NextRequest) {
 				FROM [SJDA_Users].[dbo].[PE_FamilyMember]
 				GROUP BY [FormNo]
 			) m ON b.[FormNumber] = m.[FormNo]
+			LEFT JOIN [SJDA_Users].[dbo].[PE_User] u ON b.[SubmittedBy] = u.[UserFullName]
 			${whereClause}
 			ORDER BY b.[FormNumber]
 		`;

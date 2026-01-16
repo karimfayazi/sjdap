@@ -268,22 +268,22 @@ export async function GET(request: NextRequest) {
 		let userFullName: string | null = null;
 		
 		if (!isSuperUser) {
-			const userResult = await pool
-				.request()
-				.input("user_id", userId)
-				.query(
-					"SELECT TOP(1) [USER_FULL_NAME] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
+			try {
+				const userRequest = pool.request();
+				userRequest.input("user_id", userId);
+				userRequest.input("email_address", userId);
+				const userResult = await userRequest.query(
+					"SELECT TOP(1) [UserFullName] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
 				);
 
-			const user = userResult.recordset?.[0];
-			if (!user) {
-				return NextResponse.json(
-					{ success: false, message: "User not found" },
-					{ status: 404 }
-				);
+				const user = userResult.recordset?.[0];
+				if (user && user.UserFullName) {
+					userFullName = user.UserFullName;
+				}
+			} catch (userError) {
+				console.error("Error fetching user full name:", userError);
+				// Continue without user filter - will show all applications
 			}
-
-			userFullName = user.USER_FULL_NAME;
 		}
 		
 		// Helper function to find the correct table name
@@ -468,7 +468,7 @@ export async function GET(request: NextRequest) {
 				NULL as HouseStatusName,
 				ISNULL(fm.MemberCount, 0) as TotalFamilyMembers,
 				NULL as Remarks,
-				app.[SubmittedBy] as SubmittedBy,
+				ISNULL(u.[UserFullName], app.[SubmittedBy]) as SubmittedBy,
 				app.[ApprovalStatus] as ApprovalStatus,
 				app.[CreatedAt],
 				app.[UpdatedAt]
@@ -480,6 +480,7 @@ export async function GET(request: NextRequest) {
 				FROM [SJDA_Users].[dbo].[PE_FamilyMember]
 				GROUP BY [FormNo]
 			) fm ON app.[FormNumber] = fm.[FormNo]
+			LEFT JOIN [SJDA_Users].[dbo].[PE_User] u ON app.[SubmittedBy] = u.[UserFullName]
 			${whereClause}
 			ORDER BY app.[FormNumber] DESC
 			OFFSET ${offset} ROWS

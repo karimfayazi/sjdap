@@ -27,9 +27,10 @@ export async function GET(request: NextRequest) {
 		const pool = await getDb();
 		const request_query = pool.request();
 		request_query.input("user_id", userId);
+		request_query.input("email_address", userId);
 		(request_query as any).timeout = 120000;
 		const result = await request_query.query(
-			"SELECT TOP(1) * FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
+			"SELECT TOP(1) * FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
 		);
 
 		const user = result.recordset?.[0];
@@ -42,104 +43,44 @@ export async function GET(request: NextRequest) {
 		}
 		
 		// Debug logging for specific user
-		if (userId === 'barkat.ebrahim@sjdap.org') {
+		if (userId === 'barkat.ebrahim@sjdap.org' || user.email_address === 'barkat.ebrahim@sjdap.org') {
 			console.log('=== DATABASE RAW DATA FOR barkat.ebrahim@sjdap.org ===');
 			console.log('All user fields:', Object.keys(user));
-			console.log('access_loans field exists?', 'access_loans' in user);
-			console.log('access_loans value:', user.access_loans);
-			console.log('access_loans type:', typeof user.access_loans);
 			console.log('=========================================================');
 		}
 
 		// Map database fields to UserProfile type
-		// Handle Supper_User field - it might be stored as bit (0/1), string ('Yes'/'No'), or boolean
-		// Preserve original value but normalize to "Yes"/"No" for consistency
-		// IMPORTANT: Users with Supper_User=1 (or "Yes"/true) get FULL ACCESS to ALL sections
-		let supperUserValue: string | boolean | number | null = null;
-		if (user.Supper_User !== null && user.Supper_User !== undefined) {
-			// Check if it's already a string (preserve it, but trim whitespace)
-			if (typeof user.Supper_User === 'string') {
-				const trimmed = user.Supper_User.trim();
-				// Normalize common variations to "Yes"
-				const lowerTrimmed = trimmed.toLowerCase();
-				if (lowerTrimmed === 'yes' || lowerTrimmed === '1' || lowerTrimmed === 'true') {
-					supperUserValue = 'Yes';
-				} else if (lowerTrimmed === 'no' || lowerTrimmed === '0' || lowerTrimmed === 'false') {
-					supperUserValue = 'No';
-				} else {
-					// Preserve original if it doesn't match known patterns
-					supperUserValue = trimmed;
-				}
-			} else if (typeof user.Supper_User === 'boolean') {
-				supperUserValue = user.Supper_User ? 'Yes' : 'No';
-			} else if (typeof user.Supper_User === 'number') {
-				// Handle Supper_User=1 (number) from database - this grants Super User access
-				supperUserValue = user.Supper_User === 1 ? 'Yes' : 'No';
-			} else {
-				// For any other type, convert to string and normalize
-				const strValue = String(user.Supper_User).trim().toLowerCase();
-				supperUserValue = (strValue === 'yes' || strValue === '1' || strValue === 'true') ? 'Yes' : 'No';
-			}
-		}
+		// Note: PE_User table has different structure, so we'll map available fields
+		// Check if UserType is 'Admin' - Admin users have full access to all sections
+		const isAdminUserType = user.UserType && typeof user.UserType === 'string' && user.UserType.trim().toLowerCase() === 'admin';
+		const userIdentifier = user.UserId || user.email_address;
+		const isAdminByIdentifier = userIdentifier && userIdentifier.toLowerCase() === 'admin';
+		const isAdmin = isAdminUserType || isAdminByIdentifier;
+		
+		// Set supper_user to 'Yes' if admin, otherwise null
+		let supperUserValue: string | boolean | number | null = isAdmin ? 'Yes' : null;
 		
 		// Debug logging for admin user - log all permission fields
 		if (userId && userId.toLowerCase() === 'admin') {
 			console.log('=== ADMIN USER PROFILE DEBUG ===');
-			console.log('Supper_User:', {
-				original: user.Supper_User,
-				normalized: supperUserValue,
-				type: typeof user.Supper_User
-			});
 			console.log('Section Permissions:', {
-				BaselineQOL: (user as any).BaselineQOL,
-				Dashboard: (user as any).Dashboard,
-				PowerBI: (user as any).PowerBI,
-				Family_Development_Plan: (user as any).Family_Development_Plan,
-				Family_Approval_CRC: (user as any).Family_Approval_CRC,
-				Family_Income: (user as any).Family_Income,
-				ROP: (user as any).ROP,
+				BaselineApproval: (user as any).BaselineApproval,
 				Setting: (user as any).Setting,
-				Other: (user as any).Other,
-				SWB_Families: (user as any).SWB_Families,
+				SwbFamilies: (user as any).SwbFamilies,
+				ActualIntervention: (user as any).ActualIntervention,
+				FinanceSection: (user as any).FinanceSection,
+				BankInformation: (user as any).BankInformation,
 			});
 		}
 
-		// Handle access_loans field - normalize to 0/1 for consistency
+		// Handle access_loans field - PE_User doesn't have this field, set default
 		let accessLoansValue: number = 0;
-		if (user.access_loans !== null && user.access_loans !== undefined) {
-			if (typeof user.access_loans === 'string') {
-				const trimmed = user.access_loans.trim();
-				const lowerTrimmed = trimmed.toLowerCase();
-				if (lowerTrimmed === 'yes' || lowerTrimmed === '1' || lowerTrimmed === 'true') {
-					accessLoansValue = 1;
-				} else if (lowerTrimmed === 'no' || lowerTrimmed === '0' || lowerTrimmed === 'false') {
-					accessLoansValue = 0;
-				} else {
-					accessLoansValue = 0;
-				}
-			} else if (typeof user.access_loans === 'boolean') {
-				accessLoansValue = user.access_loans ? 1 : 0;
-			} else if (typeof user.access_loans === 'number') {
-				accessLoansValue = user.access_loans === 1 ? 1 : 0;
-			} else {
-				accessLoansValue = 0;
-			}
-		}
 		
-		// Additional logging for specific user
-		if (user.USER_ID === 'barkat.ebrahim@sjdap.org') {
-			console.log('=== DEBUGGING USER: barkat.ebrahim@sjdap.org ===');
-			console.log('Raw access_loans from DB:', user.access_loans);
-			console.log('Type of access_loans:', typeof user.access_loans);
-			console.log('Normalized accessLoansValue:', accessLoansValue);
-			console.log('==============================================');
-		}
-
-		// Handle bank_account field - normalize to 0/1
+		// Handle bank_account field - use BankAccountApproval from PE_User
 		let bankAccountValue: number = 0;
-		if (user.bank_account !== null && user.bank_account !== undefined) {
-			if (typeof user.bank_account === 'string') {
-				const trimmed = user.bank_account.trim();
+		if (user.BankAccountApproval !== null && user.BankAccountApproval !== undefined) {
+			if (typeof user.BankAccountApproval === 'string') {
+				const trimmed = user.BankAccountApproval.trim();
 				const lowerTrimmed = trimmed.toLowerCase();
 				if (lowerTrimmed === 'yes' || lowerTrimmed === '1' || lowerTrimmed === 'true') {
 					bankAccountValue = 1;
@@ -148,10 +89,10 @@ export async function GET(request: NextRequest) {
 				} else {
 					bankAccountValue = 0;
 				}
-			} else if (typeof user.bank_account === 'boolean') {
-				bankAccountValue = user.bank_account ? 1 : 0;
-			} else if (typeof user.bank_account === 'number') {
-				bankAccountValue = user.bank_account === 1 ? 1 : 0;
+			} else if (typeof user.BankAccountApproval === 'boolean') {
+				bankAccountValue = user.BankAccountApproval ? 1 : 0;
+			} else if (typeof user.BankAccountApproval === 'number') {
+				bankAccountValue = user.BankAccountApproval === 1 ? 1 : 0;
 			} else {
 				bankAccountValue = 0;
 			}
@@ -173,39 +114,37 @@ export async function GET(request: NextRequest) {
 			return null;
 		};
 
-		// For super users (Supper_User=1, "Yes", or true), set all section permissions to true
-		// This ensures super users bypass all permission checks and have access to ALL pages
-		// Users with Supper_User=1 in the database will automatically get access to all sections
-		const isSuperUserValue = isSuperUser(supperUserValue);
+		// Admin users (UserType='Admin') get full access to ALL sections
+		const isSuperUserValue = isAdmin;
 		
 		const userProfile = {
-			username: user.USER_ID || "",
-			email: user.USER_ID || "", // Using USER_ID as email if no email field exists
-			full_name: user.USER_FULL_NAME || null,
-			department: user.PROGRAM || null,
-			region: user.REGION || null,
-			address: null, // Add if field exists in database
-			contact_no: null, // Add if field exists in database
-			access_level: user.USER_TYPE || null,
-			access_add: user.CAN_ADD ? (typeof user.CAN_ADD === 'boolean' ? user.CAN_ADD : user.CAN_ADD === 1) : null,
-			access_edit: user.CAN_UPDATE ? (typeof user.CAN_UPDATE === 'boolean' ? user.CAN_UPDATE : user.CAN_UPDATE === 1) : null,
-			access_delete: user.CAN_DELETE ? (typeof user.CAN_DELETE === 'boolean' ? user.CAN_DELETE : user.CAN_DELETE === 1) : null,
-			access_reports: user.SEE_REPORTS ? (typeof user.SEE_REPORTS === 'boolean' ? user.SEE_REPORTS : user.SEE_REPORTS === 1) : null,
-			section: user.SECTION || null,
+			username: user.UserId || user.email_address || "",
+			email: user.email_address || user.UserId || "",
+			full_name: user.UserFullName || null,
+			department: null, // PE_User doesn't have PROGRAM field
+			region: null, // PE_User doesn't have REGION field
+			address: null,
+			contact_no: null,
+			access_level: user.UserType || null,
+			access_add: null, // PE_User doesn't have CAN_ADD field
+			access_edit: null, // PE_User doesn't have CAN_UPDATE field
+			access_delete: null, // PE_User doesn't have CAN_DELETE field
+			access_reports: null, // PE_User doesn't have SEE_REPORTS field
+			section: null, // PE_User doesn't have SECTION field
 			supper_user: supperUserValue,
-			access_loans: isSuperUserValue ? 1 : accessLoansValue, // Super users have access to loans
-			bank_account: isSuperUserValue ? 1 : bankAccountValue, // Super users have access to bank accounts
-			// Super users get access to ALL sections (set to true), otherwise use normalized permissions
-			BaselineQOL: isSuperUserValue ? true : normalizePermission((user as any).BaselineQOL),
-			Dashboard: isSuperUserValue ? true : normalizePermission((user as any).Dashboard),
-			PowerBI: isSuperUserValue ? true : normalizePermission((user as any).PowerBI),
-			Family_Development_Plan: isSuperUserValue ? true : normalizePermission((user as any).Family_Development_Plan),
-			Family_Approval_CRC: isSuperUserValue ? true : normalizePermission((user as any).Family_Approval_CRC),
-			Family_Income: isSuperUserValue ? true : normalizePermission((user as any).Family_Income),
-			ROP: isSuperUserValue ? true : normalizePermission((user as any).ROP),
-			Setting: isSuperUserValue ? true : normalizePermission((user as any).Setting),
-			Other: isSuperUserValue ? true : normalizePermission((user as any).Other),
-			SWB_Families: isSuperUserValue ? true : normalizePermission((user as any).SWB_Families),
+			access_loans: isSuperUserValue ? 1 : accessLoansValue, // Admin users have access to loans
+			bank_account: isSuperUserValue ? 1 : bankAccountValue, // Admin users have access to bank accounts
+			// Admin users get access to ALL sections (set to true), otherwise use normalized permissions
+			BaselineQOL: isSuperUserValue ? true : normalizePermission((user as any).BaselineApproval),
+			Dashboard: isSuperUserValue ? true : null, // Admin users have access to Dashboard
+			PowerBI: isSuperUserValue ? true : null, // Admin users have access to PowerBI
+			Family_Development_Plan: isSuperUserValue ? true : null, // Admin users have access
+			Family_Approval_CRC: isSuperUserValue ? true : null, // Admin users have access
+			Family_Income: isSuperUserValue ? true : null, // Admin users have access
+			ROP: isSuperUserValue ? true : null, // Admin users have access to ROP
+			Setting: isSuperUserValue ? true : normalizePermission((user as any).Setting), // Admin users have access to Settings
+			Other: isSuperUserValue ? true : null, // Admin users have access
+			SWB_Families: isSuperUserValue ? true : normalizePermission((user as any).SwbFamilies), // Admin users have access
 		};
 
 		return NextResponse.json({

@@ -30,13 +30,14 @@ export async function GET(request: NextRequest) {
 		const userResult = await userPool
 			.request()
 			.input("user_id", userId)
+			.input("email_address", userId)
 			.query(
-				"SELECT TOP(1) [USER_FULL_NAME], [USER_TYPE] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
+				"SELECT TOP(1) [UserFullName], [UserType] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
 			);
 
 		const user = userResult.recordset?.[0];
-		const userFullName = user?.USER_FULL_NAME || null;
-		const isAdmin = user?.USER_TYPE?.toLowerCase() === "admin";
+		const userFullName = user?.UserFullName || null;
+		const isAdmin = user?.UserType?.toLowerCase() === "admin";
 
 		// Build query with optional Family ID filter and mentor filter
 		const pool = await getBaselineDb();

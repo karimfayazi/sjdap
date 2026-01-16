@@ -28,12 +28,13 @@ export async function PUT(request: NextRequest) {
 		const userResult = await userPool
 			.request()
 			.input("user_id", userId)
+			.input("email_address", userId)
 			.query(
-				"SELECT TOP(1) [USER_FULL_NAME] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
+				"SELECT TOP(1) [UserFullName] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
 			);
 
 		const user = userResult.recordset?.[0];
-		const userFullName = user?.USER_FULL_NAME || userId;
+		const userFullName = user?.UserFullName || userId;
 
 		const body = await request.json().catch(() => ({}));
 		const { formNumber, approvalStatus, remarks } = body || {};

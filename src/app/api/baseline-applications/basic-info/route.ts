@@ -33,14 +33,15 @@ async function updateFamilyStatus(
 		const userResult = await userPool
 			.request()
 			.input("user_id", userId)
+			.input("email_address", userId)
 			.query(
-				"SELECT TOP(1) [USER_FULL_NAME], [USER_NAME] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
+				"SELECT TOP(1) [UserFullName], [UserId], [email_address] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
 			);
 
 		const user = userResult.recordset?.[0];
-		const mentorName = user?.USER_FULL_NAME || user?.USER_NAME || userId;
-		const familyMentor = user?.USER_FULL_NAME || user?.USER_NAME || userId;
-		const userName = user?.USER_NAME || userId;
+		const mentorName = user?.UserFullName || user?.UserId || user?.email_address || userId;
+		const familyMentor = user?.UserFullName || user?.UserId || user?.email_address || userId;
+		const userName = user?.UserId || user?.email_address || userId;
 
 		console.log(`[PE_Family_Status] User details - Mentor: ${mentorName}, Family_Mentor: ${familyMentor}, User_Name: ${userName}`);
 
@@ -206,50 +207,51 @@ export async function GET(request: NextRequest) {
 
 		const query = `
 			SELECT TOP 1
-				[FormNumber],
-				[ApplicationDate],
-				[ReceivedByName],
-				[ReceivedByDate],
-				[Full_Name],
-				[DateOfBirth],
-				[CNICNumber],
-				[MotherTongue],
-				[ResidentialAddress],
-				[PrimaryContactNumber],
-				[SecondaryContactNumber],
-				[RegionalCommunity],
-				[LocalCommunity],
-				[CurrentCommunityCenter],
-				[PrimaryLocationSettlement],
-				[AreaOfOrigin],
-				[Area_Type],
-				[Intake_family_Income],
-				[HouseOwnershipStatus],
-				[HealthInsuranceProgram],
-				[MonthlyIncome_Remittance],
-				[MonthlyIncome_Rental],
-				[MonthlyIncome_OtherSources],
-				[Land_Barren_Kanal],
-				[Land_Barren_Value_Rs],
-				[Land_Agriculture_Kanal],
-				[Land_Agriculture_Value_Rs],
-				[Livestock_Number],
-				[Livestock_Value_Rs],
-				[Fruit_Trees_Number],
-				[Fruit_Trees_Value_Rs],
-				[Vehicles_4W_Number],
-				[Vehicles_4W_Value_Rs],
-				[Motorcycle_2W_Number],
-				[Motorcycle_2W_Value_Rs],
-				[Status],
-				[CurrentLevel],
-				[SubmittedAt],
-				[SubmittedBy],
-				[Locked],
-				[CreatedAt],
-				[UpdatedAt]
-			FROM [SJDA_Users].[dbo].[${tableName}]
-			WHERE [FormNumber] = @FormNumber
+				app.[FormNumber],
+				app.[ApplicationDate],
+				app.[ReceivedByName],
+				app.[ReceivedByDate],
+				app.[Full_Name],
+				app.[DateOfBirth],
+				app.[CNICNumber],
+				app.[MotherTongue],
+				app.[ResidentialAddress],
+				app.[PrimaryContactNumber],
+				app.[SecondaryContactNumber],
+				app.[RegionalCommunity],
+				app.[LocalCommunity],
+				app.[CurrentCommunityCenter],
+				app.[PrimaryLocationSettlement],
+				app.[AreaOfOrigin],
+				app.[Area_Type],
+				app.[Intake_family_Income],
+				app.[HouseOwnershipStatus],
+				app.[HealthInsuranceProgram],
+				app.[MonthlyIncome_Remittance],
+				app.[MonthlyIncome_Rental],
+				app.[MonthlyIncome_OtherSources],
+				app.[Land_Barren_Kanal],
+				app.[Land_Barren_Value_Rs],
+				app.[Land_Agriculture_Kanal],
+				app.[Land_Agriculture_Value_Rs],
+				app.[Livestock_Number],
+				app.[Livestock_Value_Rs],
+				app.[Fruit_Trees_Number],
+				app.[Fruit_Trees_Value_Rs],
+				app.[Vehicles_4W_Number],
+				app.[Vehicles_4W_Value_Rs],
+				app.[Motorcycle_2W_Number],
+				app.[Motorcycle_2W_Value_Rs],
+				app.[Status],
+				app.[CurrentLevel],
+				app.[SubmittedAt],
+				ISNULL(u.[UserFullName], app.[SubmittedBy]) as SubmittedBy,
+				app.[Locked],
+				app.[CreatedAt],
+				app.[UpdatedAt]
+			FROM [SJDA_Users].[dbo].[${tableName}] app
+			LEFT JOIN [SJDA_Users].[dbo].[PE_User] u ON app.[SubmittedBy] = u.[UserFullName]
+			WHERE app.[FormNumber] = @FormNumber
 		`;
 
 		const result = await request_query.query(query);
@@ -340,13 +342,14 @@ export async function POST(request: NextRequest) {
 					const userResult = await userPool
 						.request()
 						.input("user_id", userId)
+						.input("email_address", userId)
 						.query(
-							"SELECT TOP(1) [USER_FULL_NAME], [USER_ID] FROM [SJDA_Users].[dbo].[Table_User] WHERE [USER_ID] = @user_id"
+							"SELECT TOP(1) [UserFullName], [UserId], [email_address] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
 						);
 					
 					const user = userResult.recordset?.[0];
 					if (user) {
-						submittedBy = user.USER_FULL_NAME || user.USER_ID;
+						submittedBy = user.UserFullName || user.UserId || user.email_address;
 					}
 				} catch (userError) {
 					console.error("Error fetching user info for SubmittedBy:", userError);
