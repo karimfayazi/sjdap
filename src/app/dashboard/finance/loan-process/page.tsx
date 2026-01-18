@@ -3,9 +3,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Search, Download, Trash2, FileText, Printer, Edit, Grid, List } from "lucide-react";
-import { useSectionAccess } from "@/hooks/useSectionAccess";
-import SectionAccessDenied from "@/components/SectionAccessDenied";
-import PermissionStatusLabel from "@/components/PermissionStatusLabel";
 
 type LoanData = {
 	Intervention_ID?: number;
@@ -38,7 +35,7 @@ export default function LoanProcessPage() {
 	const [showAccessIssue, setShowAccessIssue] = useState(false);
 	const [isSuperFinanceOfficer, setIsSuperFinanceOfficer] = useState(false);
 
-	const { hasAccess, loading: accessLoading, sectionName } = useSectionAccess("FinanceSection");
+	// Access control removed - all users can access this page
 
 	// Determine if current user has Finance_Officer = 'All'
 	useEffect(() => {
@@ -376,23 +373,7 @@ export default function LoanProcessPage() {
 		);
 	}
 
-	// Show loading while checking access
-	if (accessLoading) {
-		return (
-			<div className="space-y-6">
-				<div className="flex items-center justify-center py-12">
-					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
-					<span className="ml-3 text-gray-600">Checking permissions...</span>
-				</div>
-			</div>
-		);
-	}
-
-	// Show access denied if user doesn't have permission
-	// Only users with FinanceSection = 1/TRUE can access this page
-	if (hasAccess === false) {
-		return <SectionAccessDenied sectionName={sectionName} requiredPermission="FinanceSection" />;
-	}
+	// Access control removed - all users can access this page
 
 	return (
 		<div className="space-y-6 relative">

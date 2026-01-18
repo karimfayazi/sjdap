@@ -3,9 +3,6 @@
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Search, CheckCircle, XCircle, Clock } from "lucide-react";
-import { useSectionAccess } from "@/hooks/useSectionAccess";
-import SectionAccessDenied from "@/components/SectionAccessDenied";
-import PermissionStatusLabel from "@/components/PermissionStatusLabel";
 
 type ApprovalStatus = {
 	healthSupport: any[];
@@ -18,7 +15,7 @@ type ApprovalStatus = {
 function FamilyDevelopmentPlanApprovalContent() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
-	const { hasAccess, loading: accessLoading, sectionName } = useSectionAccess("FdpApproval");
+	// Access control removed - all users can access this page
 	const formNumber = searchParams.get("formNumber") || "";
 
 	const [loading, setLoading] = useState(false);
@@ -123,7 +120,6 @@ function FamilyDevelopmentPlanApprovalContent() {
 				<div>
 					<div className="flex items-center gap-3 mb-2">
 						<h1 className="text-3xl font-bold text-gray-900">Family Development Plan Approval</h1>
-						<PermissionStatusLabel permission="FdpApproval" />
 					</div>
 					<p className="text-gray-600 mt-2">View section-wise approval status for family development plans</p>
 				</div>

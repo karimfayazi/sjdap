@@ -3,9 +3,6 @@
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Eye, RefreshCw } from "lucide-react";
-import { useSectionAccess } from "@/hooks/useSectionAccess";
-import SectionAccessDenied from "@/components/SectionAccessDenied";
-import PermissionStatusLabel from "@/components/PermissionStatusLabel";
 
 type BaselineQOLRecord = {
 	FormNumber: string | null;
@@ -21,7 +18,7 @@ type BaselineQOLRecord = {
 
 function BaselineApprovalContent() {
 	const router = useRouter();
-	const { hasAccess, loading: accessLoading, sectionName } = useSectionAccess("BaselineApproval");
+	// Access control removed - all users can access this page
 	const [baselineRecords, setBaselineRecords] = useState<BaselineQOLRecord[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -122,21 +119,7 @@ function BaselineApprovalContent() {
 		}
 	};
 
-	// Check access - only users with BaselineApproval = 1/TRUE can access this page
-	if (accessLoading) {
-		return (
-			<div className="space-y-6">
-				<div className="flex items-center justify-center py-12">
-					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
-					<span className="ml-3 text-gray-600">Checking permissions...</span>
-				</div>
-			</div>
-		);
-	}
-
-	if (hasAccess === false) {
-		return <SectionAccessDenied sectionName={sectionName} requiredPermission="BaselineApproval" />;
-	}
+	// Access control removed - all users can access this page
 
 	return (
 		<div className="space-y-6">
@@ -145,7 +128,6 @@ function BaselineApprovalContent() {
 				<div>
 					<div className="flex items-center gap-3 mb-2">
 						<h1 className="text-3xl font-bold text-gray-900">Baseline Approval</h1>
-						<PermissionStatusLabel permission="BaselineApproval" />
 					</div>
 					<p className="text-gray-600 mt-2">Manage baseline quality of life approvals</p>
 				</div>

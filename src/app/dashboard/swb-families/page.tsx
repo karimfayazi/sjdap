@@ -3,9 +3,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Download, Search, RefreshCw, Plus, Eye, Trash2, Edit2 } from "lucide-react";
-import { useSectionAccess } from "@/hooks/useSectionAccess";
-import NoPermissionMessage from "@/components/NoPermissionMessage";
-import PermissionStatusLabel from "@/components/PermissionStatusLabel";
 
 type SWBFamily = {
 	CNIC: string | null;
@@ -32,7 +29,6 @@ type SWBFamily = {
 
 export default function SWBFamiliesPage() {
 	const router = useRouter();
-	const { hasAccess, loading: accessLoading, sectionName } = useSectionAccess("SWB_Families");
 	const [families, setFamilies] = useState<SWBFamily[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -233,22 +229,7 @@ export default function SWBFamiliesPage() {
 	const startIndex = (currentPage - 1) * itemsPerPage;
 	const paginatedFamilies = filteredFamilies.slice(startIndex, startIndex + itemsPerPage);
 
-	// Show loading while checking access
-	if (accessLoading) {
-		return (
-			<div className="space-y-6">
-				<div className="flex items-center justify-center py-12">
-					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
-					<span className="ml-3 text-gray-600">Checking permissions...</span>
-				</div>
-			</div>
-		);
-	}
-
-	// Check access - only users with SwbFamilies = 1/TRUE can access this page
-	if (hasAccess === false) {
-		return <NoPermissionMessage />;
-	}
+	// Access control removed - all users can access this page
 
 	if (loading) {
 		return (
@@ -296,7 +277,6 @@ export default function SWBFamiliesPage() {
 				<div>
 					<div className="flex items-center gap-3 mb-2">
 						<h1 className="text-3xl font-bold text-gray-900">SWB-Families</h1>
-						<PermissionStatusLabel permission="SWB_Families" />
 					</div>
 					<p className="text-gray-600 mt-2">SWB Family Management</p>
 				</div>

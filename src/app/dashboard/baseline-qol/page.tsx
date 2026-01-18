@@ -4,10 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Download, RefreshCw, Plus, X, Eye, Edit2, Search } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { useSectionAccess } from "@/hooks/useSectionAccess";
-import SectionAccessDenied from "@/components/SectionAccessDenied";
-import PermissionStatusLabel from "@/components/PermissionStatusLabel";
-import { isSuperUser } from "@/lib/auth-utils";
+import { isSuperUser, hasRouteAccess, hasFullAccess } from "@/lib/auth-utils";
 
 type BaselineApplication = {
 	FormNo: string | null;
@@ -30,7 +27,6 @@ type BaselineApplication = {
 export default function BaselineQOLPage() {
 	const router = useRouter();
 	const { userProfile, refreshUser } = useAuth();
-	const { hasAccess, loading: accessLoading, sectionName } = useSectionAccess("BaselineQOL");
 	
 	// Debug: Log userProfile when it changes
 	useEffect(() => {
@@ -85,6 +81,29 @@ export default function BaselineQOLPage() {
 			}
 		}
 	}, [userProfile]);
+
+	// Check route access based on UserType
+	useEffect(() => {
+		if (!userProfile) return;
+		
+		const userType = userProfile.access_level; // UserType is stored in access_level
+		const hasFullAccessToAll = hasFullAccess(
+			userProfile.username,
+			userProfile.supper_user,
+			userType
+		);
+		
+		// Super Admin has access to all pages
+		if (hasFullAccessToAll) {
+			return;
+		}
+		
+		// Check route-specific access
+		const currentRoute = '/dashboard/baseline-qol';
+		if (!hasRouteAccess(userType, currentRoute)) {
+			router.push('/dashboard');
+		}
+	}, [userProfile, router]);
 
 
 	const fetchApplications = async () => {
@@ -250,30 +269,7 @@ export default function BaselineQOLPage() {
 
 	const totalPages = Math.ceil(totalRecords / itemsPerPage);
 
-	// Show loading while checking access
-	if (accessLoading) {
-		return (
-			<div className="space-y-6">
-				<div className="flex items-center justify-center py-12">
-					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
-					<span className="ml-3 text-gray-600">Checking permissions...</span>
-				</div>
-			</div>
-		);
-	}
-
-	// Show access denied if user doesn't have permission
-	// Check Baseline field from PE_User table - access is granted when baseline='Yes'
-	if (hasAccess === false) {
-		const baselineValue = userProfile?.BaselineQOL ?? null;
-		return (
-			<SectionAccessDenied 
-				sectionName={sectionName} 
-				requiredPermission="Baseline (must be 'Yes' in PE_User table)" 
-				permissionValue={baselineValue}
-			/>
-		);
-	}
+	// Access control removed - all users can access this page
 
 	if (loading) {
 		return (
@@ -282,7 +278,6 @@ export default function BaselineQOLPage() {
 					<div>
 						<div className="flex items-center gap-3 mb-2">
 							<h1 className="text-3xl font-bold text-gray-900">Baseline</h1>
-							<PermissionStatusLabel permission="BaselineQOL" />
 						</div>
 						<p className="text-gray-600 mt-2">Quality of Life Baseline Assessment</p>
 					</div>
@@ -302,7 +297,6 @@ export default function BaselineQOLPage() {
 					<div>
 						<div className="flex items-center gap-3 mb-2">
 							<h1 className="text-3xl font-bold text-gray-900">Baseline</h1>
-							<PermissionStatusLabel permission="BaselineQOL" />
 						</div>
 						<p className="text-gray-600 mt-2">Quality of Life Baseline Assessment</p>
 					</div>
@@ -344,15 +338,13 @@ export default function BaselineQOLPage() {
 						<RefreshCw className="h-4 w-4" />
 						Refresh
 					</button>
-					{hasAccess && (
-						<button
-							onClick={() => router.push("/dashboard/baseline-qol/add")}
-							className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-						>
-							<Plus className="h-4 w-4" />
-							Add New
-						</button>
-					)}
+					<button
+						onClick={() => router.push("/dashboard/baseline-qol/add")}
+						className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+					>
+						<Plus className="h-4 w-4" />
+						Add New
+					</button>
 				</div>
 			</div>
 

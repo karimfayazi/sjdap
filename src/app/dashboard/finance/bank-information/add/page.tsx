@@ -3,9 +3,6 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Save, ArrowLeft, X } from "lucide-react";
-import { useSectionAccess } from "@/hooks/useSectionAccess";
-import SectionAccessDenied from "@/components/SectionAccessDenied";
-import PermissionStatusLabel from "@/components/PermissionStatusLabel";
 
 type BankFormData = {
 	familyId: string;
@@ -20,7 +17,7 @@ type BankFormData = {
 
 export default function AddBankInformationPage() {
 	const router = useRouter();
-	const { hasAccess, loading: accessLoading, sectionName } = useSectionAccess("BankInformation");
+	// Access control removed - all users can access this page
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [success, setSuccess] = useState(false);
@@ -73,21 +70,7 @@ export default function AddBankInformationPage() {
 		}
 	};
 
-	// Check access - only users with BankInformation = 1/TRUE can access this page
-	if (accessLoading) {
-		return (
-			<div className="space-y-6">
-				<div className="flex items-center justify-center py-12">
-					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
-					<span className="ml-3 text-gray-600">Checking permissions...</span>
-				</div>
-			</div>
-		);
-	}
-
-	if (hasAccess === false) {
-		return <SectionAccessDenied sectionName={sectionName} requiredPermission="BankInformation" />;
-	}
+	// Access control removed - all users can access this page
 
 	return (
 		<div className="space-y-6">
@@ -96,7 +79,6 @@ export default function AddBankInformationPage() {
 				<div>
 					<div className="flex items-center gap-3 mb-2">
 						<h1 className="text-3xl font-bold text-gray-900">Add Bank Details</h1>
-						<PermissionStatusLabel permission="BankInformation" />
 					</div>
 					<p className="text-gray-600 mt-2">Add new bank information for a family</p>
 				</div>

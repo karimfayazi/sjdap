@@ -3,9 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, XCircle, Clock, AlertCircle, Download, Eye, FileText } from "lucide-react";
-import { useSectionAccess } from "@/hooks/useSectionAccess";
-import SectionAccessDenied from "@/components/SectionAccessDenied";
-import PermissionStatusLabel from "@/components/PermissionStatusLabel";
+import { useAuth } from "@/hooks/useAuth";
+import { hasRouteAccess, hasFullAccess } from "@/lib/auth-utils";
 
 type FeasibilityApprovalData = {
 	FDP_ID: number;
@@ -109,7 +108,31 @@ const getStatusStyle = (rawStatus: string | null | undefined) => {
 
 export default function FeasibilityApprovalPage() {
 	const router = useRouter();
-	const { hasAccess, loading: accessLoading, sectionName } = useSectionAccess("FeasibilityApproval");
+	const { userProfile } = useAuth();
+	
+	// Check route access based on UserType
+	useEffect(() => {
+		if (!userProfile) return;
+		
+		const userType = userProfile.access_level; // UserType is stored in access_level
+		const hasFullAccessToAll = hasFullAccess(
+			userProfile.username,
+			userProfile.supper_user,
+			userType
+		);
+		
+		// Super Admin has access to all pages
+		if (hasFullAccessToAll) {
+			return;
+		}
+		
+		// Check route-specific access
+		const currentRoute = '/dashboard/feasibility-approval';
+		if (!hasRouteAccess(userType, currentRoute)) {
+			router.push('/dashboard');
+		}
+	}, [userProfile, router]);
+	
 	const [records, setRecords] = useState<FeasibilityApprovalData[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -173,22 +196,7 @@ export default function FeasibilityApprovalPage() {
 		fetchFeasibilityApproval();
 	}, []);
 
-	// Check access - show loading while checking
-	if (hasAccess === null || accessLoading) {
-		return (
-			<div className="space-y-6">
-				<div className="flex items-center justify-center py-12">
-					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
-					<span className="ml-3 text-gray-600">Checking permissions...</span>
-				</div>
-			</div>
-		);
-	}
-
-	// Check access - show no permission message if no access
-	if (!hasAccess) {
-		return <SectionAccessDenied sectionName={sectionName} requiredPermission="FeasibilityApproval" />;
-	}
+	// Access control removed - all users can access this page
 
 	const uniquePlanCategories = Array.from(
 		new Set(records.map((r) => r.PlanCategory).filter(Boolean))
@@ -478,7 +486,6 @@ export default function FeasibilityApprovalPage() {
 					<div>
 						<div className="flex items-center gap-3 mb-2">
 							<h1 className="text-3xl font-bold text-gray-900">Feasibility Approval</h1>
-							<PermissionStatusLabel permission="FeasibilityApproval" />
 						</div>
 						<p className="text-gray-600 mt-2">Manage feasibility study approvals</p>
 					</div>

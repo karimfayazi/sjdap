@@ -32,24 +32,6 @@ export async function POST(request: NextRequest) {
 			);
 		}
 
-		// Check if account is active
-		// Check if UserType is 'Super Admin' - Super Admin can login even if account is inactive
-		const isSuperAdmin = user.UserType && typeof user.UserType === 'string' && user.UserType.trim() === 'Super Admin';
-		const isActive =
-			user.Active === 1 ||
-			user.Active === "1" ||
-			user.Active === true ||
-			user.Active === "true" ||
-			(user.Active && typeof user.Active === 'string' && user.Active.trim().toLowerCase() === 'yes');
-
-		// Allow Super Admin users to bypass inactive check, otherwise check if account is active
-		if (!isSuperAdmin && !isActive) {
-			return NextResponse.json(
-				{ success: false, message: "User is not active please contact MIS Manager" },
-				{ status: 403 }
-			);
-		}
-
 		// Verify password matches - compare email_address and password from form with database
 		if (String(user.Password) !== String(password)) {
 			return NextResponse.json(
@@ -80,17 +62,7 @@ export async function POST(request: NextRequest) {
 				user_type: user.UserType,
 				designation: user.Designation,
 				regional_council: user.Regional_Council,
-				local_council: user.Local_Council,
-				setting: user.Setting,
-				swb_families: user.SwbFamilies,
-				actual_intervention: user.ActualIntervention,
-				finance_section: user.FinanceSection,
-				bank_information: user.BankInformation,
-				baseline_approval: user.BaselineApproval,
-				feasibility_approval: user.FeasibilityApproval,
-				fdp_approval: user.FdpApproval,
-				intervention_approval: user.InterventionApproval,
-				bank_account_approval: user.BankAccountApproval
+				local_council: user.Local_Council
 			},
 			full_name: user.UserFullName
 		});

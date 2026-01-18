@@ -30,14 +30,7 @@ export type UserProfile = {
 	Setting: boolean | number | null;
 	Other: boolean | number | null;
 	SWB_Families: boolean | number | null;
-	BankInformation: boolean | number | null;
-	BaselineApproval: boolean | number | null;
-	FeasibilityApproval: boolean | number | null;
-	FdpApproval: boolean | number | null;
-	InterventionApproval: boolean | number | null;
-	BankAccountApproval: boolean | number | null;
-	ActualIntervention: boolean | number | null;
-	FinanceSection: boolean | number | null;
+	// Removed: BankInformation, BaselineApproval, FeasibilityApproval, FdpApproval, InterventionApproval, BankAccountApproval, ActualIntervention, FinanceSection (deleted from PE_User table)
 };
 
 export type UserInfo = {
@@ -100,16 +93,6 @@ export function useAuth() {
 			const data = await res.json();
 
 			if (data.success) {
-				// Debug: Log the profile to verify Setting is present
-				if (data.user && typeof window !== "undefined") {
-					console.log('[useAuth] User profile loaded successfully:', {
-						email: data.user.email,
-						username: data.user.username,
-						Setting: data.user.Setting,
-						SettingType: typeof data.user.Setting,
-						allKeys: Object.keys(data.user)
-					});
-				}
 				return data.user;
 			} else {
 				// Log the error response

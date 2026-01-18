@@ -14,23 +14,8 @@ type UserData = {
 	PASSWORD: string | null;
 	USER_TYPE: string | null;
 	DESIGNATION: string | null;
-	ACTIVE: boolean | number | null;
 	Regional_Council: string | null;
 	Local_Council: string | null;
-	Setting: boolean | number | null;
-	SwbFamilies: boolean | number | null;
-	ActualIntervention: boolean | number | null;
-	FinanceSection: boolean | number | null;
-	BankInformation: boolean | number | null;
-	BaselineApproval: boolean | number | null;
-	FeasibilityApproval: boolean | number | null;
-	FdpApproval: boolean | number | null;
-	InterventionApproval: boolean | number | null;
-	BankAccountApproval: boolean | number | null;
-	Baseline: boolean | number | null;
-	FamilyDevelopmentPlan: boolean | number | null;
-	ROPs: boolean | number | null;
-	FamilyIncome: boolean | number | null;
 	user_create_date: string | null;
 	user_update_date: string | null;
 };
@@ -190,23 +175,8 @@ export default function EditUserPage() {
 							PASSWORD: user.Password || null,
 							USER_TYPE: user.UserType || null,
 							DESIGNATION: user.Designation || null,
-							ACTIVE: normalizeBool(user.Active),
 							Regional_Council: user.Regional_Council || null,
 							Local_Council: user.Local_Council || null,
-							Setting: normalizeBool(user.Setting),
-							SwbFamilies: normalizeBool(user.SwbFamilies),
-							ActualIntervention: normalizeBool(user.ActualIntervention),
-							FinanceSection: normalizeBool(user.FinanceSection),
-							BankInformation: normalizeBool(user.BankInformation),
-							BaselineApproval: normalizeBool(user.BaselineApproval),
-							FeasibilityApproval: normalizeBool(user.FeasibilityApproval),
-							FdpApproval: normalizeBool(user.FdpApproval),
-							InterventionApproval: normalizeBool(user.InterventionApproval),
-							BankAccountApproval: normalizeBool(user.BankAccountApproval),
-							Baseline: normalizeBool(user.Baseline),
-							FamilyDevelopmentPlan: normalizeBool(user.FamilyDevelopmentPlan),
-							ROPs: normalizeBool(user.ROPs),
-							FamilyIncome: normalizeBool(user.FamilyIncome),
 							user_create_date: user.user_create_date || null,
 							user_update_date: user.user_update_date || null,
 						};
@@ -271,14 +241,6 @@ export default function EditUserPage() {
 			setError(null);
 			setSuccess(false);
 
-			// Helper function to convert boolean/number to "Yes" or "No"
-			// Database fields are now VARCHAR(3) with "Yes"/"No" values
-			const toBoolValue = (val: any): string => {
-				if (val === true || val === 1 || val === "1" || val === "true" || val === "Yes" || val === "yes") return "Yes";
-				if (val === false || val === 0 || val === "0" || val === "false" || val === "No" || val === "no") return "No";
-				return "No"; // Default to "No" for null/undefined/unknown values
-			};
-
 			// Map form data to API format - only include fields from PE_User table
 			const apiData: any = {
 				UserId: formData.USER_ID,
@@ -286,24 +248,9 @@ export default function EditUserPage() {
 				UserFullName: formData.USER_FULL_NAME,
 				UserType: formData.USER_TYPE,
 				Designation: formData.DESIGNATION,
-				Active: toBoolValue(formData.ACTIVE),
 				Regional_Council: formData.Regional_Council,
 				Local_Council: formData.Local_Council,
 				RegionalCouncils: selectedRegionalCouncils,
-				Setting: toBoolValue(formData.Setting),
-				SwbFamilies: toBoolValue(formData.SwbFamilies),
-				ActualIntervention: toBoolValue(formData.ActualIntervention),
-				FinanceSection: toBoolValue(formData.FinanceSection),
-				BankInformation: toBoolValue(formData.BankInformation),
-				BaselineApproval: toBoolValue(formData.BaselineApproval),
-				FeasibilityApproval: toBoolValue(formData.FeasibilityApproval),
-				FdpApproval: toBoolValue(formData.FdpApproval),
-				InterventionApproval: toBoolValue(formData.InterventionApproval),
-				BankAccountApproval: toBoolValue(formData.BankAccountApproval),
-				Baseline: toBoolValue(formData.Baseline),
-				FamilyDevelopmentPlan: toBoolValue(formData.FamilyDevelopmentPlan),
-				ROPs: toBoolValue(formData.ROPs),
-				FamilyIncome: toBoolValue(formData.FamilyIncome),
 			};
 
 			const response = await fetch("/api/users", {
@@ -503,6 +450,7 @@ export default function EditUserPage() {
 										<option value="Viewer">Viewer</option>
 										<option value="Admin">Admin</option>
 										<option value="Super Admin">Super Admin</option>
+										<option value="Economic-Approval">Economic-Approval</option>
 									</select>
 								</div>
 
@@ -596,54 +544,6 @@ export default function EditUserPage() {
 										className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 									/>
 								</div>
-							</div>
-						</div>
-
-						{/* Permissions */}
-						<div className="p-6">
-							<h2 className="text-xl font-semibold text-gray-900 mb-4">Permissions</h2>
-							<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-								{[
-									{ key: "ACTIVE", label: "Active", desc: "User account is active" },
-									{ key: "Setting", label: "Setting", desc: "Settings access" },
-									{ key: "SwbFamilies", label: "SWB Families", desc: "SWB Families access" },
-									{ key: "ActualIntervention", label: "Actual Intervention", desc: "Actual intervention access" },
-									{ key: "FinanceSection", label: "Finance Section", desc: "Finance section access" },
-									{ key: "BankInformation", label: "Bank Information", desc: "Bank information access" },
-									{ key: "BaselineApproval", label: "Baseline Approval", desc: "Baseline approval access" },
-									{ key: "FeasibilityApproval", label: "Feasibility Approval", desc: "Feasibility approval access" },
-									{ key: "FdpApproval", label: "FDP Approval", desc: "FDP approval access" },
-									{ key: "InterventionApproval", label: "Intervention Approval", desc: "Intervention approval access" },
-									{ key: "BankAccountApproval", label: "Bank Account Approval", desc: "Bank account approval access" },
-									{ key: "Baseline", label: "Baseline", desc: "Baseline QOL access" },
-									{ key: "FamilyDevelopmentPlan", label: "Family Development Plan", desc: "Family Development Plan access" },
-									{ key: "ROPs", label: "ROPs", desc: "ROPs access" },
-									{ key: "FamilyIncome", label: "Family Income", desc: "Family Income access" },
-								].map((item) => {
-									const value = formData[item.key as keyof UserData];
-									// Explicitly convert to boolean: "Yes", 1, true, "1", "true" = checked; "No", 0, false, "0", "false", null, undefined = unchecked
-									// Database fields are now VARCHAR(3) with "Yes"/"No" values
-									const isChecked = value === 1 || value === true || value === "1" || value === "true" || 
-										(value && typeof value === 'string' && value.trim().toLowerCase() === 'yes');
-									
-									return (
-										<div key={item.key} className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
-											<input
-												type="checkbox"
-												name={item.key}
-												checked={isChecked}
-												onChange={handleChange}
-												className="mt-1 w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-											/>
-											<div className="flex-1 min-w-0">
-												<label className="block text-sm font-medium text-gray-900 cursor-pointer">
-													{item.label}
-												</label>
-												<p className="text-xs text-gray-500 mt-0.5">{item.desc}</p>
-											</div>
-										</div>
-									);
-								})}
 							</div>
 						</div>
 

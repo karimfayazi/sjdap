@@ -232,6 +232,7 @@ export async function POST(request: NextRequest) {
 		insertReq.input("Active", toBoolValue(data.Active));
 		insertReq.input("Regional_Council", data.Regional_Council || data.RC || null);
 		insertReq.input("Local_Council", data.Local_Council || data.LC || null);
+		insertReq.input("AccessScope", data.AccessScope || null);
 		insertReq.input("Setting", toBoolValue(data.Setting));
 		insertReq.input("SwbFamilies", toBoolValue(data.SwbFamilies));
 		insertReq.input("ActualIntervention", toBoolValue(data.ActualIntervention));
@@ -258,6 +259,7 @@ export async function POST(request: NextRequest) {
 				[Active],
 				[Regional_Council],
 				[Local_Council],
+				[AccessScope],
 				[Setting],
 				[SwbFamilies],
 				[ActualIntervention],
@@ -285,6 +287,7 @@ export async function POST(request: NextRequest) {
 				@Active,
 				@Regional_Council,
 				@Local_Council,
+				@AccessScope,
 				@Setting,
 				@SwbFamilies,
 				@ActualIntervention,
@@ -411,14 +414,6 @@ export async function PUT(request: NextRequest) {
 		const updateReq = pool.request();
 		(updateReq as any).timeout = 120000;
 
-		// Helper function to convert boolean/number to "Yes" or "No"
-		// Database fields are now VARCHAR(3) with "Yes"/"No" values
-		const toBoolValue = (val: any): string => {
-			if (val === true || val === 1 || val === "1" || val === "true" || val === "Yes" || val === "yes") return "Yes";
-			if (val === false || val === 0 || val === "0" || val === "false" || val === "No" || val === "no") return "No";
-			return "No"; // Default to "No" for null/undefined/unknown values
-		};
-
 		// Use email_address or UserId for lookup
 		// Note: email_address should not be updated, only used for lookup
 		// Check if email_address is provided and looks like an email
@@ -434,23 +429,9 @@ export async function PUT(request: NextRequest) {
 		updateReq.input("UserFullName", data.UserFullName || null);
 		updateReq.input("UserType", data.UserType || null);
 		updateReq.input("Designation", data.Designation || null);
-		updateReq.input("Active", toBoolValue(data.Active));
 		updateReq.input("Regional_Council", data.Regional_Council || data.RC || null);
 		updateReq.input("Local_Council", data.Local_Council || data.LC || null);
-		updateReq.input("Setting", toBoolValue(data.Setting));
-		updateReq.input("SwbFamilies", toBoolValue(data.SwbFamilies));
-		updateReq.input("ActualIntervention", toBoolValue(data.ActualIntervention));
-		updateReq.input("FinanceSection", toBoolValue(data.FinanceSection));
-		updateReq.input("BankInformation", toBoolValue(data.BankInformation));
-		updateReq.input("BaselineApproval", toBoolValue(data.BaselineApproval));
-		updateReq.input("FeasibilityApproval", toBoolValue(data.FeasibilityApproval));
-		updateReq.input("FdpApproval", toBoolValue(data.FdpApproval));
-		updateReq.input("InterventionApproval", toBoolValue(data.InterventionApproval));
-		updateReq.input("BankAccountApproval", toBoolValue(data.BankAccountApproval));
-		updateReq.input("Baseline", toBoolValue(data.Baseline));
-		updateReq.input("FamilyDevelopmentPlan", toBoolValue(data.FamilyDevelopmentPlan));
-		updateReq.input("ROPs", toBoolValue(data.ROPs));
-		updateReq.input("FamilyIncome", toBoolValue(data.FamilyIncome));
+		updateReq.input("AccessScope", data.AccessScope || null);
 
 		const updateQuery = `
 			UPDATE [SJDA_Users].[dbo].[PE_User]
@@ -458,23 +439,9 @@ export async function PUT(request: NextRequest) {
 				[UserFullName] = COALESCE(@UserFullName, [UserFullName]),
 				[UserType] = COALESCE(@UserType, [UserType]),
 				[Designation] = COALESCE(@Designation, [Designation]),
-				[Active] = COALESCE(@Active, [Active]),
 				[Regional_Council] = COALESCE(@Regional_Council, [Regional_Council]),
 				[Local_Council] = COALESCE(@Local_Council, [Local_Council]),
-				[Setting] = COALESCE(@Setting, [Setting]),
-				[SwbFamilies] = COALESCE(@SwbFamilies, [SwbFamilies]),
-				[ActualIntervention] = COALESCE(@ActualIntervention, [ActualIntervention]),
-				[FinanceSection] = COALESCE(@FinanceSection, [FinanceSection]),
-				[BankInformation] = COALESCE(@BankInformation, [BankInformation]),
-				[BaselineApproval] = COALESCE(@BaselineApproval, [BaselineApproval]),
-				[FeasibilityApproval] = COALESCE(@FeasibilityApproval, [FeasibilityApproval]),
-				[FdpApproval] = COALESCE(@FdpApproval, [FdpApproval]),
-				[InterventionApproval] = COALESCE(@InterventionApproval, [InterventionApproval]),
-				[BankAccountApproval] = COALESCE(@BankAccountApproval, [BankAccountApproval]),
-				[Baseline] = COALESCE(@Baseline, [Baseline]),
-				[FamilyDevelopmentPlan] = COALESCE(@FamilyDevelopmentPlan, [FamilyDevelopmentPlan]),
-				[ROPs] = COALESCE(@ROPs, [ROPs]),
-				[FamilyIncome] = COALESCE(@FamilyIncome, [FamilyIncome]),
+				[AccessScope] = COALESCE(@AccessScope, [AccessScope]),
 				[user_update_date] = GETDATE()
 			WHERE (@lookup_email IS NOT NULL AND [email_address] = @lookup_email)
 			   OR (@lookup_userid IS NOT NULL AND [UserId] = @lookup_userid)

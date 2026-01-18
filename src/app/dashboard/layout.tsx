@@ -2,14 +2,15 @@
 
 import type { ReactNode } from "react";
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import { useAuth } from "@/hooks/useAuth";
-import InactiveUserMessage from "@/components/InactiveUserMessage";
+import { hasRouteAccess, hasFullAccess } from "@/lib/auth-utils";
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
 	const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 	const router = useRouter();
+	const pathname = usePathname();
 	const { user, userProfile, loading } = useAuth();
 
 	// Check if username is null and redirect to login
@@ -24,6 +25,30 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 			router.push("/login");
 		}
 	}, [user, userProfile, loading, router]);
+
+	// Check route access based on UserType (for Economic-Approval and other restricted users)
+	useEffect(() => {
+		if (loading || !userProfile) return;
+
+		const userType = userProfile.access_level; // UserType is stored in access_level
+		const hasFullAccessToAll = hasFullAccess(
+			userProfile.username,
+			userProfile.supper_user,
+			userType
+		);
+
+		// Super Admin has access to all pages
+		if (hasFullAccessToAll) {
+			return;
+		}
+
+		// Check route-specific access
+		const currentRoute = pathname || '/dashboard';
+		if (!hasRouteAccess(userType, currentRoute)) {
+			// Economic-Approval users should be redirected to dashboard if they try to access blocked pages
+			router.push('/dashboard');
+		}
+	}, [userProfile, loading, pathname, router]);
 
 	// Show loading state while checking authentication
 	if (loading) {
@@ -43,23 +68,6 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 		return null;
 	}
 
-	// Check if user is active
-	// Super Admin users can bypass the active check
-	const isSuperAdmin = userProfile?.access_level && typeof userProfile.access_level === 'string' && userProfile.access_level.trim() === 'Super Admin';
-	const activeValue = userProfile?.active;
-	const isActive = 
-		activeValue === true || 
-		activeValue === 1 || 
-		activeValue === "1" || 
-		activeValue === "true" || 
-		(activeValue && typeof activeValue === 'string' && activeValue.trim().toLowerCase() === 'yes');
-	
-	// If user is not active and not Super Admin, show inactive message
-	// Note: null/undefined active is treated as inactive
-	if (!isSuperAdmin && !isActive) {
-		return <InactiveUserMessage />;
-	}
-	
 	return (
 		<div className="h-full bg-gray-50 flex flex-col">
 

@@ -26,26 +26,80 @@ export async function GET(request: NextRequest) {
 
 		const pool = await getDb();
 		const request_query = pool.request();
-		request_query.input("user_id", userId);
+		
+		// Handle both numeric UserId and string email_address
+		// Try to parse userId as number first, if it fails, treat as string (email)
+		const userIdNum = !isNaN(Number(userId)) && userId.trim() !== '' ? parseInt(userId, 10) : null;
+		
+		if (userIdNum !== null && userIdNum > 0) {
+			request_query.input("user_id", userIdNum);
+		} else {
+			request_query.input("user_id", userId);
+		}
 		request_query.input("email_address", userId);
 		(request_query as any).timeout = 120000;
+		
+		console.log('[user-profile] Querying user:', {
+			userId: userId,
+			userIdNum: userIdNum,
+			queryType: userIdNum !== null ? 'numeric' : 'string'
+		});
+		
 		// Select only columns that exist in the table (permission columns have been removed)
-		const result = await request_query.query(
-			`SELECT TOP(1) 
-				[UserId],
-				[email_address],
-				[UserFullName],
-				[Password],
-				[UserType],
-				[Designation],
-				[Regional_Council],
-				[Local_Council],
-				[user_create_date],
-				[user_update_date],
-				[AccessScope]
-			FROM [SJDA_Users].[dbo].[PE_User] 
-			WHERE [UserId] = @user_id OR [email_address] = @email_address`
-		);
+		// Using ISNULL to handle potential NULL values gracefully
+		let result;
+		try {
+			result = await request_query.query(
+				`SELECT TOP(1) 
+					[UserId],
+					[email_address],
+					ISNULL([UserFullName], '') AS [UserFullName],
+					[Password],
+					ISNULL([UserType], '') AS [UserType],
+					ISNULL([Designation], '') AS [Designation],
+					ISNULL([Regional_Council], '') AS [Regional_Council],
+					ISNULL([Local_Council], '') AS [Local_Council],
+					[user_create_date],
+					[user_update_date],
+					ISNULL([AccessScope], '') AS [AccessScope]
+				FROM [SJDA_Users].[dbo].[PE_User] 
+				WHERE ([UserId] = @user_id OR [email_address] = @email_address)`
+			);
+		} catch (queryError: any) {
+			console.error('[user-profile] Database query error, trying fallback query:', {
+				error: queryError,
+				message: queryError?.message,
+				code: queryError?.code,
+				number: queryError?.number,
+				userId: userId
+			});
+			
+			// Try a simpler fallback query with only essential columns
+			try {
+				const fallbackRequest = pool.request();
+				if (userIdNum !== null && userIdNum > 0) {
+					fallbackRequest.input("user_id", userIdNum);
+				} else {
+					fallbackRequest.input("user_id", userId);
+				}
+				fallbackRequest.input("email_address", userId);
+				(fallbackRequest as any).timeout = 120000;
+				
+				result = await fallbackRequest.query(
+					`SELECT TOP(1) 
+						[UserId],
+						[email_address],
+						[UserFullName],
+						[UserType]
+					FROM [SJDA_Users].[dbo].[PE_User] 
+					WHERE ([UserId] = @user_id OR [email_address] = @email_address)`
+				);
+				console.log('[user-profile] Fallback query succeeded');
+			} catch (fallbackError: any) {
+				console.error('[user-profile] Fallback query also failed:', fallbackError);
+				throw queryError; // Throw original error
+			}
+		}
 
 		const user = result.recordset?.[0];
 
@@ -78,11 +132,11 @@ export async function GET(request: NextRequest) {
 		// Map database fields to UserProfile type
 		// Note: PE_User table has different structure, so we'll map available fields
 		// Check if UserType is 'Super Admin' or 'Admin' - Super Admin users have full access to all sections
-		const userType = user.UserType && typeof user.UserType === 'string' ? user.UserType.trim() : '';
+		const userType = (user.UserType && typeof user.UserType === 'string') ? user.UserType.trim() : '';
 		const isSuperAdmin = userType === 'Super Admin';
-		const isAdminUserType = userType.toLowerCase() === 'admin';
-		const userIdentifier = user.UserId || user.email_address;
-		const isAdminByIdentifier = userIdentifier && userIdentifier.toLowerCase() === 'admin';
+		const isAdminUserType = userType && userType.length > 0 ? userType.toLowerCase() === 'admin' : false;
+		const userIdentifier = user.UserId || user.email_address || '';
+		const isAdminByIdentifier = userIdentifier && typeof userIdentifier === 'string' && userIdentifier.toLowerCase() === 'admin';
 		const isAdmin = isSuperAdmin || isAdminUserType || isAdminByIdentifier;
 		
 		// Debug logging for Super Admin detection
@@ -110,15 +164,28 @@ export async function GET(request: NextRequest) {
 		
 		// Map all fields to userProfile
 		// Since permission columns have been removed, grant access to ALL sections for ALL users
+		// Ensure UserType is properly set - handle null, undefined, and trim whitespace
+		const userTypeValue = user.UserType 
+			? (typeof user.UserType === 'string' ? user.UserType.trim() : String(user.UserType).trim())
+			: null;
+		
+		console.log('[user-profile] UserType mapping:', {
+			rawUserType: user.UserType,
+			userTypeValue: userTypeValue,
+			userId: user.UserId,
+			email: user.email_address
+		});
+		
+		// Safely get user fields with fallbacks for missing columns
 		const userProfile = {
 			username: user.UserId || user.email_address || "",
 			email: user.email_address || user.UserId || "",
-			full_name: user.UserFullName || null,
+			full_name: (user.UserFullName !== undefined && user.UserFullName !== null) ? user.UserFullName : null,
 			department: null, // PE_User doesn't have PROGRAM field
 			region: null, // PE_User doesn't have REGION field
 			address: null,
 			contact_no: null,
-			access_level: user.UserType || null,
+			access_level: userTypeValue,
 			active: isActive, // All users are active
 			access_add: null, // PE_User doesn't have CAN_ADD field
 			access_edit: null, // PE_User doesn't have CAN_UPDATE field
@@ -174,21 +241,7 @@ export async function GET(request: NextRequest) {
 				user_create_date: user.user_create_date,
 				user_update_date: user.user_update_date,
 				AccessScope: user.AccessScope,
-				Active: user.Active,
-				Setting: userAny.Setting ?? userAny.setting ?? getUserField("Setting") ?? null,
-				SwbFamilies: userAny.SwbFamilies ?? userAny.swbFamilies ?? getUserField("SwbFamilies") ?? null,
-				ActualIntervention: userAny.ActualIntervention ?? userAny.actualIntervention ?? getUserField("ActualIntervention") ?? null,
-				FinanceSection: userAny.FinanceSection ?? userAny.financeSection ?? getUserField("FinanceSection") ?? null,
-				BankInformation: userAny.BankInformation ?? userAny.bankInformation ?? getUserField("BankInformation") ?? null,
-				BaselineApproval: userAny.BaselineApproval ?? userAny.baselineApproval ?? getUserField("BaselineApproval") ?? null,
-				FeasibilityApproval: userAny.FeasibilityApproval ?? userAny.feasibilityApproval ?? getUserField("FeasibilityApproval") ?? null,
-				FdpApproval: userAny.FdpApproval ?? userAny.fdpApproval ?? getUserField("FdpApproval") ?? null,
-				InterventionApproval: userAny.InterventionApproval ?? userAny.interventionApproval ?? getUserField("InterventionApproval") ?? null,
-				BankAccountApproval: userAny.BankAccountApproval ?? userAny.bankAccountApproval ?? getUserField("BankAccountApproval") ?? null,
-				Baseline: baselineRaw ?? null, // Use the baselineRaw value we already retrieved with all fallbacks
-				FamilyDevelopmentPlan: userAny.FamilyDevelopmentPlan ?? userAny.familyDevelopmentPlan ?? getUserField("FamilyDevelopmentPlan") ?? null,
-				ROPs: ropsValue ?? null,
-				FamilyIncome: userAny.FamilyIncome ?? userAny.familyIncome ?? getUserField("FamilyIncome") ?? null,
+				// Removed: Active, Setting, SwbFamilies, ActualIntervention, FinanceSection, BankInformation, BaselineApproval, FeasibilityApproval, FdpApproval, InterventionApproval, BankAccountApproval, Baseline, FamilyDevelopmentPlan, ROPs, FamilyIncome
 			};
 			
 			// Debug: Log all keys from the raw user object to verify all fields are included
@@ -198,21 +251,37 @@ export async function GET(request: NextRequest) {
 
 		return NextResponse.json(response);
 	} catch (error) {
-		console.error("Error fetching user profile:", error);
+		console.error("[user-profile] Error fetching user profile:", error);
 		
 		const errorMessage = error instanceof Error ? error.message : String(error);
+		const errorStack = error instanceof Error ? error.stack : undefined;
+		
+		// Log full error details for debugging
+		console.error("[user-profile] Full error details:", {
+			message: errorMessage,
+			stack: errorStack,
+			error: error
+		});
+		
 		const isConnectionError =
 			errorMessage.includes("ENOTFOUND") ||
 			errorMessage.includes("getaddrinfo") ||
 			errorMessage.includes("Failed to connect") ||
 			errorMessage.includes("ECONNREFUSED") ||
 			errorMessage.includes("ETIMEDOUT") ||
-			errorMessage.includes("ConnectionError");
+			errorMessage.includes("ConnectionError") ||
+			errorMessage.includes("Connection is closed");
 
 		const isTimeoutError = 
 			errorMessage.includes("Timeout") ||
 			errorMessage.includes("timeout") ||
 			errorMessage.includes("Request failed to complete");
+
+		const isSqlError = 
+			errorMessage.includes("Invalid column name") ||
+			errorMessage.includes("Invalid object name") ||
+			errorMessage.includes("SQL") ||
+			(error as any)?.number !== undefined;
 
 		if (isConnectionError) {
 			return NextResponse.json(
@@ -234,10 +303,29 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
+		// Return more detailed error for SQL errors to help debugging
+		if (isSqlError) {
+			return NextResponse.json(
+				{
+					success: false,
+					message: "Database error: " + errorMessage,
+					error: errorMessage,
+					debug: {
+						errorType: "SQL Error",
+						errorNumber: (error as any)?.number,
+						errorState: (error as any)?.state,
+						errorClass: (error as any)?.class
+					}
+				},
+				{ status: 500 }
+			);
+		}
+
 		return NextResponse.json(
 			{
 				success: false,
-				message: "Error fetching user profile: " + errorMessage
+				message: "Error fetching user profile: " + errorMessage,
+				error: errorMessage
 			},
 			{ status: 500 }
 		);

@@ -94,12 +94,14 @@ export function isSuperUser(supperUserValue: string | boolean | number | null | 
  * Check if a user is an admin user (user_id = "admin")
  * Admin users have FULL ACCESS to ALL pages and sections
  * 
- * @param username - The username/user_id to check
+ * @param username - The username/user_id to check (can be string, number, or null/undefined)
  * @returns true if username is "admin" (case-insensitive), false otherwise
  */
-export function isAdminUser(username: string | null | undefined): boolean {
+export function isAdminUser(username: string | number | null | undefined): boolean {
 	if (!username) return false;
-	return username.toLowerCase() === 'admin';
+	// Convert to string if it's a number
+	const usernameStr = typeof username === 'string' ? username : String(username);
+	return usernameStr.toLowerCase() === 'admin';
 }
 
 /**
@@ -120,16 +122,71 @@ export function isSuperAdminByUserType(accessLevel: string | null | undefined): 
  * Check if a user has full access (either admin user, super user, or Super Admin by UserType)
  * This is the main function to use for access control checks
  * 
- * @param username - The username/user_id to check
+ * @param username - The username/user_id to check (can be string or number)
  * @param supperUserValue - The Supper_User field value from database
  * @param accessLevel - The access_level field (which contains UserType from database)
  * @returns true if user is admin, super user, or Super Admin by UserType, false otherwise
  */
 export function hasFullAccess(
-	username: string | null | undefined,
+	username: string | number | null | undefined,
 	supperUserValue: string | boolean | number | null | undefined,
 	accessLevel?: string | null | undefined
 ): boolean {
 	return isAdminUser(username) || isSuperUser(supperUserValue) || isSuperAdminByUserType(accessLevel);
+}
+
+/**
+ * Check if a user has access to a specific route based on UserType
+ * 
+ * Access rules:
+ * - Super Admin: Access to all pages
+ * - Editor: Access to baseline-qol, family-income, rops, family-development-plan, actual-intervention
+ * - Economic-Approval: Access ONLY to /dashboard and /dashboard/feasibility-approval (all other pages blocked)
+ * 
+ * @param userType - The UserType from database (Editor, Super Admin, Economic-Approval, etc.)
+ * @param route - The route path (e.g., '/dashboard/baseline-qol')
+ * @returns true if user has access, false otherwise
+ */
+export function hasRouteAccess(userType: string | null | undefined, route: string): boolean {
+	if (!userType || typeof userType !== 'string') {
+		return false;
+	}
+
+	const normalizedUserType = userType.trim();
+
+	// Super Admin has access to all pages
+	if (normalizedUserType === 'Super Admin') {
+		return true;
+	}
+
+	// Economic-Approval access - ONLY dashboard and feasibility-approval (strictly block everything else)
+	if (normalizedUserType === 'Economic-Approval') {
+		// Allow access to main dashboard (exact match or with trailing slash)
+		if (route === '/dashboard' || route === '/dashboard/') {
+			return true;
+		}
+		// Allow access to feasibility-approval and its sub-routes
+		if (route.startsWith('/dashboard/feasibility-approval')) {
+			return true;
+		}
+		// Block ALL other routes for Economic-Approval users
+		return false;
+	}
+
+	// Editor access
+	if (normalizedUserType === 'Editor') {
+		const editorRoutes = [
+			'/dashboard/baseline-qol',
+			'/dashboard/family-income',
+			'/dashboard/rops',
+			'/dashboard/family-development-plan',
+			'/dashboard/actual-intervention'
+		];
+		// Check if route starts with any of the allowed routes (includes sub-routes)
+		return editorRoutes.some(r => route.startsWith(r));
+	}
+
+	// Default: no access
+	return false;
 }
 

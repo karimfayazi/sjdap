@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { useSectionAccess } from "@/hooks/useSectionAccess";
 import SectionAccessDenied from "@/components/SectionAccessDenied";
-import PermissionStatusLabel from "@/components/PermissionStatusLabel";
 
 export default function InterventionApprovalPage() {
 	const router = useRouter();
@@ -34,7 +33,6 @@ export default function InterventionApprovalPage() {
 				<div>
 					<div className="flex items-center gap-3 mb-2">
 						<h1 className="text-3xl font-bold text-gray-900">Intervention Approval</h1>
-						<PermissionStatusLabel permission="InterventionApproval" />
 					</div>
 					<p className="text-gray-600 mt-2">Manage intervention approval processes</p>
 				</div>
