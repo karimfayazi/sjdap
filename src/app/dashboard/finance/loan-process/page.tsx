@@ -3,11 +3,9 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Search, Download, Trash2, FileText, Printer, Edit, Grid, List } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
-import { isSuperUser } from "@/lib/auth-utils";
-import { hasLoanAccess as checkLoanAccess } from "@/lib/loan-access-utils";
+import { useSectionAccess } from "@/hooks/useSectionAccess";
 import SectionAccessDenied from "@/components/SectionAccessDenied";
-import NoPermissionMessage from "@/components/NoPermissionMessage";
+import PermissionStatusLabel from "@/components/PermissionStatusLabel";
 
 type LoanData = {
 	Intervention_ID?: number;
@@ -38,80 +36,9 @@ export default function LoanProcessPage() {
 	const [error, setError] = useState<string | null>(null);
 	const [deletingId, setDeletingId] = useState<number | null>(null);
 	const [showAccessIssue, setShowAccessIssue] = useState(false);
-
-	const { userProfile, loading: authLoading } = useAuth();
 	const [isSuperFinanceOfficer, setIsSuperFinanceOfficer] = useState(false);
-	const [hasAccess, setHasAccess] = useState<boolean | null>(null);
-	const [isSuperUserState, setIsSuperUserState] = useState<boolean | null>(null);
 
-	// Check if user is Super User
-	useEffect(() => {
-		if (authLoading) return;
-		
-		if (userProfile) {
-			const superUserValue = userProfile.supper_user;
-			const isAdmin = userProfile?.username && userProfile.username.toLowerCase() === 'admin';
-			setIsSuperUserState(isAdmin || isSuperUser(superUserValue));
-		} else {
-			// Fallback to localStorage
-			try {
-				const stored = localStorage.getItem("userData");
-				if (stored) {
-					const parsed = JSON.parse(stored);
-					const su = parsed.super_user || parsed.supper_user;
-					setIsSuperUserState(isSuperUser(su));
-				} else {
-					setIsSuperUserState(false);
-				}
-			} catch {
-				setIsSuperUserState(false);
-			}
-		}
-	}, [userProfile, authLoading]);
-
-	// Check loan access permission (only if not Super User)
-	useEffect(() => {
-		if (authLoading || isSuperUserState === null) return;
-
-		// Super Users have full access
-		if (isSuperUserState) {
-			setHasAccess(true);
-			return;
-		}
-
-		// Check multiple sources for access_loans value
-		let accessLoansValue = userProfile?.access_loans;
-		
-		// Fallback to localStorage if userProfile doesn't have it
-		if ((accessLoansValue === null || accessLoansValue === undefined) && typeof window !== "undefined") {
-			const storedValue = localStorage.getItem('access_loans');
-			if (storedValue) {
-				accessLoansValue = storedValue;
-			}
-			
-			// Also check userData object in localStorage
-			const userData = localStorage.getItem('userData');
-			if (userData) {
-				try {
-					const parsedData = JSON.parse(userData);
-					if (parsedData.access_loans !== undefined && parsedData.access_loans !== null) {
-						accessLoansValue = parsedData.access_loans;
-					}
-				} catch (e) {
-					console.error('Error parsing userData:', e);
-				}
-			}
-		}
-
-		// Check if user has loan access (access_loans = 1 or "Yes")
-		const userHasLoanAccess = checkLoanAccess(accessLoansValue);
-
-		if (!userHasLoanAccess) {
-			setHasAccess(false);
-		} else {
-			setHasAccess(true);
-		}
-	}, [userProfile, authLoading, isSuperUserState]);
+	const { hasAccess, loading: accessLoading, sectionName } = useSectionAccess("FinanceSection");
 
 	// Determine if current user has Finance_Officer = 'All'
 	useEffect(() => {
@@ -449,9 +376,8 @@ export default function LoanProcessPage() {
 		);
 	}
 
-	// Show access denied if user doesn't have permission
-	// Check Super User status - only Super Users can access this page
-	if (isSuperUserState === null || authLoading) {
+	// Show loading while checking access
+	if (accessLoading) {
 		return (
 			<div className="space-y-6">
 				<div className="flex items-center justify-center py-12">
@@ -462,24 +388,10 @@ export default function LoanProcessPage() {
 		);
 	}
 
-	if (!isSuperUserState) {
-		return <NoPermissionMessage />;
-	}
-
+	// Show access denied if user doesn't have permission
+	// Only users with FinanceSection = 1/TRUE can access this page
 	if (hasAccess === false) {
-		return <SectionAccessDenied sectionName="Loan Process" requiredPermission="access_loans" />;
-	}
-
-	// Show loading while checking access
-	if (hasAccess === null || authLoading) {
-		return (
-			<div className="space-y-6">
-				<div className="flex items-center justify-center py-12">
-					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
-					<span className="ml-3 text-gray-600">Loading...</span>
-				</div>
-			</div>
-		);
+		return <SectionAccessDenied sectionName={sectionName} requiredPermission="FinanceSection" />;
 	}
 
 	return (
@@ -487,7 +399,10 @@ export default function LoanProcessPage() {
 			{/* Header */}
 			<div className="flex items-center justify-between">
 				<div>
-					<h1 className="text-3xl font-bold text-gray-900">Loan Process</h1>
+					<div className="flex items-center gap-3 mb-2">
+						<h1 className="text-3xl font-bold text-gray-900">Loan Process</h1>
+						<PermissionStatusLabel permission="FinanceSection" />
+					</div>
 					<p className="text-gray-600 mt-2">Manage loan authorization process and developed letters</p>
 				</div>
 				<div className="flex items-center gap-3">

@@ -25,6 +25,7 @@ import {
     Folder,
     Clock,
     Trash2,
+    UserCircle,
 } from "lucide-react";
 
 type SidebarProps = {
@@ -114,6 +115,7 @@ const getNavigationGroups = (userSection?: string | null, isLoading?: boolean): 
 							{ label: "Bank Account Approval", href: "/dashboard/approval-section/bank-account-approval" },
 						]
 					},
+					{ label: "User Information", href: "/dashboard/user-information", icon: UserCircle },
 					{ label: "Logout", href: "/logout", icon: LogOut },
 				],
 			},
@@ -173,6 +175,7 @@ const getNavigationGroups = (userSection?: string | null, isLoading?: boolean): 
 						{ label: "Delete All", href: "/dashboard/others/delete-all" },
 					]
 				},
+				{ label: "User Information", href: "/dashboard/user-information", icon: UserCircle },
 				{ label: "Logout", href: "/logout", icon: LogOut },
 			],
 		},

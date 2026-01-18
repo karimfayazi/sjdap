@@ -3,9 +3,9 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Save, ArrowLeft, X } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
-import { isSuperUser } from "@/lib/auth-utils";
-import NoPermissionMessage from "@/components/NoPermissionMessage";
+import { useSectionAccess } from "@/hooks/useSectionAccess";
+import SectionAccessDenied from "@/components/SectionAccessDenied";
+import PermissionStatusLabel from "@/components/PermissionStatusLabel";
 
 type BankFormData = {
 	familyId: string;
@@ -20,34 +20,10 @@ type BankFormData = {
 
 export default function AddBankInformationPage() {
 	const router = useRouter();
-	const { userProfile, loading: authLoading } = useAuth();
-	const [isSuperUserState, setIsSuperUserState] = useState<boolean | null>(null);
+	const { hasAccess, loading: accessLoading, sectionName } = useSectionAccess("BankInformation");
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [success, setSuccess] = useState(false);
-
-	// Check if user is Super User
-	useEffect(() => {
-		if (authLoading) return;
-		
-		if (userProfile) {
-			const superUserValue = userProfile.supper_user;
-			setIsSuperUserState(isSuperUser(superUserValue));
-		} else {
-			try {
-				const stored = localStorage.getItem("userData");
-				if (stored) {
-					const parsed = JSON.parse(stored);
-					const su = parsed.super_user || parsed.supper_user;
-					setIsSuperUserState(isSuperUser(su));
-				} else {
-					setIsSuperUserState(false);
-				}
-			} catch {
-				setIsSuperUserState(false);
-			}
-		}
-	}, [userProfile, authLoading]);
 
 	const [formData, setFormData] = useState<BankFormData>({
 		familyId: "",
@@ -97,8 +73,8 @@ export default function AddBankInformationPage() {
 		}
 	};
 
-	// Check Super User status - only Super Users can access this page
-	if (isSuperUserState === null || authLoading) {
+	// Check access - only users with BankInformation = 1/TRUE can access this page
+	if (accessLoading) {
 		return (
 			<div className="space-y-6">
 				<div className="flex items-center justify-center py-12">
@@ -109,8 +85,8 @@ export default function AddBankInformationPage() {
 		);
 	}
 
-	if (!isSuperUserState) {
-		return <NoPermissionMessage />;
+	if (hasAccess === false) {
+		return <SectionAccessDenied sectionName={sectionName} requiredPermission="BankInformation" />;
 	}
 
 	return (
@@ -118,7 +94,10 @@ export default function AddBankInformationPage() {
 			{/* Header */}
 			<div className="flex items-center justify-between">
 				<div>
-					<h1 className="text-3xl font-bold text-gray-900">Add Bank Details</h1>
+					<div className="flex items-center gap-3 mb-2">
+						<h1 className="text-3xl font-bold text-gray-900">Add Bank Details</h1>
+						<PermissionStatusLabel permission="BankInformation" />
+					</div>
 					<p className="text-gray-600 mt-2">Add new bank information for a family</p>
 				</div>
 				<button

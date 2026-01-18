@@ -48,6 +48,10 @@ export async function GET(request: NextRequest) {
 				[FinanceSection],
 				[BankInformation],
 				[BaselineApproval],
+				[Baseline],
+				[FamilyDevelopmentPlan],
+				[ROPs],
+				[FamilyIncome],
 				[FeasibilityApproval],
 				[FdpApproval],
 				[InterventionApproval],
@@ -95,9 +99,50 @@ export async function GET(request: NextRequest) {
 		const result = await request_query.query(query);
 		const users = result.recordset || [];
 
+		// Fetch regional councils for each user from PE_User_RegionalCouncilAccess
+		const usersWithRegionalCouncils = await Promise.all(
+			users.map(async (user: any) => {
+				const userId = user.UserId || user.email_address;
+				if (!userId) return { ...user, RegionalCouncils: [] };
+
+				try {
+					const rcRequest = pool.request();
+					(rcRequest as any).timeout = 120000;
+					rcRequest.input("userId", userId);
+
+					const rcQuery = `
+						SELECT 
+							ura.[RegionalCouncilId],
+							rc.[RegionalCouncilCode],
+							rc.[RegionalCouncilName]
+						FROM [SJDA_Users].[dbo].[PE_User_RegionalCouncilAccess] ura
+						INNER JOIN [SJDA_Users].[dbo].[LU_RegionalCouncil] rc
+							ON ura.[RegionalCouncilId] = rc.[RegionalCouncilId]
+						WHERE ura.[UserId] = @userId
+						ORDER BY rc.[RegionalCouncilName]
+					`;
+
+					const rcResult = await rcRequest.query(rcQuery);
+					const regionalCouncils = (rcResult.recordset || []).map((rc: any) => ({
+						RegionalCouncilId: rc.RegionalCouncilId,
+						RegionalCouncilCode: rc.RegionalCouncilCode,
+						RegionalCouncilName: rc.RegionalCouncilName
+					}));
+
+					return {
+						...user,
+						RegionalCouncils: regionalCouncils
+					};
+				} catch (error) {
+					console.error(`Error fetching regional councils for user ${userId}:`, error);
+					return { ...user, RegionalCouncils: [] };
+				}
+			})
+		);
+
 		return NextResponse.json({
 			success: true,
-			users: users
+			users: usersWithRegionalCouncils
 		});
 	} catch (error) {
 		console.error("Error fetching users:", error);
@@ -211,6 +256,10 @@ export async function POST(request: NextRequest) {
 		insertReq.input("FdpApproval", toBoolValue(data.FdpApproval));
 		insertReq.input("InterventionApproval", toBoolValue(data.InterventionApproval));
 		insertReq.input("BankAccountApproval", toBoolValue(data.BankAccountApproval));
+		insertReq.input("Baseline", toBoolValue(data.Baseline));
+		insertReq.input("FamilyDevelopmentPlan", toBoolValue(data.FamilyDevelopmentPlan));
+		insertReq.input("ROPs", toBoolValue(data.ROPs));
+		insertReq.input("FamilyIncome", toBoolValue(data.FamilyIncome));
 
 		const insertQuery = `
 			INSERT INTO [SJDA_Users].[dbo].[PE_User] (
@@ -233,6 +282,10 @@ export async function POST(request: NextRequest) {
 				[FdpApproval],
 				[InterventionApproval],
 				[BankAccountApproval],
+				[Baseline],
+				[FamilyDevelopmentPlan],
+				[ROPs],
+				[FamilyIncome],
 				[user_create_date],
 				[user_update_date]
 			)
@@ -256,12 +309,48 @@ export async function POST(request: NextRequest) {
 				@FdpApproval,
 				@InterventionApproval,
 				@BankAccountApproval,
+				@Baseline,
+				@FamilyDevelopmentPlan,
+				@ROPs,
+				@FamilyIncome,
 				GETDATE(),
 				GETDATE()
 			)
 		`;
 
 		await insertReq.query(insertQuery);
+
+		// Handle multiple regional councils if provided
+		if (data.RegionalCouncils && Array.isArray(data.RegionalCouncils) && data.RegionalCouncils.length > 0) {
+			try {
+				// Delete any existing regional council access for this user (in case of duplicates)
+				const deleteReq = pool.request();
+				(deleteReq as any).timeout = 120000;
+				deleteReq.input("userId", userId);
+				await deleteReq.query(`
+					DELETE FROM [SJDA_Users].[dbo].[PE_User_RegionalCouncilAccess]
+					WHERE [UserId] = @userId
+				`);
+
+				// Insert new regional council access
+				for (const rcId of data.RegionalCouncils) {
+					if (rcId) {
+						const rcInsertReq = pool.request();
+						(rcInsertReq as any).timeout = 120000;
+						rcInsertReq.input("userId", userId);
+						rcInsertReq.input("regionalCouncilId", rcId);
+						
+						await rcInsertReq.query(`
+							INSERT INTO [SJDA_Users].[dbo].[PE_User_RegionalCouncilAccess] ([UserId], [RegionalCouncilId])
+							VALUES (@userId, @regionalCouncilId)
+						`);
+					}
+				}
+			} catch (rcError) {
+				console.error("Error inserting regional council access:", rcError);
+				// Don't fail the entire request if regional council insertion fails
+			}
+		}
 
 		return NextResponse.json({
 			success: true,
@@ -312,12 +401,13 @@ export async function PUT(request: NextRequest) {
 			);
 
 		const permUser = permResult.recordset?.[0];
-		const isAdmin = permUser?.UserType && typeof permUser.UserType === 'string' && permUser.UserType.trim().toLowerCase() === 'admin';
+		const userTypeLower = permUser?.UserType && typeof permUser.UserType === 'string' ? permUser.UserType.trim().toLowerCase() : '';
+		const isAdmin = userTypeLower === 'admin' || userTypeLower === 'super admin';
 		const isAdminByIdentifier = currentUserId && currentUserId.toLowerCase() === 'admin';
 
 		if (!isAdmin && !isAdminByIdentifier) {
 			return NextResponse.json(
-				{ success: false, message: "Access denied. Only Admin users can update users." },
+				{ success: false, message: "Access denied. Only Admin or Super Admin users can update users." },
 				{ status: 403 }
 			);
 		}
@@ -343,10 +433,17 @@ export async function PUT(request: NextRequest) {
 		};
 
 		// Use email_address or UserId for lookup
-		const lookupValue = data.email_address || data.UserId;
-		updateReq.input("lookup_value", lookupValue);
-		updateReq.input("UserId", data.UserId || null);
-		updateReq.input("email_address", data.email_address || null);
+		// Note: email_address should not be updated, only used for lookup
+		// Check if email_address is provided and looks like an email
+		const isEmailLookup = data.email_address && typeof data.email_address === 'string' && data.email_address.includes('@');
+		const lookupEmail = isEmailLookup ? data.email_address : null;
+		// Only use UserId if it's provided and doesn't look like an email
+		const lookupUserId = (!isEmailLookup && data.UserId) ? data.UserId : null;
+		
+		updateReq.input("lookup_email", lookupEmail);
+		updateReq.input("lookup_userid", lookupUserId);
+		// Note: UserId is an IDENTITY column and cannot be updated, so we don't include it in the UPDATE
+		// Note: email_address should not be updated, so we don't include it in the UPDATE
 		updateReq.input("UserFullName", data.UserFullName || null);
 		updateReq.input("UserType", data.UserType || null);
 		updateReq.input("Designation", data.Designation || null);
@@ -363,12 +460,14 @@ export async function PUT(request: NextRequest) {
 		updateReq.input("FdpApproval", toBoolValue(data.FdpApproval));
 		updateReq.input("InterventionApproval", toBoolValue(data.InterventionApproval));
 		updateReq.input("BankAccountApproval", toBoolValue(data.BankAccountApproval));
+		updateReq.input("Baseline", toBoolValue(data.Baseline));
+		updateReq.input("FamilyDevelopmentPlan", toBoolValue(data.FamilyDevelopmentPlan));
+		updateReq.input("ROPs", toBoolValue(data.ROPs));
+		updateReq.input("FamilyIncome", toBoolValue(data.FamilyIncome));
 
 		const updateQuery = `
 			UPDATE [SJDA_Users].[dbo].[PE_User]
 			SET
-				[UserId] = COALESCE(@UserId, [UserId]),
-				[email_address] = COALESCE(@email_address, [email_address]),
 				[UserFullName] = COALESCE(@UserFullName, [UserFullName]),
 				[UserType] = COALESCE(@UserType, [UserType]),
 				[Designation] = COALESCE(@Designation, [Designation]),
@@ -385,8 +484,13 @@ export async function PUT(request: NextRequest) {
 				[FdpApproval] = COALESCE(@FdpApproval, [FdpApproval]),
 				[InterventionApproval] = COALESCE(@InterventionApproval, [InterventionApproval]),
 				[BankAccountApproval] = COALESCE(@BankAccountApproval, [BankAccountApproval]),
+				[Baseline] = COALESCE(@Baseline, [Baseline]),
+				[FamilyDevelopmentPlan] = COALESCE(@FamilyDevelopmentPlan, [FamilyDevelopmentPlan]),
+				[ROPs] = COALESCE(@ROPs, [ROPs]),
+				[FamilyIncome] = COALESCE(@FamilyIncome, [FamilyIncome]),
 				[user_update_date] = GETDATE()
-			WHERE [UserId] = @lookup_value OR [email_address] = @lookup_value
+			WHERE (@lookup_email IS NOT NULL AND [email_address] = @lookup_email)
+			   OR (@lookup_userid IS NOT NULL AND [UserId] = @lookup_userid)
 		`;
 
 		const result = await updateReq.query(updateQuery);
@@ -396,6 +500,55 @@ export async function PUT(request: NextRequest) {
 				{ success: false, message: "User not found." },
 				{ status: 404 }
 			);
+		}
+
+		// Get the actual userId from the database
+		const userIdReq = pool.request();
+		(userIdReq as any).timeout = 120000;
+		userIdReq.input("lookup_email", lookupEmail);
+		userIdReq.input("lookup_userid", lookupUserId);
+		
+		const userIdResult = await userIdReq.query(`
+			SELECT TOP(1) [UserId]
+			FROM [SJDA_Users].[dbo].[PE_User]
+			WHERE (@lookup_email IS NOT NULL AND [email_address] = @lookup_email)
+			   OR (@lookup_userid IS NOT NULL AND [UserId] = @lookup_userid)
+		`);
+
+		const actualUserId = userIdResult.recordset?.[0]?.UserId;
+
+		// Handle multiple regional councils if provided
+		if (actualUserId && data.RegionalCouncils !== undefined) {
+			try {
+				// Delete existing regional council access for this user
+				const deleteReq = pool.request();
+				(deleteReq as any).timeout = 120000;
+				deleteReq.input("userId", actualUserId);
+				await deleteReq.query(`
+					DELETE FROM [SJDA_Users].[dbo].[PE_User_RegionalCouncilAccess]
+					WHERE [UserId] = @userId
+				`);
+
+				// Insert new regional council access if array is provided and not empty
+				if (Array.isArray(data.RegionalCouncils) && data.RegionalCouncils.length > 0) {
+					for (const rcId of data.RegionalCouncils) {
+						if (rcId) {
+							const rcInsertReq = pool.request();
+							(rcInsertReq as any).timeout = 120000;
+							rcInsertReq.input("userId", actualUserId);
+							rcInsertReq.input("regionalCouncilId", rcId);
+							
+							await rcInsertReq.query(`
+								INSERT INTO [SJDA_Users].[dbo].[PE_User_RegionalCouncilAccess] ([UserId], [RegionalCouncilId])
+								VALUES (@userId, @regionalCouncilId)
+							`);
+						}
+					}
+				}
+			} catch (rcError) {
+				console.error("Error updating regional council access:", rcError);
+				// Don't fail the entire request if regional council update fails
+			}
 		}
 
 		return NextResponse.json({
@@ -447,12 +600,13 @@ export async function DELETE(request: NextRequest) {
 			);
 
 		const permUser = permResult.recordset?.[0];
-		const isAdmin = permUser?.UserType && typeof permUser.UserType === 'string' && permUser.UserType.trim().toLowerCase() === 'admin';
+		const userTypeLower = permUser?.UserType && typeof permUser.UserType === 'string' ? permUser.UserType.trim().toLowerCase() : '';
+		const isAdmin = userTypeLower === 'admin' || userTypeLower === 'super admin';
 		const isAdminByIdentifier = currentUserId && currentUserId.toLowerCase() === 'admin';
 
 		if (!isAdmin && !isAdminByIdentifier) {
 			return NextResponse.json(
-				{ success: false, message: "Access denied. Only Admin users can delete users." },
+				{ success: false, message: "Access denied. Only Admin or Super Admin users can delete users." },
 				{ status: 403 }
 			);
 		}

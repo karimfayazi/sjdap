@@ -1,20 +1,44 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, CreditCard } from "lucide-react";
+import { useSectionAccess } from "@/hooks/useSectionAccess";
+import SectionAccessDenied from "@/components/SectionAccessDenied";
+import PermissionStatusLabel from "@/components/PermissionStatusLabel";
 
 export default function BankAccountApprovalPage() {
 	const router = useRouter();
+	const { hasAccess, loading: accessLoading, sectionName } = useSectionAccess("BankAccountApproval");
+
+	// Check access - only users with BankAccountApproval = 1/TRUE can access this page
+	if (accessLoading) {
+		return (
+			<div className="space-y-6">
+				<div className="flex items-center justify-center py-12">
+					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
+					<span className="ml-3 text-gray-600">Checking permissions...</span>
+				</div>
+			</div>
+		);
+	}
+
+	if (hasAccess === false) {
+		return <SectionAccessDenied sectionName={sectionName} requiredPermission="BankAccountApproval" />;
+	}
 
 	return (
 		<div className="space-y-6">
 			{/* Header */}
 			<div className="flex justify-between items-center">
 				<div>
-					<h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-						<CreditCard className="h-8 w-8" />
-						Bank Account Approval
-					</h1>
+					<div className="flex items-center gap-3 mb-2">
+						<h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
+							<CreditCard className="h-8 w-8" />
+							Bank Account Approval
+						</h1>
+						<PermissionStatusLabel permission="BankAccountApproval" />
+					</div>
 					<p className="text-gray-600 mt-2">Manage bank account approval processes</p>
 				</div>
 				<button

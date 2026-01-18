@@ -4,6 +4,9 @@ import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Download, Search, RefreshCw, Eye, X, FileText } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useSectionAccess } from "@/hooks/useSectionAccess";
+import SectionAccessDenied from "@/components/SectionAccessDenied";
+import PermissionStatusLabel from "@/components/PermissionStatusLabel";
 
 type FamilyDevelopmentPlan = {
 	FormNumber: string | null;
@@ -33,6 +36,7 @@ function FamilyDevelopmentPlanPageContent() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const { userProfile } = useAuth();
+	const { hasAccess, loading: accessLoading, sectionName } = useSectionAccess("Family_Development_Plan");
 	const [applications, setApplications] = useState<FamilyDevelopmentPlan[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -316,13 +320,33 @@ function FamilyDevelopmentPlanPageContent() {
 		return age;
 	};
 
+	// Show loading while checking access
+	if (accessLoading) {
+		return (
+			<div className="space-y-6">
+				<div className="flex items-center justify-center py-12">
+					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
+					<span className="ml-3 text-gray-600">Checking permissions...</span>
+				</div>
+			</div>
+		);
+	}
+
+	// Show access denied if user doesn't have permission
+	if (hasAccess === false) {
+		return <SectionAccessDenied sectionName={sectionName} requiredPermission="Family_Development_Plan" />;
+	}
+
 	if (loading) {
 		return (
 			<div className="space-y-6">
 				<div className="flex justify-between items-center">
 					<div>
+					<div className="flex items-center gap-3 mb-2">
 						<h1 className="text-3xl font-bold text-gray-900">Family Development Plan</h1>
-						<p className="text-gray-600 mt-2">Family Development Plan Management</p>
+						<PermissionStatusLabel permission="Family_Development_Plan" />
+					</div>
+					<p className="text-gray-600 mt-2">Family Development Plan Management</p>
 					</div>
 				</div>
 				<div className="flex items-center justify-center py-12">
@@ -338,8 +362,11 @@ function FamilyDevelopmentPlanPageContent() {
 			<div className="space-y-6">
 				<div className="flex justify-between items-center">
 					<div>
+					<div className="flex items-center gap-3 mb-2">
 						<h1 className="text-3xl font-bold text-gray-900">Family Development Plan</h1>
-						<p className="text-gray-600 mt-2">Family Development Plan Management</p>
+						<PermissionStatusLabel permission="Family_Development_Plan" />
+					</div>
+					<p className="text-gray-600 mt-2">Family Development Plan Management</p>
 					</div>
 				</div>
 				<div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
@@ -360,9 +387,12 @@ function FamilyDevelopmentPlanPageContent() {
 			{/* Header */}
 			<div className="flex justify-between items-center bg-white rounded-xl shadow-md border border-gray-200 p-6">
 				<div>
-					<h1 className="text-3xl font-bold bg-gradient-to-r from-[#0b4d2b] to-[#0d5d35] bg-clip-text text-transparent">
-						Family Development Plan
-					</h1>
+					<div className="flex items-center gap-3 mb-2">
+						<h1 className="text-3xl font-bold bg-gradient-to-r from-[#0b4d2b] to-[#0d5d35] bg-clip-text text-transparent">
+							Family Development Plan
+						</h1>
+						<PermissionStatusLabel permission="Family_Development_Plan" />
+					</div>
 					<p className="text-gray-600 mt-2 font-medium">Family Development Plan Management System</p>
 				</div>
 				<div className="flex items-center gap-3">

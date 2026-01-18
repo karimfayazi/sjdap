@@ -13,6 +13,7 @@ export async function POST(request: NextRequest) {
 			return NextResponse.json({ success: false, message: "Missing credentials" }, { status: 400 });
 		}
 
+		// Query PE_User table from SJDA_Users database to find user by email_address
 		const pool = await getDb();
 		const request_query = pool.request();
 		request_query.input("email_address", email);
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest) {
 		
 		const user = result.recordset?.[0];
 		
-		// No such user
+		// No such user found with this email_address
 		if (!user) {
 			return NextResponse.json(
 				{ success: false, message: "Invalid email address or password" },
@@ -32,36 +33,31 @@ export async function POST(request: NextRequest) {
 		}
 
 		// Check if account is active
-		// SPECIAL: Admin users (email = "admin") can login even if account is inactive
-		const isAdminUser = email && email.toLowerCase() === 'admin';
+		// Check if UserType is 'Super Admin' - Super Admin can login even if account is inactive
+		const isSuperAdmin = user.UserType && typeof user.UserType === 'string' && user.UserType.trim() === 'Super Admin';
 		const isActive =
 			user.Active === 1 ||
 			user.Active === "1" ||
 			user.Active === true ||
 			user.Active === "true";
 
-		// Log admin user login attempt
-		if (isAdminUser) {
-			console.log('=== ADMIN USER LOGIN ATTEMPT ===');
-			console.log('Active field value:', user.Active);
-			console.log('Bypassing inactive check for admin user');
-		}
-
-		// Allow admin users to bypass inactive check, otherwise check if account is active
-		if (!isAdminUser && !isActive) {
+		// Allow Super Admin users to bypass inactive check, otherwise check if account is active
+		if (!isSuperAdmin && !isActive) {
 			return NextResponse.json(
-				{ success: false, message: "Your Account is In-Active - Please contact Manager MIS" },
+				{ success: false, message: "User id is not active please contact Manager MIS" },
 				{ status: 403 }
 			);
 		}
 
-		// Check password only after confirming account is active
+		// Verify password matches - compare email_address and password from form with database
 		if (String(user.Password) !== String(password)) {
 			return NextResponse.json(
 				{ success: false, message: "Invalid email address or password" },
 				{ status: 401 }
 			);
 		}
+
+		// Email and password matched successfully - proceed with login
 
 		// Send login notification (don't await - run in background)
 		sendLoginNotification(

@@ -3,6 +3,9 @@
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Search, CheckCircle, XCircle, Clock } from "lucide-react";
+import { useSectionAccess } from "@/hooks/useSectionAccess";
+import SectionAccessDenied from "@/components/SectionAccessDenied";
+import PermissionStatusLabel from "@/components/PermissionStatusLabel";
 
 type ApprovalStatus = {
 	healthSupport: any[];
@@ -15,6 +18,7 @@ type ApprovalStatus = {
 function FamilyDevelopmentPlanApprovalContent() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
+	const { hasAccess, loading: accessLoading, sectionName } = useSectionAccess("FdpApproval");
 	const formNumber = searchParams.get("formNumber") || "";
 
 	const [loading, setLoading] = useState(false);
@@ -96,12 +100,31 @@ function FamilyDevelopmentPlanApprovalContent() {
 		return `PKR ${parseFloat(value.toString()).toLocaleString()}`;
 	};
 
+	// Check access - only users with FdpApproval = 1/TRUE can access this page
+	if (accessLoading) {
+		return (
+			<div className="space-y-6">
+				<div className="flex items-center justify-center py-12">
+					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
+					<span className="ml-3 text-gray-600">Checking permissions...</span>
+				</div>
+			</div>
+		);
+	}
+
+	if (hasAccess === false) {
+		return <SectionAccessDenied sectionName={sectionName} requiredPermission="FdpApproval" />;
+	}
+
 	return (
 		<div className="space-y-6">
 			{/* Header */}
 			<div className="flex justify-between items-center">
 				<div>
-					<h1 className="text-3xl font-bold text-gray-900">Family Development Plan Approval</h1>
+					<div className="flex items-center gap-3 mb-2">
+						<h1 className="text-3xl font-bold text-gray-900">Family Development Plan Approval</h1>
+						<PermissionStatusLabel permission="FdpApproval" />
+					</div>
 					<p className="text-gray-600 mt-2">View section-wise approval status for family development plans</p>
 				</div>
 				<button

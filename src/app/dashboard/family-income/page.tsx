@@ -2,9 +2,28 @@
 
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Clock, Construction, TrendingUp, DollarSign } from "lucide-react";
+import { useSectionAccess } from "@/hooks/useSectionAccess";
+import SectionAccessDenied from "@/components/SectionAccessDenied";
+import PermissionStatusLabel from "@/components/PermissionStatusLabel";
 
 export default function FamilyIncomePage() {
 	const router = useRouter();
+	const { hasAccess, loading: accessLoading, sectionName } = useSectionAccess("Family_Income");
+
+	// Show loading while checking access
+	if (accessLoading) {
+		return (
+			<div className="flex items-center justify-center min-h-[calc(100vh-120px)]">
+				<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
+				<span className="ml-3 text-gray-600">Checking permissions...</span>
+			</div>
+		);
+	}
+
+	// Show access denied if user doesn't have permission
+	if (hasAccess === false) {
+		return <SectionAccessDenied sectionName={sectionName} requiredPermission="Family_Income" />;
+	}
 
 	return (
 		<div className="flex items-center justify-center min-h-[calc(100vh-120px)] bg-gradient-to-br from-gray-50 to-gray-100 py-4">
@@ -20,7 +39,12 @@ export default function FamilyIncomePage() {
 								</div>
 							</div>
 						</div>
-						<h1 className="text-2xl md:text-3xl font-bold text-white mb-1">Family Income</h1>
+						<div className="flex items-center justify-center gap-3 mb-1">
+							<h1 className="text-2xl md:text-3xl font-bold text-white">Family Income</h1>
+							<div className="mt-1">
+								<PermissionStatusLabel permission="Family_Income" showIcon={true} className="bg-white/20 text-white border-white/30" />
+							</div>
+						</div>
 						<p className="text-sm text-green-100">Income Management and Tracking</p>
 					</div>
 

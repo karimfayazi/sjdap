@@ -29,6 +29,14 @@ export type UserProfile = {
 	Setting: boolean | number | null;
 	Other: boolean | number | null;
 	SWB_Families: boolean | number | null;
+	BankInformation: boolean | number | null;
+	BaselineApproval: boolean | number | null;
+	FeasibilityApproval: boolean | number | null;
+	FdpApproval: boolean | number | null;
+	InterventionApproval: boolean | number | null;
+	BankAccountApproval: boolean | number | null;
+	ActualIntervention: boolean | number | null;
+	FinanceSection: boolean | number | null;
 };
 
 export type UserInfo = {
@@ -79,18 +87,41 @@ export function useAuth() {
 
 	const fetchUserProfile = async (): Promise<UserProfile | null> => {
 		const userId = getUserId();
-		if (!userId) return null;
+		if (!userId) {
+			console.error('[useAuth] No user ID found - user not authenticated');
+			return null;
+		}
 
 		try {
-			const res = await fetch(`/api/user-profile`);
+			// Add cache-busting parameter to force fresh data from server
+			const cacheBuster = `?t=${Date.now()}`;
+			const res = await fetch(`/api/user-profile${cacheBuster}`);
 			const data = await res.json();
 
 			if (data.success) {
+				// Debug: Log the profile to verify Setting is present
+				if (data.user && typeof window !== "undefined") {
+					console.log('[useAuth] User profile loaded successfully:', {
+						email: data.user.email,
+						username: data.user.username,
+						Setting: data.user.Setting,
+						SettingType: typeof data.user.Setting,
+						allKeys: Object.keys(data.user)
+					});
+				}
 				return data.user;
+			} else {
+				// Log the error response
+				console.error('[useAuth] API returned error:', {
+					success: data.success,
+					message: data.message,
+					debug: data.debug,
+					status: res.status
+				});
+				return null;
 			}
-			return null;
 		} catch (error) {
-			console.error("Error fetching user profile:", error);
+			console.error("[useAuth] Error fetching user profile:", error);
 			return null;
 		}
 	};
@@ -100,9 +131,11 @@ export function useAuth() {
 		setError(null);
 		
 		try {
+			// Add cache-busting parameter to force fresh data from server
+			const cacheBuster = `?t=${Date.now()}`;
 			const [userInfo, profile] = await Promise.all([
 				fetchUserInfo(),
-				fetchUserProfile()
+				fetch(`/api/user-profile${cacheBuster}`).then(res => res.json()).then(data => data.success ? data.user : null)
 			]);
 			
 			// If API calls fail, try to get data from localStorage
@@ -120,6 +153,17 @@ export function useAuth() {
 				}
 			} else {
 				setUser(userInfo);
+			}
+			
+			// Debug: Log the profile to verify BaselineQOL is present
+			if (profile && typeof window !== "undefined") {
+				console.log('[useAuth] User profile loaded:', {
+					email: profile.email,
+					username: profile.username,
+					BaselineQOL: profile.BaselineQOL,
+					BaselineQOLType: typeof profile.BaselineQOL,
+					allKeys: Object.keys(profile)
+				});
 			}
 			
 			setUserProfile(profile);

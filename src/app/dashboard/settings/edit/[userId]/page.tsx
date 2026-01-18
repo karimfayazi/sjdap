@@ -6,54 +6,33 @@ import { Save, ArrowLeft, Loader2 } from "lucide-react";
 import { isSuperUser as checkIsSuperUser } from "@/lib/auth-utils";
 import { useAuth } from "@/hooks/useAuth";
 
+// UserData type based on PE_User table structure from SJDA_Users database
 type UserData = {
 	USER_ID: string;
+	email_address: string | null;
 	USER_FULL_NAME: string | null;
 	PASSWORD: string | null;
-	RE_PASSWORD: string | null;
 	USER_TYPE: string | null;
 	DESIGNATION: string | null;
 	ACTIVE: boolean | number | null;
-	CAN_ADD: boolean | number | null;
-	CAN_UPDATE: boolean | number | null;
-	CAN_DELETE: boolean | number | null;
-	CAN_UPLOAD: boolean | number | null;
-	SEE_REPORTS: boolean | number | null;
-	UPDATE_DATE: string | null;
-	PROGRAM: string | null;
-	REGION: string | null;
-	AREA: string | null;
-	SECTION: string | null;
-	FDP: string | null;
-	PLAN_INTERVENTION: string | null;
-	TRACKING_SYSTEM: string | null;
-	RC: string | null;
-	LC: string | null;
-	REPORT_TO: string | null;
-	ROP_EDIT: boolean | number | null;
-	access_loans: boolean | number | string | null;
-	baseline_access: boolean | number | null;
-	bank_account: boolean | number | string | null;
-	Supper_User: boolean | number | string | null;
-	Finance_Officer: string | null;
-	BaselineQOL: boolean | number | null;
-	Dashboard: boolean | number | null;
-	PowerBI: boolean | number | null;
-	Family_Development_Plan: boolean | number | null;
-	Family_Approval_CRC: boolean | number | null;
-	Family_Income: boolean | number | null;
-	ROP: boolean | number | null;
+	Regional_Council: string | null;
+	Local_Council: string | null;
 	Setting: boolean | number | null;
-	Other: boolean | number | null;
-	SWB_Families: boolean | number | null;
-	EDO: string | null;
-	JPO: string | null;
-	AM_REGION: string | null;
+	SwbFamilies: boolean | number | null;
 	ActualIntervention: boolean | number | null;
 	FinanceSection: boolean | number | null;
+	BankInformation: boolean | number | null;
+	BaselineApproval: boolean | number | null;
 	FeasibilityApproval: boolean | number | null;
+	FdpApproval: boolean | number | null;
 	InterventionApproval: boolean | number | null;
 	BankAccountApproval: boolean | number | null;
+	Baseline: boolean | number | null;
+	FamilyDevelopmentPlan: boolean | number | null;
+	ROPs: boolean | number | null;
+	FamilyIncome: boolean | number | null;
+	user_create_date: string | null;
+	user_update_date: string | null;
 };
 
 export default function EditUserPage() {
@@ -67,6 +46,9 @@ export default function EditUserPage() {
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [success, setSuccess] = useState(false);
+	const [regionalCouncils, setRegionalCouncils] = useState<any[]>([]);
+	const [selectedRegionalCouncils, setSelectedRegionalCouncils] = useState<number[]>([]);
+	const [loadingRegionalCouncils, setLoadingRegionalCouncils] = useState(true);
 
 	// Check Admin access - user must be Admin (UserType='Admin') or super user
 	const { userProfile, loading: authLoading } = useAuth();
@@ -80,10 +62,11 @@ export default function EditUserPage() {
 			// Check if user is Admin - either through supper_user or access_level (UserType)
 			const superUserValue = userProfile.supper_user;
 			const accessLevel = userProfile.access_level; // This contains UserType from PE_User
-			const isAdminByType = accessLevel && typeof accessLevel === 'string' && accessLevel.trim().toLowerCase() === 'admin';
+			const accessLevelLower = accessLevel && typeof accessLevel === 'string' ? accessLevel.trim().toLowerCase() : '';
+			const isAdminByType = accessLevelLower === 'admin' || accessLevelLower === 'super admin';
 			const isSuperUserByValue = checkIsSuperUser(superUserValue);
 			
-			// User is Admin if UserType='Admin' OR supper_user='Yes'
+			// User is Admin if UserType='Admin' OR UserType='Super Admin' OR supper_user='Yes'
 			const hasAccess = isAdminByType || isSuperUserByValue;
 			
 			console.log("=== EDIT USER PAGE ACCESS CHECK ===", {
@@ -108,10 +91,11 @@ export default function EditUserPage() {
 					const parsed = JSON.parse(stored);
 					const su = parsed.super_user || parsed.supper_user;
 					const accessLevel = parsed.access_level || parsed.user_type;
-					const isAdminByType = accessLevel && typeof accessLevel === 'string' && accessLevel.trim().toLowerCase() === 'admin';
+					const accessLevelLower = accessLevel && typeof accessLevel === 'string' ? accessLevel.trim().toLowerCase() : '';
+					const isAdminByType = accessLevelLower === 'admin' || accessLevelLower === 'super admin';
 					const isSuperUserByValue = checkIsSuperUser(su);
 					
-					// User is Admin if UserType='Admin' OR supper_user='Yes'
+					// User is Admin if UserType='Admin' OR UserType='Super Admin' OR supper_user='Yes'
 					const hasAccess = isAdminByType || isSuperUserByValue;
 					
 					setIsSuperUser(hasAccess);
@@ -132,6 +116,25 @@ export default function EditUserPage() {
 			}
 		}
 	}, [userProfile, authLoading]);
+
+	// Fetch regional councils from API
+	useEffect(() => {
+		const fetchRegionalCouncils = async () => {
+			try {
+				setLoadingRegionalCouncils(true);
+				const response = await fetch("/api/regional-councils");
+				const data = await response.json();
+				if (data.success && data.regionalCouncils) {
+					setRegionalCouncils(data.regionalCouncils);
+				}
+			} catch (err) {
+				console.error("Error fetching regional councils:", err);
+			} finally {
+				setLoadingRegionalCouncils(false);
+			}
+		};
+		fetchRegionalCouncils();
+	}, []);
 
 	useEffect(() => {
 		if (!isSuperUser || !userId) return;
@@ -179,57 +182,43 @@ export default function EditUserPage() {
 							return val === 1 || val === true || val === "1" || val === "Yes" || val === "yes";
 						};
 
+						// Map only fields that exist in PE_User table
 						const mappedUser: UserData = {
 							USER_ID: user.UserId || user.email_address || "",
+							email_address: user.email_address || null,
 							USER_FULL_NAME: user.UserFullName || null,
 							PASSWORD: user.Password || null,
-							RE_PASSWORD: user.Password || null,
 							USER_TYPE: user.UserType || null,
 							DESIGNATION: user.Designation || null,
 							ACTIVE: normalizeBool(user.Active),
-							CAN_ADD: null,
-							CAN_UPDATE: null,
-							CAN_DELETE: null,
-							CAN_UPLOAD: null,
-							SEE_REPORTS: null,
-							UPDATE_DATE: user.user_update_date || null,
-							PROGRAM: null,
-							REGION: null,
-							AREA: null,
-							SECTION: null,
-							FDP: null,
-							PLAN_INTERVENTION: null,
-							TRACKING_SYSTEM: null,
-							RC: user.Regional_Council || null,
-							LC: user.Local_Council || null,
-							REPORT_TO: null,
-							ROP_EDIT: null,
-							access_loans: null,
-							baseline_access: null,
-							bank_account: normalizeBool(user.BankInformation),
-							Supper_User: null,
-							Finance_Officer: null,
-							BaselineQOL: normalizeBool(user.BaselineApproval),
-							Dashboard: null,
-							PowerBI: null,
-							Family_Development_Plan: normalizeBool(user.FdpApproval),
-							Family_Approval_CRC: null,
-							Family_Income: null,
-							ROP: null,
+							Regional_Council: user.Regional_Council || null,
+							Local_Council: user.Local_Council || null,
 							Setting: normalizeBool(user.Setting),
-							Other: null,
-							SWB_Families: normalizeBool(user.SwbFamilies),
-							EDO: null,
-							JPO: null,
-							AM_REGION: null,
-							// Add missing fields from database
+							SwbFamilies: normalizeBool(user.SwbFamilies),
 							ActualIntervention: normalizeBool(user.ActualIntervention),
 							FinanceSection: normalizeBool(user.FinanceSection),
+							BankInformation: normalizeBool(user.BankInformation),
+							BaselineApproval: normalizeBool(user.BaselineApproval),
 							FeasibilityApproval: normalizeBool(user.FeasibilityApproval),
+							FdpApproval: normalizeBool(user.FdpApproval),
 							InterventionApproval: normalizeBool(user.InterventionApproval),
 							BankAccountApproval: normalizeBool(user.BankAccountApproval),
+							Baseline: normalizeBool(user.Baseline),
+							FamilyDevelopmentPlan: normalizeBool(user.FamilyDevelopmentPlan),
+							ROPs: normalizeBool(user.ROPs),
+							FamilyIncome: normalizeBool(user.FamilyIncome),
+							user_create_date: user.user_create_date || null,
+							user_update_date: user.user_update_date || null,
 						};
 						setFormData(mappedUser);
+						
+						// Extract RegionalCouncils from user data
+						if (user.RegionalCouncils && Array.isArray(user.RegionalCouncils)) {
+							const rcIds = user.RegionalCouncils.map((rc: any) => rc.RegionalCouncilId).filter(Boolean);
+							setSelectedRegionalCouncils(rcIds);
+						} else {
+							setSelectedRegionalCouncils([]);
+						}
 					} else {
 						const availableIds = result.users.slice(0, 5).map((u: any) => u.UserId || u.email_address);
 						console.log("First 5 available UserIds:", availableIds);
@@ -260,6 +249,19 @@ export default function EditUserPage() {
 		}) : null);
 	};
 
+	const handleRegionalCouncilChange = (regionalCouncilId: number, checked: boolean) => {
+		if (checked) {
+			setSelectedRegionalCouncils(prev => {
+				if (!prev.includes(regionalCouncilId)) {
+					return [...prev, regionalCouncilId];
+				}
+				return prev;
+			});
+		} else {
+			setSelectedRegionalCouncils(prev => prev.filter(id => id !== regionalCouncilId));
+		}
+	};
+
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
 		if (!formData) return;
@@ -276,26 +278,31 @@ export default function EditUserPage() {
 				return 0;
 			};
 
-			// Map form data (USER_ID, USER_FULL_NAME, etc.) to API format (UserId, UserFullName, etc.)
+			// Map form data to API format - only include fields from PE_User table
 			const apiData: any = {
 				UserId: formData.USER_ID,
-				email_address: originalUser?.email_address || formData.USER_ID, // Use original email_address if available
+				email_address: formData.email_address || originalUser?.email_address || formData.USER_ID,
 				UserFullName: formData.USER_FULL_NAME,
 				UserType: formData.USER_TYPE,
 				Designation: formData.DESIGNATION,
 				Active: toBoolValue(formData.ACTIVE),
-				Regional_Council: formData.RC,
-				Local_Council: formData.LC,
+				Regional_Council: formData.Regional_Council,
+				Local_Council: formData.Local_Council,
+				RegionalCouncils: selectedRegionalCouncils,
 				Setting: toBoolValue(formData.Setting),
-				SwbFamilies: toBoolValue(formData.SWB_Families),
+				SwbFamilies: toBoolValue(formData.SwbFamilies),
 				ActualIntervention: toBoolValue(formData.ActualIntervention),
 				FinanceSection: toBoolValue(formData.FinanceSection),
-				BankInformation: toBoolValue(formData.bank_account),
-				BaselineApproval: toBoolValue(formData.BaselineQOL),
+				BankInformation: toBoolValue(formData.BankInformation),
+				BaselineApproval: toBoolValue(formData.BaselineApproval),
 				FeasibilityApproval: toBoolValue(formData.FeasibilityApproval),
-				FdpApproval: toBoolValue(formData.Family_Development_Plan),
+				FdpApproval: toBoolValue(formData.FdpApproval),
 				InterventionApproval: toBoolValue(formData.InterventionApproval),
 				BankAccountApproval: toBoolValue(formData.BankAccountApproval),
+				Baseline: toBoolValue(formData.Baseline),
+				FamilyDevelopmentPlan: toBoolValue(formData.FamilyDevelopmentPlan),
+				ROPs: toBoolValue(formData.ROPs),
+				FamilyIncome: toBoolValue(formData.FamilyIncome),
 			};
 
 			const response = await fetch("/api/users", {
@@ -454,6 +461,19 @@ export default function EditUserPage() {
 
 								<div>
 									<label className="block text-sm font-medium text-gray-700 mb-1">
+										Email Address <span className="text-red-500">*</span>
+									</label>
+									<input
+										type="email"
+										name="email_address"
+										value={formData.email_address || ""}
+										readOnly
+										className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
+									/>
+								</div>
+
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-1">
 										Full Name <span className="text-red-500">*</span>
 									</label>
 									<input
@@ -468,15 +488,21 @@ export default function EditUserPage() {
 
 								<div>
 									<label className="block text-sm font-medium text-gray-700 mb-1">
-										User Type
+										User Type <span className="text-red-500">*</span>
 									</label>
-									<input
-										type="text"
+									<select
 										name="USER_TYPE"
 										value={formData.USER_TYPE || ""}
 										onChange={handleChange}
+										required
 										className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-									/>
+									>
+										<option value="">Select User Type</option>
+										<option value="Editor">Editor</option>
+										<option value="Viewer">Viewer</option>
+										<option value="Admin">Admin</option>
+										<option value="Super Admin">Super Admin</option>
+									</select>
 								</div>
 
 								<div>
@@ -494,27 +520,25 @@ export default function EditUserPage() {
 
 								<div>
 									<label className="block text-sm font-medium text-gray-700 mb-1">
-										Finance Officer
+										Created Date
 									</label>
 									<input
 										type="text"
-										name="Finance_Officer"
-										value={formData.Finance_Officer || ""}
-										onChange={handleChange}
-										className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+										value={formData.user_create_date ? new Date(formData.user_create_date).toLocaleString() : "N/A"}
+										disabled
+										className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
 									/>
 								</div>
 
 								<div>
 									<label className="block text-sm font-medium text-gray-700 mb-1">
-										Report To
+										Last Updated
 									</label>
 									<input
 										type="text"
-										name="REPORT_TO"
-										value={formData.REPORT_TO || ""}
-										onChange={handleChange}
-										className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+										value={formData.user_update_date ? new Date(formData.user_update_date).toLocaleString() : "N/A"}
+										disabled
+										className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
 									/>
 								</div>
 							</div>
@@ -523,134 +547,50 @@ export default function EditUserPage() {
 						{/* Location Information */}
 						<div className="p-6 border-b border-gray-200">
 							<h2 className="text-xl font-semibold text-gray-900 mb-4">Location Information</h2>
-							<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+							<div className="space-y-4">
 								<div>
-									<label className="block text-sm font-medium text-gray-700 mb-1">Program</label>
-									<input
-										type="text"
-										name="PROGRAM"
-										value={formData.PROGRAM || ""}
-										onChange={handleChange}
-										className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-									/>
+									<label className="block text-sm font-medium text-gray-700 mb-3">
+										Regional Councils <span className="text-gray-500 text-xs">(Select one or more)</span>
+									</label>
+									{loadingRegionalCouncils ? (
+										<div className="text-sm text-gray-500">Loading regional councils...</div>
+									) : (
+										<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-60 overflow-y-auto border border-gray-200 rounded-lg p-4">
+											{regionalCouncils.map((rc) => (
+												<div key={rc.RegionalCouncilId} className="flex items-start space-x-2">
+													<input
+														type="checkbox"
+														id={`edit-rc-${rc.RegionalCouncilId}`}
+														checked={selectedRegionalCouncils.includes(rc.RegionalCouncilId)}
+														onChange={(e) => handleRegionalCouncilChange(rc.RegionalCouncilId, e.target.checked)}
+														className="mt-1 w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+													/>
+													<label
+														htmlFor={`edit-rc-${rc.RegionalCouncilId}`}
+														className="text-sm text-gray-700 cursor-pointer flex-1"
+													>
+														{rc.RegionalCouncilName}
+														{rc.RegionalCouncilCode && (
+															<span className="text-xs text-gray-500 ml-1">({rc.RegionalCouncilCode})</span>
+														)}
+													</label>
+												</div>
+											))}
+										</div>
+									)}
+									{selectedRegionalCouncils.length > 0 && (
+										<div className="mt-2 text-xs text-gray-600">
+											Selected: {selectedRegionalCouncils.length} regional council(s)
+										</div>
+									)}
 								</div>
 
 								<div>
-									<label className="block text-sm font-medium text-gray-700 mb-1">Region</label>
+									<label className="block text-sm font-medium text-gray-700 mb-1">Local Council (Legacy)</label>
 									<input
 										type="text"
-										name="REGION"
-										value={formData.REGION || ""}
-										onChange={handleChange}
-										className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-									/>
-								</div>
-
-								<div>
-									<label className="block text-sm font-medium text-gray-700 mb-1">Area</label>
-									<input
-										type="text"
-										name="AREA"
-										value={formData.AREA || ""}
-										onChange={handleChange}
-										className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-									/>
-								</div>
-
-								<div>
-									<label className="block text-sm font-medium text-gray-700 mb-1">Section</label>
-									<input
-										type="text"
-										name="SECTION"
-										value={formData.SECTION || ""}
-										onChange={handleChange}
-										className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-									/>
-								</div>
-
-								<div>
-									<label className="block text-sm font-medium text-gray-700 mb-1">FDP</label>
-									<input
-										type="text"
-										name="FDP"
-										value={formData.FDP || ""}
-										onChange={handleChange}
-										className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-									/>
-								</div>
-
-								<div>
-									<label className="block text-sm font-medium text-gray-700 mb-1">Plan Intervention</label>
-									<input
-										type="text"
-										name="PLAN_INTERVENTION"
-										value={formData.PLAN_INTERVENTION || ""}
-										onChange={handleChange}
-										className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-									/>
-								</div>
-
-								<div>
-									<label className="block text-sm font-medium text-gray-700 mb-1">Tracking System</label>
-									<input
-										type="text"
-										name="TRACKING_SYSTEM"
-										value={formData.TRACKING_SYSTEM || ""}
-										onChange={handleChange}
-										className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-									/>
-								</div>
-
-								<div>
-									<label className="block text-sm font-medium text-gray-700 mb-1">RC</label>
-									<input
-										type="text"
-										name="RC"
-										value={formData.RC || ""}
-										onChange={handleChange}
-										className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-									/>
-								</div>
-
-								<div>
-									<label className="block text-sm font-medium text-gray-700 mb-1">LC</label>
-									<input
-										type="text"
-										name="LC"
-										value={formData.LC || ""}
-										onChange={handleChange}
-										className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-									/>
-								</div>
-
-								<div>
-									<label className="block text-sm font-medium text-gray-700 mb-1">EDO</label>
-									<input
-										type="text"
-										name="EDO"
-										value={formData.EDO || ""}
-										onChange={handleChange}
-										className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-									/>
-								</div>
-
-								<div>
-									<label className="block text-sm font-medium text-gray-700 mb-1">JPO</label>
-									<input
-										type="text"
-										name="JPO"
-										value={formData.JPO || ""}
-										onChange={handleChange}
-										className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-									/>
-								</div>
-
-								<div>
-									<label className="block text-sm font-medium text-gray-700 mb-1">AM Region</label>
-									<input
-										type="text"
-										name="AM_REGION"
-										value={formData.AM_REGION || ""}
+										name="Local_Council"
+										value={formData.Local_Council || ""}
 										onChange={handleChange}
 										className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 									/>
@@ -664,31 +604,20 @@ export default function EditUserPage() {
 							<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 								{[
 									{ key: "ACTIVE", label: "Active", desc: "User account is active" },
-									{ key: "CAN_ADD", label: "Can Add", desc: "Can add new records" },
-									{ key: "CAN_UPDATE", label: "Can Update", desc: "Can update records" },
-									{ key: "CAN_DELETE", label: "Can Delete", desc: "Can delete records" },
-									{ key: "CAN_UPLOAD", label: "Can Upload", desc: "Can upload files" },
-									{ key: "SEE_REPORTS", label: "See Reports", desc: "Can view reports" },
-									{ key: "ROP_EDIT", label: "ROP Edit", desc: "Can edit ROP" },
-									{ key: "access_loans", label: "Access Loans", desc: "Access loans module" },
-									{ key: "baseline_access", label: "Baseline Access", desc: "Access baseline data" },
-									{ key: "bank_account", label: "Bank Information", desc: "Bank information access" },
-									{ key: "Supper_User", label: "Super User", desc: "Admin privileges" },
-									{ key: "BaselineQOL", label: "Baseline Approval", desc: "Baseline approval access" },
-									{ key: "Dashboard", label: "Dashboard", desc: "Dashboard access" },
-									{ key: "PowerBI", label: "Power BI", desc: "Power BI access" },
-									{ key: "Family_Development_Plan", label: "FDP Approval", desc: "FDP approval access" },
-									{ key: "Family_Approval_CRC", label: "Family Approval CRC", desc: "CRC approval access" },
-									{ key: "Family_Income", label: "Family Income", desc: "Family income access" },
-									{ key: "ROP", label: "ROP", desc: "ROP access" },
 									{ key: "Setting", label: "Setting", desc: "Settings access" },
-									{ key: "Other", label: "Other", desc: "Other permissions" },
-									{ key: "SWB_Families", label: "SWB Families", desc: "SWB Families access" },
+									{ key: "SwbFamilies", label: "SWB Families", desc: "SWB Families access" },
 									{ key: "ActualIntervention", label: "Actual Intervention", desc: "Actual intervention access" },
 									{ key: "FinanceSection", label: "Finance Section", desc: "Finance section access" },
+									{ key: "BankInformation", label: "Bank Information", desc: "Bank information access" },
+									{ key: "BaselineApproval", label: "Baseline Approval", desc: "Baseline approval access" },
 									{ key: "FeasibilityApproval", label: "Feasibility Approval", desc: "Feasibility approval access" },
+									{ key: "FdpApproval", label: "FDP Approval", desc: "FDP approval access" },
 									{ key: "InterventionApproval", label: "Intervention Approval", desc: "Intervention approval access" },
 									{ key: "BankAccountApproval", label: "Bank Account Approval", desc: "Bank account approval access" },
+									{ key: "Baseline", label: "Baseline", desc: "Baseline QOL access" },
+									{ key: "FamilyDevelopmentPlan", label: "Family Development Plan", desc: "Family Development Plan access" },
+									{ key: "ROPs", label: "ROPs", desc: "ROPs access" },
+									{ key: "FamilyIncome", label: "Family Income", desc: "Family Income access" },
 								].map((item) => {
 									const value = formData[item.key as keyof UserData];
 									// Explicitly convert to boolean: 1, true, "1", "true" = checked; 0, false, "0", "false", null, undefined = unchecked

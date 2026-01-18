@@ -6,6 +6,7 @@ import { Download, RefreshCw, Plus, X, Eye, Edit2, Search } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useSectionAccess } from "@/hooks/useSectionAccess";
 import SectionAccessDenied from "@/components/SectionAccessDenied";
+import PermissionStatusLabel from "@/components/PermissionStatusLabel";
 import { isSuperUser } from "@/lib/auth-utils";
 
 type BaselineApplication = {
@@ -28,8 +29,23 @@ type BaselineApplication = {
 
 export default function BaselineQOLPage() {
 	const router = useRouter();
-	const { userProfile } = useAuth();
+	const { userProfile, refreshUser } = useAuth();
 	const { hasAccess, loading: accessLoading, sectionName } = useSectionAccess("BaselineQOL");
+	
+	// Debug: Log userProfile when it changes
+	useEffect(() => {
+		if (userProfile) {
+			console.log('[BaselineQOLPage] UserProfile loaded:', {
+				email: userProfile.email,
+				username: userProfile.username,
+				BaselineQOL: userProfile.BaselineQOL,
+				BaselineQOLType: typeof userProfile.BaselineQOL,
+				allPermissionKeys: Object.keys(userProfile).filter(k => 
+					k.includes('Baseline') || k.includes('baseline')
+				)
+			});
+		}
+	}, [userProfile]);
 	const [applications, setApplications] = useState<BaselineApplication[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -256,7 +272,10 @@ export default function BaselineQOLPage() {
 			<div className="space-y-6">
 				<div className="flex justify-between items-center">
 					<div>
-						<h1 className="text-3xl font-bold text-gray-900">Baseline</h1>
+						<div className="flex items-center gap-3 mb-2">
+							<h1 className="text-3xl font-bold text-gray-900">Baseline</h1>
+							<PermissionStatusLabel permission="BaselineQOL" />
+						</div>
 						<p className="text-gray-600 mt-2">Quality of Life Baseline Assessment</p>
 					</div>
 				</div>
@@ -273,7 +292,10 @@ export default function BaselineQOLPage() {
 			<div className="space-y-6">
 				<div className="flex justify-between items-center">
 					<div>
-						<h1 className="text-3xl font-bold text-gray-900">Baseline</h1>
+						<div className="flex items-center gap-3 mb-2">
+							<h1 className="text-3xl font-bold text-gray-900">Baseline</h1>
+							<PermissionStatusLabel permission="BaselineQOL" />
+						</div>
 						<p className="text-gray-600 mt-2">Quality of Life Baseline Assessment</p>
 					</div>
 				</div>

@@ -3,11 +3,9 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Download, Search, RefreshCw, Plus, Eye, Trash2, Edit2 } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
 import { useSectionAccess } from "@/hooks/useSectionAccess";
-import SectionAccessDenied from "@/components/SectionAccessDenied";
 import NoPermissionMessage from "@/components/NoPermissionMessage";
-import { isSuperUser } from "@/lib/auth-utils";
+import PermissionStatusLabel from "@/components/PermissionStatusLabel";
 
 type SWBFamily = {
 	CNIC: string | null;
@@ -34,9 +32,7 @@ type SWBFamily = {
 
 export default function SWBFamiliesPage() {
 	const router = useRouter();
-	const { userProfile, loading: authLoading } = useAuth();
 	const { hasAccess, loading: accessLoading, sectionName } = useSectionAccess("SWB_Families");
-	const [isSuperUserState, setIsSuperUserState] = useState<boolean | null>(null);
 	const [families, setFamilies] = useState<SWBFamily[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -63,30 +59,6 @@ export default function SWBFamiliesPage() {
 	});
 	const [deleting, setDeleting] = useState(false);
 	const itemsPerPage = 50;
-
-	// Check if user is Super User
-	useEffect(() => {
-		if (authLoading) return;
-		
-		if (userProfile) {
-			const superUserValue = userProfile.supper_user;
-			setIsSuperUserState(isSuperUser(superUserValue));
-		} else {
-			// Fallback to localStorage
-			try {
-				const stored = localStorage.getItem("userData");
-				if (stored) {
-					const parsed = JSON.parse(stored);
-					const su = parsed.super_user || parsed.supper_user;
-					setIsSuperUserState(isSuperUser(su));
-				} else {
-					setIsSuperUserState(false);
-				}
-			} catch {
-				setIsSuperUserState(false);
-			}
-		}
-	}, [userProfile, authLoading]);
 
 	const fetchFamilies = async () => {
 		try {
@@ -261,8 +233,8 @@ export default function SWBFamiliesPage() {
 	const startIndex = (currentPage - 1) * itemsPerPage;
 	const paginatedFamilies = filteredFamilies.slice(startIndex, startIndex + itemsPerPage);
 
-	// Show loading while checking access or Super User status
-	if (accessLoading || authLoading || isSuperUserState === null) {
+	// Show loading while checking access
+	if (accessLoading) {
 		return (
 			<div className="space-y-6">
 				<div className="flex items-center justify-center py-12">
@@ -273,8 +245,8 @@ export default function SWBFamiliesPage() {
 		);
 	}
 
-	// Check Super User status - only Super Users can access this page
-	if (!isSuperUserState) {
+	// Check access - only users with SwbFamilies = 1/TRUE can access this page
+	if (hasAccess === false) {
 		return <NoPermissionMessage />;
 	}
 
@@ -322,7 +294,10 @@ export default function SWBFamiliesPage() {
 			{/* Header */}
 			<div className="flex justify-between items-center">
 				<div>
-					<h1 className="text-3xl font-bold text-gray-900">SWB-Families</h1>
+					<div className="flex items-center gap-3 mb-2">
+						<h1 className="text-3xl font-bold text-gray-900">SWB-Families</h1>
+						<PermissionStatusLabel permission="SWB_Families" />
+					</div>
 					<p className="text-gray-600 mt-2">SWB Family Management</p>
 				</div>
 				<div className="flex items-center gap-3">

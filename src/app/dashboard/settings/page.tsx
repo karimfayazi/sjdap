@@ -3,16 +3,17 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Lock, Users, Save, Search, Filter, Edit, Trash2, X, Check, Loader2, AlertTriangle, UserPlus } from "lucide-react";
+import { useSectionAccess } from "@/hooks/useSectionAccess";
 import { useAuth } from "@/hooks/useAuth";
-import { isSuperUser } from "@/lib/auth-utils";
 import NoPermissionMessage from "@/components/NoPermissionMessage";
+import PermissionStatusLabel from "@/components/PermissionStatusLabel";
 
 function SettingsPageContent() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
-	const { userProfile, loading: authLoading } = useAuth();
+	const { hasAccess, loading: accessLoading, sectionName } = useSectionAccess("Setting");
+	const { userProfile } = useAuth(); // Must be called at top level, not conditionally
 	const [activeTab, setActiveTab] = useState("users");
-	const [isSuperUserState, setIsSuperUserState] = useState<boolean | null>(null);
 	
 	useEffect(() => {
 		const tab = searchParams.get("tab");
@@ -21,41 +22,8 @@ function SettingsPageContent() {
 		}
 	}, [searchParams]);
 
-	useEffect(() => {
-		if (authLoading) return;
-		
-		if (userProfile) {
-			// Check if user is Admin - either through supper_user or access_level (UserType)
-			const superUserValue = userProfile.supper_user;
-			const accessLevel = userProfile.access_level; // This contains UserType from PE_User
-			const isAdminByType = accessLevel && typeof accessLevel === 'string' && accessLevel.trim().toLowerCase() === 'admin';
-			const isSuperUserByValue = isSuperUser(superUserValue);
-			
-			// User is Admin if UserType='Admin' OR supper_user='Yes'
-			setIsSuperUserState(isAdminByType || isSuperUserByValue);
-		} else {
-			try {
-				const stored = localStorage.getItem("userData");
-				if (stored) {
-					const parsed = JSON.parse(stored);
-					const su = parsed.super_user || parsed.supper_user;
-					const accessLevel = parsed.access_level || parsed.user_type;
-					const isAdminByType = accessLevel && typeof accessLevel === 'string' && accessLevel.trim().toLowerCase() === 'admin';
-					const isSuperUserByValue = isSuperUser(su);
-					
-					// User is Admin if UserType='Admin' OR supper_user='Yes'
-					setIsSuperUserState(isAdminByType || isSuperUserByValue);
-				} else {
-					setIsSuperUserState(false);
-				}
-			} catch {
-				setIsSuperUserState(false);
-			}
-		}
-	}, [userProfile, authLoading]);
-
-	// Check Admin status - only users with UserType='Admin' can access this page
-	if (isSuperUserState === null || authLoading) {
+	// Check Setting access - only users with Setting = "Yes" can access this page
+	if (accessLoading) {
 		return (
 			<div className="space-y-6">
 				<div className="flex items-center justify-center py-12">
@@ -66,8 +34,56 @@ function SettingsPageContent() {
 		);
 	}
 
-	if (!isSuperUserState) {
-		return <NoPermissionMessage />;
+	if (hasAccess === false) {
+		return (
+			<div className="space-y-6 p-6">
+				<div className="bg-red-50 border border-red-200 rounded-lg p-6">
+					<h2 className="text-xl font-semibold text-red-800 mb-4">Access Denied</h2>
+					<p className="text-red-700 mb-4">You do not have permission to access the Settings page.</p>
+					<div className="bg-white rounded p-4 mt-4">
+						<h3 className="font-semibold text-gray-900 mb-2">Detailed Debug Information:</h3>
+						<div className="space-y-2 text-sm">
+							<p><strong>Has Access:</strong> {String(hasAccess)}</p>
+							<p><strong>Section Name:</strong> {sectionName}</p>
+							<p><strong>Loading:</strong> {String(accessLoading)}</p>
+							{userProfile && (
+								<>
+									<p><strong>Setting Permission Value:</strong> {String(userProfile.Setting ?? "null")}</p>
+									<p><strong>Setting Permission Type:</strong> {typeof userProfile.Setting}</p>
+									<p><strong>Is Super Admin:</strong> {userProfile.access_level === "Super Admin" ? "Yes" : "No"}</p>
+									<p><strong>Super User Value:</strong> {String(userProfile.supper_user ?? "null")}</p>
+									<p><strong>Your Email:</strong> {userProfile.email}</p>
+									<p><strong>Your Username:</strong> {userProfile.username}</p>
+								</>
+							)}
+							{!userProfile && (
+								<p className="text-red-600"><strong>⚠️ Warning:</strong> User profile is not loaded!</p>
+							)}
+						</div>
+						<details className="mt-4">
+							<summary className="cursor-pointer text-sm font-semibold text-gray-700">View Full User Profile Data</summary>
+							<pre className="text-xs bg-gray-100 p-3 rounded overflow-auto mt-2 max-h-96">
+								{JSON.stringify(userProfile, null, 2)}
+							</pre>
+						</details>
+					</div>
+					<div className="mt-4 space-y-2">
+						<a 
+							href="/dashboard/user-information" 
+							className="block text-blue-600 hover:text-blue-800 underline"
+						>
+							View Your User Information and Permissions →
+						</a>
+						<button
+							onClick={() => window.location.reload()}
+							className="text-blue-600 hover:text-blue-800 underline"
+						>
+							Refresh Page to Reload Permissions
+						</button>
+					</div>
+				</div>
+			</div>
+		);
 	}
 
 	const tabs = [
@@ -80,8 +96,27 @@ function SettingsPageContent() {
 		<div className="space-y-6">
 			{/* Header */}
 				<div>
-					<h1 className="text-3xl font-bold text-gray-900">Settings</h1>
+					<div className="flex items-center gap-3 mb-2">
+						<h1 className="text-3xl font-bold text-gray-900">Settings</h1>
+						<PermissionStatusLabel permission="Setting" />
+					</div>
 					<p className="text-gray-600 mt-2">Manage your account settings and preferences</p>
+					
+					{/* Visible Debug Information - Shows permission status on the page */}
+					{userProfile && (
+						<div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+							<h3 className="font-semibold text-blue-900 mb-2">🔍 Permission Debug Information:</h3>
+							<div className="text-sm text-blue-800 space-y-1">
+								<p><strong>Setting Permission Value:</strong> {String(userProfile.Setting ?? "null")}</p>
+								<p><strong>Setting Permission Type:</strong> {typeof userProfile.Setting}</p>
+								<p><strong>Has Access:</strong> {hasAccess ? "✅ Yes" : "❌ No"}</p>
+								<p><strong>Is Super Admin:</strong> {userProfile.access_level === "Super Admin" ? "✅ Yes" : "❌ No"}</p>
+								<p><strong>Super User Value:</strong> {String(userProfile.supper_user ?? "null")}</p>
+								<p><strong>Your Email:</strong> {userProfile.email}</p>
+								<p><strong>Loading:</strong> {accessLoading ? "Yes" : "No"}</p>
+							</div>
+						</div>
+					)}
 				</div>
 
 				{/* Tabs */}
@@ -115,8 +150,8 @@ function SettingsPageContent() {
 
 				{/* Tab Content */}
 			<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
-				{activeTab === "users" && isSuperUserState && <ViewUsersTab />}
-				{activeTab === "addUser" && isSuperUserState && <AddUserTab />}
+				{activeTab === "users" && hasSettingAccess && <ViewUsersTab />}
+				{activeTab === "addUser" && hasSettingAccess && <AddUserTab />}
 				{activeTab === "password" && <PasswordTab />}
 									</div>
 									</div>
@@ -249,6 +284,8 @@ function AddUserTab() {
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [success, setSuccess] = useState(false);
+	const [regionalCouncils, setRegionalCouncils] = useState<any[]>([]);
+	const [loadingRegionalCouncils, setLoadingRegionalCouncils] = useState(true);
 	
 	// Council data structure
 	const councilData: { [key: string]: string[] } = {
@@ -262,7 +299,24 @@ function AddUserTab() {
 		"UPPER CHITRAL REGION": ["BANG", "BOONI", "BREP", "KHOT", "MASTUJ", "MULKHOW", "YARKHOON LASHT"]
 	};
 
-	const regionalCouncils = Object.keys(councilData);
+	// Fetch regional councils from API
+	useEffect(() => {
+		const fetchRegionalCouncils = async () => {
+			try {
+				setLoadingRegionalCouncils(true);
+				const response = await fetch("/api/regional-councils");
+				const data = await response.json();
+				if (data.success && data.regionalCouncils) {
+					setRegionalCouncils(data.regionalCouncils);
+				}
+			} catch (err) {
+				console.error("Error fetching regional councils:", err);
+			} finally {
+				setLoadingRegionalCouncils(false);
+			}
+		};
+		fetchRegionalCouncils();
+	}, []);
 	
 	// Function to generate a random password
 	const generatePassword = () => {
@@ -285,6 +339,7 @@ function AddUserTab() {
 		Active: false,
 		Regional_Council: "",
 		Local_Council: "",
+		RegionalCouncils: [] as number[],
 		Setting: false,
 		SwbFamilies: false,
 		ActualIntervention: false,
@@ -295,6 +350,10 @@ function AddUserTab() {
 		FdpApproval: false,
 		InterventionApproval: false,
 		BankAccountApproval: false,
+		Baseline: false,
+		FamilyDevelopmentPlan: false,
+		ROPs: false,
+		FamilyIncome: false,
 	});
 
 		// Auto-generate password on component mount
@@ -325,6 +384,28 @@ function AddUserTab() {
 		});
 	};
 
+	const handleRegionalCouncilChange = (regionalCouncilId: number, checked: boolean) => {
+		setFormData(prev => {
+			const currentCouncils = prev.RegionalCouncils || [];
+			if (checked) {
+				// Add if not already in array
+				if (!currentCouncils.includes(regionalCouncilId)) {
+					return {
+						...prev,
+						RegionalCouncils: [...currentCouncils, regionalCouncilId]
+					};
+				}
+			} else {
+				// Remove from array
+				return {
+					...prev,
+					RegionalCouncils: currentCouncils.filter(id => id !== regionalCouncilId)
+				};
+			}
+			return prev;
+		});
+	};
+
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
 		
@@ -339,10 +420,16 @@ function AddUserTab() {
 			setError(null);
 			setSuccess(false);
 
+			// Prepare data for API - include RegionalCouncils array
+			const apiData = {
+				...formData,
+				RegionalCouncils: formData.RegionalCouncils || []
+			};
+
 			const response = await fetch("/api/users", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(formData),
+				body: JSON.stringify(apiData),
 			});
 
 			const result = await response.json();
@@ -364,6 +451,7 @@ function AddUserTab() {
 				Active: false,
 				Regional_Council: "",
 				Local_Council: "",
+				RegionalCouncils: [],
 				Setting: false,
 				SwbFamilies: false,
 				ActualIntervention: false,
@@ -374,6 +462,10 @@ function AddUserTab() {
 				FdpApproval: false,
 				InterventionApproval: false,
 				BankAccountApproval: false,
+				Baseline: false,
+				FamilyDevelopmentPlan: false,
+				ROPs: false,
+				FamilyIncome: false,
 			});
 
 			setTimeout(() => {
@@ -479,13 +571,10 @@ function AddUserTab() {
 									className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent"
 								>
 									<option value="">Select User Type</option>
-									<option value="Admin">Admin</option>
-									<option value="HeadOffice">HeadOffice</option>
-									<option value="RegionalManager">RegionalManager</option>
-									<option value="EDO">EDO</option>
-									<option value="Mentor">Mentor</option>
-									<option value="FinanceOfficer">FinanceOfficer</option>
+									<option value="Editor">Editor</option>
 									<option value="Viewer">Viewer</option>
+									<option value="Admin">Admin</option>
+									<option value="Super Admin">Super Admin</option>
 								</select>
 							</div>
 
@@ -507,40 +596,59 @@ function AddUserTab() {
 					{/* Location Information */}
 					<div className="p-6 border-b border-gray-200">
 						<h3 className="text-lg font-semibold text-gray-900 mb-4">Location Information</h3>
-						<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+						<div className="space-y-4">
 							<div>
-								<label className="block text-sm font-medium text-gray-700 mb-1">Regional Council</label>
-								<select
-									name="Regional_Council"
-									value={formData.Regional_Council}
-									onChange={handleChange}
-									className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent"
-								>
-									<option value="">Select Regional Council</option>
-									{regionalCouncils.map((region) => (
-										<option key={region} value={region}>
-											{region}
-										</option>
-									))}
-								</select>
+								<label className="block text-sm font-medium text-gray-700 mb-3">
+									Regional Councils <span className="text-gray-500 text-xs">(Select one or more)</span>
+								</label>
+								{loadingRegionalCouncils ? (
+									<div className="text-sm text-gray-500">Loading regional councils...</div>
+								) : (
+									<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-60 overflow-y-auto border border-gray-200 rounded-lg p-4">
+										{regionalCouncils.map((rc) => (
+											<div key={rc.RegionalCouncilId} className="flex items-start space-x-2">
+												<input
+													type="checkbox"
+													id={`rc-${rc.RegionalCouncilId}`}
+													checked={formData.RegionalCouncils.includes(rc.RegionalCouncilId)}
+													onChange={(e) => handleRegionalCouncilChange(rc.RegionalCouncilId, e.target.checked)}
+													className="mt-1 w-4 h-4 text-[#0b4d2b] rounded focus:ring-2 focus:ring-[#0b4d2b]"
+												/>
+												<label
+													htmlFor={`rc-${rc.RegionalCouncilId}`}
+													className="text-sm text-gray-700 cursor-pointer flex-1"
+												>
+													{rc.RegionalCouncilName}
+													{rc.RegionalCouncilCode && (
+														<span className="text-xs text-gray-500 ml-1">({rc.RegionalCouncilCode})</span>
+													)}
+												</label>
+											</div>
+										))}
+									</div>
+								)}
+								{formData.RegionalCouncils.length > 0 && (
+									<div className="mt-2 text-xs text-gray-600">
+										Selected: {formData.RegionalCouncils.length} regional council(s)
+									</div>
+								)}
 							</div>
 
 							<div>
-								<label className="block text-sm font-medium text-gray-700 mb-1">Local Council</label>
+								<label className="block text-sm font-medium text-gray-700 mb-1">Local Council (Legacy)</label>
 								<select
 									name="Local_Council"
 									value={formData.Local_Council}
 									onChange={handleChange}
-									disabled={!formData.Regional_Council}
-									className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+									className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent"
 								>
-									<option value="">
-										{formData.Regional_Council ? "Select Local Council" : "Select Regional Council first"}
-									</option>
-									{formData.Regional_Council && councilData[formData.Regional_Council]?.map((localCouncil) => (
-										<option key={localCouncil} value={localCouncil}>
-											{localCouncil}
-										</option>
+									<option value="">Select Local Council (Optional)</option>
+									{Object.keys(councilData).map((region) => (
+										councilData[region].map((localCouncil) => (
+											<option key={`${region}-${localCouncil}`} value={localCouncil}>
+												{localCouncil}
+											</option>
+										))
 									))}
 								</select>
 							</div>
@@ -563,6 +671,10 @@ function AddUserTab() {
 								{ key: "FdpApproval", label: "FDP Approval", desc: "FDP approval access" },
 								{ key: "InterventionApproval", label: "Intervention Approval", desc: "Intervention approval access" },
 								{ key: "BankAccountApproval", label: "Bank Account Approval", desc: "Bank account approval access" },
+								{ key: "Baseline", label: "Baseline", desc: "Baseline QOL access" },
+								{ key: "FamilyDevelopmentPlan", label: "Family Development Plan", desc: "Family Development Plan access" },
+								{ key: "ROPs", label: "ROPs", desc: "ROPs access" },
+								{ key: "FamilyIncome", label: "Family Income", desc: "Family Income access" },
 							].map((item) => (
 								<div key={item.key} className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
 									<input
@@ -599,6 +711,7 @@ function AddUserTab() {
 									Active: false,
 									Regional_Council: "",
 									Local_Council: "",
+									RegionalCouncils: [],
 									Setting: false,
 									SwbFamilies: false,
 									ActualIntervention: false,
@@ -609,6 +722,10 @@ function AddUserTab() {
 									FdpApproval: false,
 									InterventionApproval: false,
 									BankAccountApproval: false,
+									Baseline: false,
+									FamilyDevelopmentPlan: false,
+									ROPs: false,
+									FamilyIncome: false,
 								});
 								setError(null);
 								setSuccess(false);
@@ -678,11 +795,12 @@ function ViewUsersTab() {
 
 	// Filter users
 	const filteredUsers = users.filter((user) => {
+		const searchLower = searchTerm.toLowerCase();
 		const matchesSearch =
 			!searchTerm ||
-			(user.UserId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-				user.email_address?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-				user.UserFullName?.toLowerCase().includes(searchTerm.toLowerCase()));
+			(user.UserId != null && String(user.UserId).toLowerCase().includes(searchLower)) ||
+			(user.email_address != null && String(user.email_address).toLowerCase().includes(searchLower)) ||
+			(user.UserFullName != null && String(user.UserFullName).toLowerCase().includes(searchLower));
 		const matchesType = !filterUserType || user.UserType === filterUserType;
 		const matchesActive =
 			filterActive === "all" ||
@@ -897,14 +1015,19 @@ function ViewUsersTab() {
 										</div>
 										<div>
 											<label className="block text-xs font-medium text-gray-500 mb-1">User Type</label>
-											<input
-												type="text"
+											<select
 												value={editFormData?.UserType || ""}
 												onChange={(e) =>
 													setEditFormData({ ...editFormData, UserType: e.target.value })
 												}
 												className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent text-sm"
-											/>
+											>
+												<option value="">Select User Type</option>
+												<option value="Editor">Editor</option>
+												<option value="Viewer">Viewer</option>
+												<option value="Admin">Admin</option>
+												<option value="Super Admin">Super Admin</option>
+											</select>
 										</div>
 										<div>
 											<label className="block text-xs font-medium text-gray-500 mb-1">Designation</label>

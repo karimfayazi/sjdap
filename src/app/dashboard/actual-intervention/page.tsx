@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, XCircle, CreditCard, RefreshCw, Users, FileText, MapPin, Hash } from "lucide-react";
+import { useSectionAccess } from "@/hooks/useSectionAccess";
+import SectionAccessDenied from "@/components/SectionAccessDenied";
+import PermissionStatusLabel from "@/components/PermissionStatusLabel";
 
 type FamilyRecord = {
 	FormNumber: string;
@@ -33,6 +36,7 @@ type MemberInterventions = {
 
 export default function ActualInterventionPage() {
 	const router = useRouter();
+	const { hasAccess, loading: accessLoading, sectionName } = useSectionAccess("ActualIntervention");
 	const [records, setRecords] = useState<FamilyRecord[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -47,8 +51,10 @@ export default function ActualInterventionPage() {
 
 
 	useEffect(() => {
-		fetchFamilies();
-	}, []);
+		if (hasAccess !== false) {
+			fetchFamilies();
+		}
+	}, [hasAccess]);
 
 	const fetchFamilies = async () => {
 		try {
@@ -123,6 +129,23 @@ export default function ActualInterventionPage() {
 		return parts.length > 0 ? parts.join(" / ") : "N/A";
 	};
 
+	// Show loading while checking access
+	if (accessLoading) {
+		return (
+			<div className="space-y-6">
+				<div className="flex items-center justify-center py-12">
+					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
+					<span className="ml-3 text-gray-600">Checking permissions...</span>
+				</div>
+			</div>
+		);
+	}
+
+	// Show access denied if user doesn't have permission
+	if (hasAccess === false) {
+		return <SectionAccessDenied sectionName={sectionName} requiredPermission="ActualIntervention" />;
+	}
+
 	if (loading) {
 		return (
 			<div className="space-y-6">
@@ -149,9 +172,12 @@ export default function ActualInterventionPage() {
 			{/* Header */}
 			<div className="flex justify-between items-center bg-white rounded-xl shadow-md border border-gray-200 p-6">
 				<div>
-					<h1 className="text-3xl font-bold bg-gradient-to-r from-[#0b4d2b] to-[#0d5d35] bg-clip-text text-transparent">
-						Actual Intervention
-					</h1>
+					<div className="flex items-center gap-3 mb-2">
+						<h1 className="text-3xl font-bold bg-gradient-to-r from-[#0b4d2b] to-[#0d5d35] bg-clip-text text-transparent">
+							Actual Intervention
+						</h1>
+						<PermissionStatusLabel permission="ActualIntervention" />
+					</div>
 					<p className="text-gray-600 mt-2 font-medium">Manage family interventions and member details</p>
 				</div>
 				<div className="flex items-center gap-3">

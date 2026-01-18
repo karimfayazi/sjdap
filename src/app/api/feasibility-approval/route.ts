@@ -23,10 +23,45 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
+		// Check if user is Super Admin
+		const userPool = await getDb();
+		const userRequest = userPool.request();
+		(userRequest as any).timeout = 120000;
+		userRequest.input("user_id", userId);
+		userRequest.input("email_address", userId);
+		
+		const userResult = await userRequest.query(`
+			SELECT TOP(1) [UserType] 
+			FROM [SJDA_Users].[dbo].[PE_User] 
+			WHERE [UserId] = @user_id OR [email_address] = @email_address
+		`);
+		
+		const user = userResult.recordset?.[0];
+		const userType = user?.UserType && typeof user.UserType === 'string' ? user.UserType.trim() : '';
+		const isSuperAdmin = userType === 'Super Admin';
+
 		// Fetch feasibility data with joins
 		const pool = await getPeDb();
 		const sqlRequest = pool.request();
 		(sqlRequest as any).timeout = 120000;
+		sqlRequest.input("userId", userId);
+
+		// Build WHERE clause for regional council filtering using subquery
+		let regionalCouncilFilter = '';
+		if (!isSuperAdmin) {
+			// Use EXISTS subquery to filter by user's regional councils
+			// This is safer and more efficient than fetching names first
+			regionalCouncilFilter = `
+				AND EXISTS (
+					SELECT 1
+					FROM [SJDA_Users].[dbo].[PE_User_RegionalCouncilAccess] ura
+					INNER JOIN [SJDA_Users].[dbo].[LU_RegionalCouncil] rc
+						ON ura.[RegionalCouncilId] = rc.[RegionalCouncilId]
+					WHERE ura.[UserId] = @userId
+						AND rc.[RegionalCouncilName] = b.[RegionalCommunity]
+				)
+			`;
+		}
 
 		const query = `
 			SELECT 
@@ -79,6 +114,7 @@ export async function GET(request: NextRequest) {
 				ON f.[MemberID] = m.[MemberNo] AND f.[FamilyID] = m.[FormNo]
 			LEFT JOIN [SJDA_Users].[dbo].[PE_Application_BasicInfo] b 
 				ON f.[FamilyID] = b.[FormNumber]
+			WHERE 1=1 ${regionalCouncilFilter}
 			ORDER BY f.[FDP_ID] DESC
 		`;
 

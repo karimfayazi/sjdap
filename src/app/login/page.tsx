@@ -53,6 +53,7 @@ export default function LoginPage() {
 				return;
 			}
 			
+			// Email and password matched successfully - store user data and redirect to dashboard
 			// Store user data in localStorage for fallback
 			if (data.user) {
 				localStorage.setItem('userData', JSON.stringify(data.user));
@@ -73,6 +74,7 @@ export default function LoginPage() {
 				localStorage.setItem('bank_account', String(data.user.bank_account || ''));
 			}
 			
+			// Redirect to dashboard after successful login
 			// Redirect based on designation (EDO -> EDO dashboard, others -> main dashboard)
 			const designationRaw = data.user?.designation ?? data.user?.DESIGNATION;
 			const designation = (designationRaw || "").toString().trim().toUpperCase();

@@ -6,8 +6,16 @@
 /**
  * Normalize permission value from database (1/0, Yes/No, True/False) to boolean
  * Returns true if value indicates permission granted, false otherwise
+ * 
+ * Database fields can return as:
+ * - boolean: true/false
+ * - number: 1/0
+ * - string: "1"/"0", "Yes"/"No", "yes"/"no", "YES"/"NO", "true"/"false", "True"/"False"
+ * 
+ * Note: Database fields are now VARCHAR(3) with "Yes"/"No" values
  */
 export function normalizePermission(value: any): boolean {
+	// Handle null/undefined first
 	if (value === null || value === undefined) {
 		return false;
 	}
@@ -17,17 +25,48 @@ export function normalizePermission(value: any): boolean {
 		return value === true;
 	}
 
-	// Handle number
+	// Handle number (legacy support for 1/0)
 	if (typeof value === 'number') {
-		return value === 1;
+		// Check for 1 (explicitly check for 1 to be safe)
+		return value === 1 || value === 1.0;
 	}
 
 	// Handle string - normalize and check
+	// Database now uses VARCHAR(3) with "Yes"/"No" values
 	if (typeof value === 'string') {
-		const normalized = value.trim().toLowerCase();
-		return normalized === 'yes' || normalized === '1' || normalized === 'true';
+		const normalized = value.trim();
+		const lowerNormalized = normalized.toLowerCase();
+		
+		// Check for "Yes" (case-insensitive) - this is the new format
+		if (lowerNormalized === 'yes') {
+			return true;
+		}
+		
+		// Check for "No" (case-insensitive) - explicitly deny
+		if (lowerNormalized === 'no') {
+			return false;
+		}
+		
+		// Legacy support for "1", "true" (case-insensitive)
+		if (lowerNormalized === '1' || lowerNormalized === 'true') {
+			return true;
+		}
+		
+		// Legacy support for "0", "false" (case-insensitive)
+		if (lowerNormalized === '0' || lowerNormalized === 'false') {
+			return false;
+		}
+		
+		// Default: no access for unknown string values
+		return false;
 	}
 
+	// Handle Buffer (legacy support)
+	if (Buffer.isBuffer(value)) {
+		return value[0] === 1;
+	}
+
+	// Default: no access
 	return false;
 }
 
