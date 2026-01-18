@@ -271,11 +271,12 @@ export default function EditUserPage() {
 			setError(null);
 			setSuccess(false);
 
-			// Helper function to convert boolean/number to 0 or 1
-			const toBoolValue = (val: any): number => {
-				if (val === true || val === 1 || val === "1" || val === "true" || val === "Yes" || val === "yes") return 1;
-				if (val === false || val === 0 || val === "0" || val === "false" || val === "No" || val === "no") return 0;
-				return 0;
+			// Helper function to convert boolean/number to "Yes" or "No"
+			// Database fields are now VARCHAR(3) with "Yes"/"No" values
+			const toBoolValue = (val: any): string => {
+				if (val === true || val === 1 || val === "1" || val === "true" || val === "Yes" || val === "yes") return "Yes";
+				if (val === false || val === 0 || val === "0" || val === "false" || val === "No" || val === "no") return "No";
+				return "No"; // Default to "No" for null/undefined/unknown values
 			};
 
 			// Map form data to API format - only include fields from PE_User table
@@ -620,8 +621,10 @@ export default function EditUserPage() {
 									{ key: "FamilyIncome", label: "Family Income", desc: "Family Income access" },
 								].map((item) => {
 									const value = formData[item.key as keyof UserData];
-									// Explicitly convert to boolean: 1, true, "1", "true" = checked; 0, false, "0", "false", null, undefined = unchecked
-									const isChecked = value === 1 || value === true || value === "1" || value === "true";
+									// Explicitly convert to boolean: "Yes", 1, true, "1", "true" = checked; "No", 0, false, "0", "false", null, undefined = unchecked
+									// Database fields are now VARCHAR(3) with "Yes"/"No" values
+									const isChecked = value === 1 || value === true || value === "1" || value === "true" || 
+										(value && typeof value === 'string' && value.trim().toLowerCase() === 'yes');
 									
 									return (
 										<div key={item.key} className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">

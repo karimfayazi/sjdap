@@ -174,7 +174,7 @@ export default function FeasibilityApprovalPage() {
 	}, []);
 
 	// Check access - show loading while checking
-	if (hasAccess === null || authLoading) {
+	if (hasAccess === null || accessLoading) {
 		return (
 			<div className="space-y-6">
 				<div className="flex items-center justify-center py-12">
@@ -187,7 +187,7 @@ export default function FeasibilityApprovalPage() {
 
 	// Check access - show no permission message if no access
 	if (!hasAccess) {
-		return <NoPermissionMessage />;
+		return <SectionAccessDenied sectionName={sectionName} requiredPermission="FeasibilityApproval" />;
 	}
 
 	const uniquePlanCategories = Array.from(

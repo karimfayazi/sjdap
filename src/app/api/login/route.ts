@@ -39,12 +39,13 @@ export async function POST(request: NextRequest) {
 			user.Active === 1 ||
 			user.Active === "1" ||
 			user.Active === true ||
-			user.Active === "true";
+			user.Active === "true" ||
+			(user.Active && typeof user.Active === 'string' && user.Active.trim().toLowerCase() === 'yes');
 
 		// Allow Super Admin users to bypass inactive check, otherwise check if account is active
 		if (!isSuperAdmin && !isActive) {
 			return NextResponse.json(
-				{ success: false, message: "User id is not active please contact Manager MIS" },
+				{ success: false, message: "User is not active please contact MIS Manager" },
 				{ status: 403 }
 			);
 		}

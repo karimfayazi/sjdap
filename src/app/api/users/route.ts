@@ -29,8 +29,7 @@ export async function GET(request: NextRequest) {
 
 		const pool = await getDb();
 		
-		// Build dynamic query with filters (aligned with PE_User definition)
-		// Include all permission fields for complete user management
+		// Build dynamic query with filters (permission columns have been removed)
 		let query = `
 			SELECT TOP (1000) 
 				[UserId],
@@ -39,25 +38,11 @@ export async function GET(request: NextRequest) {
 				[Password],
 				[UserType],
 				[Designation],
-				[Active],
 				[Regional_Council],
 				[Local_Council],
-				[Setting],
-				[SwbFamilies],
-				[ActualIntervention],
-				[FinanceSection],
-				[BankInformation],
-				[BaselineApproval],
-				[Baseline],
-				[FamilyDevelopmentPlan],
-				[ROPs],
-				[FamilyIncome],
-				[FeasibilityApproval],
-				[FdpApproval],
-				[InterventionApproval],
-				[BankAccountApproval],
 				[user_create_date],
-				[user_update_date]
+				[user_update_date],
+				[AccessScope]
 			FROM [SJDA_Users].[dbo].[PE_User]
 			WHERE 1=1
 		`;
@@ -224,11 +209,12 @@ export async function POST(request: NextRequest) {
 			);
 		}
 
-		// Helper function to convert boolean/number to 0 or 1
-		const toBoolValue = (val: any) => {
-			if (val === true || val === 1 || val === "1" || val === "true" || val === "Yes" || val === "yes") return 1;
-			if (val === false || val === 0 || val === "0" || val === "false" || val === "No" || val === "no") return 0;
-			return 0;
+		// Helper function to convert boolean/number to "Yes" or "No"
+		// Database fields are now VARCHAR(3) with "Yes"/"No" values
+		const toBoolValue = (val: any): string => {
+			if (val === true || val === 1 || val === "1" || val === "true" || val === "Yes" || val === "yes") return "Yes";
+			if (val === false || val === 0 || val === "0" || val === "false" || val === "No" || val === "no") return "No";
+			return "No"; // Default to "No" for null/undefined/unknown values
 		};
 
 		const insertReq = pool.request();
@@ -425,11 +411,12 @@ export async function PUT(request: NextRequest) {
 		const updateReq = pool.request();
 		(updateReq as any).timeout = 120000;
 
-		// Helper function to convert boolean/number to 0 or 1
-		const toBoolValue = (val: any) => {
-			if (val === true || val === 1 || val === "1" || val === "true" || val === "Yes" || val === "yes") return 1;
-			if (val === false || val === 0 || val === "0" || val === "false" || val === "No" || val === "no") return 0;
-			return 0;
+		// Helper function to convert boolean/number to "Yes" or "No"
+		// Database fields are now VARCHAR(3) with "Yes"/"No" values
+		const toBoolValue = (val: any): string => {
+			if (val === true || val === 1 || val === "1" || val === "true" || val === "Yes" || val === "yes") return "Yes";
+			if (val === false || val === 0 || val === "0" || val === "false" || val === "No" || val === "no") return "No";
+			return "No"; // Default to "No" for null/undefined/unknown values
 		};
 
 		// Use email_address or UserId for lookup

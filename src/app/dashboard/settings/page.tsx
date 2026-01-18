@@ -816,7 +816,7 @@ function ViewUsersTab() {
 			UserFullName: user.UserFullName || "",
 			UserType: user.UserType || "",
 			Designation: user.Designation || "",
-			Active: user.Active === 1 || user.Active === true || user.Active === "1" || user.Active === "true",
+			Active: user.Active === 1 || user.Active === true || user.Active === "1" || user.Active === "true" || (user.Active && typeof user.Active === 'string' && user.Active.trim().toLowerCase() === 'yes'),
 		});
 	};
 

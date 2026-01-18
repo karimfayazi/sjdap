@@ -8,11 +8,11 @@ import { isSuperUser, isAdminUser } from "./auth-utils";
 
 /**
  * Check if a user is a Super User by querying the database
- * This checks if UserType='Admin' in PE_User table
- * Admin users have FULL ACCESS to ALL sections regardless of individual permissions
+ * This checks if UserType='Admin' or UserType='Super Admin' in PE_User table
+ * Admin and Super Admin users have FULL ACCESS to ALL sections regardless of individual permissions
  * 
  * @param userId - The user ID to check
- * @returns Promise<boolean> - true if user is Admin (UserType='Admin'), false otherwise
+ * @returns Promise<boolean> - true if user is Admin (UserType='Admin') or Super Admin (UserType='Super Admin'), false otherwise
  */
 export async function checkSuperUserFromDb(userId: string | null | undefined): Promise<boolean> {
 	if (!userId) return false;
@@ -36,10 +36,13 @@ export async function checkSuperUserFromDb(userId: string | null | undefined): P
 			return true;
 		}
 
-		// Check if UserType is 'Admin' (case-insensitive)
+		// Check if UserType is 'Admin' or 'Super Admin' (case-insensitive)
 		const userType = user.UserType;
-		if (userType && typeof userType === 'string' && userType.trim().toLowerCase() === 'admin') {
-			return true;
+		if (userType && typeof userType === 'string') {
+			const userTypeLower = userType.trim().toLowerCase();
+			if (userTypeLower === 'admin' || userTypeLower === 'super admin') {
+				return true;
+			}
 		}
 
 		return false;

@@ -38,11 +38,13 @@ export function normalizePermission(value: any): boolean {
 		const lowerNormalized = normalized.toLowerCase();
 		
 		// Check for "Yes" (case-insensitive) - this is the new format
+		// Handles: "Yes", "yes", "YES", "Yes ", " yes", etc.
 		if (lowerNormalized === 'yes') {
 			return true;
 		}
 		
 		// Check for "No" (case-insensitive) - explicitly deny
+		// Handles: "No", "no", "NO", "No ", " no", etc.
 		if (lowerNormalized === 'no') {
 			return false;
 		}
@@ -101,17 +103,33 @@ export function isAdminUser(username: string | null | undefined): boolean {
 }
 
 /**
- * Check if a user has full access (either admin user or super user)
+ * Check if a user is Super Admin by UserType from database
+ * UserType='Super Admin' from [SJDA_Users].[dbo].[PE_User] table grants access to all sections and pages
+ * 
+ * @param accessLevel - The access_level field (which contains UserType from database)
+ * @returns true if UserType is 'Super Admin', false otherwise
+ */
+export function isSuperAdminByUserType(accessLevel: string | null | undefined): boolean {
+	if (!accessLevel || typeof accessLevel !== 'string') {
+		return false;
+	}
+	return accessLevel.trim() === 'Super Admin';
+}
+
+/**
+ * Check if a user has full access (either admin user, super user, or Super Admin by UserType)
  * This is the main function to use for access control checks
  * 
  * @param username - The username/user_id to check
  * @param supperUserValue - The Supper_User field value from database
- * @returns true if user is admin or super user, false otherwise
+ * @param accessLevel - The access_level field (which contains UserType from database)
+ * @returns true if user is admin, super user, or Super Admin by UserType, false otherwise
  */
 export function hasFullAccess(
 	username: string | null | undefined,
-	supperUserValue: string | boolean | number | null | undefined
+	supperUserValue: string | boolean | number | null | undefined,
+	accessLevel?: string | null | undefined
 ): boolean {
-	return isAdminUser(username) || isSuperUser(supperUserValue);
+	return isAdminUser(username) || isSuperUser(supperUserValue) || isSuperAdminByUserType(accessLevel);
 }
 

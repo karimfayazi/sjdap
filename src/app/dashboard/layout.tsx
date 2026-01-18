@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import { useAuth } from "@/hooks/useAuth";
+import InactiveUserMessage from "@/components/InactiveUserMessage";
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
 	const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -40,6 +41,23 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 	const username = user?.username || userProfile?.username;
 	if (!username) {
 		return null;
+	}
+
+	// Check if user is active
+	// Super Admin users can bypass the active check
+	const isSuperAdmin = userProfile?.access_level && typeof userProfile.access_level === 'string' && userProfile.access_level.trim() === 'Super Admin';
+	const activeValue = userProfile?.active;
+	const isActive = 
+		activeValue === true || 
+		activeValue === 1 || 
+		activeValue === "1" || 
+		activeValue === "true" || 
+		(activeValue && typeof activeValue === 'string' && activeValue.trim().toLowerCase() === 'yes');
+	
+	// If user is not active and not Super Admin, show inactive message
+	// Note: null/undefined active is treated as inactive
+	if (!isSuperAdmin && !isActive) {
+		return <InactiveUserMessage />;
 	}
 	
 	return (

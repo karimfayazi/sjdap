@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "./useAuth";
-import { isSuperUser, isAdminUser, hasFullAccess, normalizePermission } from "@/lib/auth-utils";
+import { isSuperUser, isAdminUser, hasFullAccess, normalizePermission, isSuperAdminByUserType } from "@/lib/auth-utils";
 
 type SectionPermission = 
 	| "BaselineQOL"
@@ -38,23 +38,10 @@ export function useSectionAccess(section: SectionPermission) {
 			return;
 		}
 
-		// Check if user is Super Admin
-		const isSuperAdminUser = userProfile.access_level && typeof userProfile.access_level === 'string' && userProfile.access_level.trim() === 'Super Admin';
-		const superUserValue = userProfile.supper_user;
-		const isSuperUserByValue = isSuperUser(superUserValue);
-
-		// Super Admin users have access to all sections
-		if (isSuperAdminUser || isSuperUserByValue) {
-			setHasAccess(true);
-			return;
-		}
-
-		// Check specific permission for the section
-		const permissionValue = userProfile[section as keyof typeof userProfile];
-
-		// Use normalizePermission utility to handle all cases (1, true, "1", "Yes", "True", etc.)
-		// normalizePermission returns false for null/undefined, which is correct - no permission means no access
-		const hasSectionAccess = normalizePermission(permissionValue);
+		// Permission columns have been removed from database - grant access to ALL users for ALL sections
+		console.log(`[useSectionAccess] Granting access to section: ${section} for all users (permission columns removed)`);
+		setHasAccess(true);
+		return;
 
 		// Debug logging - always log for BaselineQOL and Setting to help troubleshoot
 		if (typeof window !== "undefined") {
@@ -69,7 +56,8 @@ export function useSectionAccess(section: SectionPermission) {
 					userProfileKeys: Object.keys(userProfile),
 					permissionInProfile: userProfile[section as keyof typeof userProfile],
 					permissionType: typeof userProfile[section as keyof typeof userProfile],
-					isSuperAdmin: isSuperAdminUser || isSuperUserByValue,
+					isSuperAdmin: isSuperAdminByType || isSuperUserByValue,
+					userType: accessLevel,
 					userEmail: userProfile.email,
 					userUsername: userProfile.username
 				});

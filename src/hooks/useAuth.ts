@@ -11,6 +11,7 @@ export type UserProfile = {
 	address: string | null;
 	contact_no: string | null;
 	access_level: string | null;
+	active: boolean | null;
 	access_add: boolean | number | null;
 	access_edit: boolean | number | null;
 	access_delete: boolean | number | null;

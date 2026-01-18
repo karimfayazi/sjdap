@@ -263,8 +263,16 @@ export default function BaselineQOLPage() {
 	}
 
 	// Show access denied if user doesn't have permission
+	// Check Baseline field from PE_User table - access is granted when baseline='Yes'
 	if (hasAccess === false) {
-		return <SectionAccessDenied sectionName={sectionName} requiredPermission="BaselineQOL" />;
+		const baselineValue = userProfile?.BaselineQOL ?? null;
+		return (
+			<SectionAccessDenied 
+				sectionName={sectionName} 
+				requiredPermission="Baseline (must be 'Yes' in PE_User table)" 
+				permissionValue={baselineValue}
+			/>
+		);
 	}
 
 	if (loading) {
