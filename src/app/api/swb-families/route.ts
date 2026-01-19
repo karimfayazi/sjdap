@@ -1,26 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getBaselineDb } from "@/lib/db";
+import { requireRoutePermission } from "@/lib/api-permission-helper";
 
 export const maxDuration = 120;
 
 export async function GET(request: NextRequest) {
 	try {
-		const authCookie = request.cookies.get("auth");
-		
-		if (!authCookie || !authCookie.value) {
-			return NextResponse.json(
-				{ success: false, message: "Unauthorized" },
-				{ status: 401 }
-			);
+		// Check permission for swb-families route
+		const permissionCheck = await requireRoutePermission(
+			request,
+			"/dashboard/swb-families",
+			"view"
+		);
+
+		if (!permissionCheck.hasAccess) {
+			return permissionCheck.error;
 		}
 
-		const userId = authCookie.value.split(":")[1];
-		if (!userId) {
-			return NextResponse.json(
-				{ success: false, message: "Invalid session" },
-				{ status: 401 }
-			);
-		}
+		const userId = permissionCheck.userId;
 
 		const searchParams = request.nextUrl.searchParams;
 		
@@ -358,22 +355,18 @@ export async function GET(request: NextRequest) {
 // POST - Insert new SWB family record
 export async function POST(request: NextRequest) {
 	try {
-		const authCookie = request.cookies.get("auth");
-		
-		if (!authCookie || !authCookie.value) {
-			return NextResponse.json(
-				{ success: false, message: "Unauthorized" },
-				{ status: 401 }
-			);
+		// Check permission for swb-families route (add action)
+		const permissionCheck = await requireRoutePermission(
+			request,
+			"/dashboard/swb-families",
+			"add"
+		);
+
+		if (!permissionCheck.hasAccess) {
+			return permissionCheck.error;
 		}
 
-		const userId = authCookie.value.split(":")[1];
-		if (!userId) {
-			return NextResponse.json(
-				{ success: false, message: "Invalid session" },
-				{ status: 401 }
-			);
-		}
+		const userId = permissionCheck.userId;
 
 		const swbData = await request.json();
 
@@ -502,22 +495,18 @@ export async function POST(request: NextRequest) {
 // PUT - Update SWB family record
 export async function PUT(request: NextRequest) {
 	try {
-		const authCookie = request.cookies.get("auth");
-		
-		if (!authCookie || !authCookie.value) {
-			return NextResponse.json(
-				{ success: false, message: "Unauthorized" },
-				{ status: 401 }
-			);
+		// Check permission for swb-families route (edit action)
+		const permissionCheck = await requireRoutePermission(
+			request,
+			"/dashboard/swb-families",
+			"edit"
+		);
+
+		if (!permissionCheck.hasAccess) {
+			return permissionCheck.error;
 		}
 
-		const userId = authCookie.value.split(":")[1];
-		if (!userId) {
-			return NextResponse.json(
-				{ success: false, message: "Invalid session" },
-				{ status: 401 }
-			);
-		}
+		const userId = permissionCheck.userId;
 
 		const swbData = await request.json();
 		const searchParams = request.nextUrl.searchParams;
@@ -639,22 +628,18 @@ export async function PUT(request: NextRequest) {
 // DELETE - Delete SWB family record
 export async function DELETE(request: NextRequest) {
 	try {
-		const authCookie = request.cookies.get("auth");
-		
-		if (!authCookie || !authCookie.value) {
-			return NextResponse.json(
-				{ success: false, message: "Unauthorized" },
-				{ status: 401 }
-			);
+		// Check permission for swb-families route (delete action)
+		const permissionCheck = await requireRoutePermission(
+			request,
+			"/dashboard/swb-families",
+			"delete"
+		);
+
+		if (!permissionCheck.hasAccess) {
+			return permissionCheck.error;
 		}
 
-		const userId = authCookie.value.split(":")[1];
-		if (!userId) {
-			return NextResponse.json(
-				{ success: false, message: "Invalid session" },
-				{ status: 401 }
-			);
-		}
+		const userId = permissionCheck.userId;
 
 		const searchParams = request.nextUrl.searchParams;
 		const cnic = searchParams.get("cnic");

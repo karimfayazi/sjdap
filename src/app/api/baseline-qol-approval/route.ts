@@ -1,27 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPeDb } from "@/lib/db";
 import sql from "mssql";
+import { requireRoutePermission } from "@/lib/api-permission-helper";
 
 export const maxDuration = 120;
 
 export async function GET(request: NextRequest) {
 	try {
-		// Auth
-		const authCookie = request.cookies.get("auth");
-		if (!authCookie || !authCookie.value) {
-			return NextResponse.json(
-				{ success: false, message: "Unauthorized", records: [] },
-				{ status: 401 }
-			);
+		// Check permission for baseline-approval route
+		const permissionCheck = await requireRoutePermission(
+			request,
+			"/dashboard/approval-section/baseline-approval",
+			"view"
+		);
+
+		if (!permissionCheck.hasAccess) {
+			return permissionCheck.error;
 		}
 
-		const userId = authCookie.value.split(":")[1];
-		if (!userId) {
-			return NextResponse.json(
-				{ success: false, message: "Invalid session", records: [] },
-				{ status: 401 }
-			);
-		}
+		const userId = permissionCheck.userId;
 
 		// Fetch baseline QOL data with family member count
 		const pool = await getPeDb();

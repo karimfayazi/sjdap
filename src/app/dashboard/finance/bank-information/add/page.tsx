@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Save, ArrowLeft, X } from "lucide-react";
+import PageGuard from "@/components/PageGuard";
 
 type BankFormData = {
 	familyId: string;
@@ -17,7 +18,6 @@ type BankFormData = {
 
 export default function AddBankInformationPage() {
 	const router = useRouter();
-	// Access control removed - all users can access this page
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [success, setSuccess] = useState(false);
@@ -70,10 +70,9 @@ export default function AddBankInformationPage() {
 		}
 	};
 
-	// Access control removed - all users can access this page
-
 	return (
-		<div className="space-y-6">
+		<PageGuard requiredAction="add">
+			<div className="space-y-6">
 			{/* Header */}
 			<div className="flex items-center justify-between">
 				<div>
@@ -248,6 +247,7 @@ export default function AddBankInformationPage() {
 					</button>
 				</div>
 			</form>
-		</div>
+			</div>
+		</PageGuard>
 	);
 }

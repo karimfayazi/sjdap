@@ -26,29 +26,10 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 		}
 	}, [user, userProfile, loading, router]);
 
-	// Check route access based on UserType (for Economic-Approval and other restricted users)
-	useEffect(() => {
-		if (loading || !userProfile) return;
-
-		const userType = userProfile.access_level; // UserType is stored in access_level
-		const hasFullAccessToAll = hasFullAccess(
-			userProfile.username,
-			userProfile.supper_user,
-			userType
-		);
-
-		// Super Admin has access to all pages
-		if (hasFullAccessToAll) {
-			return;
-		}
-
-		// Check route-specific access
-		const currentRoute = pathname || '/dashboard';
-		if (!hasRouteAccess(userType, currentRoute)) {
-			// Economic-Approval users should be redirected to dashboard if they try to access blocked pages
-			router.push('/dashboard');
-		}
-	}, [userProfile, loading, pathname, router]);
+	// NOTE: Route access is now checked by PageGuard components on individual pages
+	// and by permission-service.ts using PE_Rights_UserPermission table.
+	// This layout no longer enforces UserType-based access rules.
+	// Individual pages must use PageGuard or check permissions via useRoutePermission hook.
 
 	// Show loading state while checking authentication
 	if (loading) {

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Download, Search, RefreshCw, Plus, Eye, Trash2, Edit2 } from "lucide-react";
+import PageGuard from "@/components/PageGuard";
 
 type SWBFamily = {
 	CNIC: string | null;
@@ -229,8 +230,6 @@ export default function SWBFamiliesPage() {
 	const startIndex = (currentPage - 1) * itemsPerPage;
 	const paginatedFamilies = filteredFamilies.slice(startIndex, startIndex + itemsPerPage);
 
-	// Access control removed - all users can access this page
-
 	if (loading) {
 		return (
 			<div className="space-y-6">
@@ -271,7 +270,8 @@ export default function SWBFamiliesPage() {
 	}
 
 	return (
-		<div className="space-y-6">
+		<PageGuard requiredAction="view">
+			<div className="space-y-6">
 			{/* Header */}
 			<div className="flex justify-between items-center">
 				<div>
@@ -551,6 +551,7 @@ export default function SWBFamiliesPage() {
 					</div>
 				</div>
 			)}
-		</div>
+			</div>
+		</PageGuard>
 	);
 }

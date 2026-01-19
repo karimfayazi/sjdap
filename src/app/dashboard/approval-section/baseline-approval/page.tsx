@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Eye, RefreshCw } from "lucide-react";
+import PageGuard from "@/components/PageGuard";
 
 type BaselineQOLRecord = {
 	FormNumber: string | null;
@@ -18,7 +19,6 @@ type BaselineQOLRecord = {
 
 function BaselineApprovalContent() {
 	const router = useRouter();
-	// Access control removed - all users can access this page
 	const [baselineRecords, setBaselineRecords] = useState<BaselineQOLRecord[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -118,8 +118,6 @@ function BaselineApprovalContent() {
 			);
 		}
 	};
-
-	// Access control removed - all users can access this page
 
 	return (
 		<div className="space-y-6">
@@ -308,15 +306,17 @@ function BaselineApprovalContent() {
 
 export default function BaselineApprovalPage() {
 	return (
-		<Suspense
-			fallback={
-				<div className="flex items-center justify-center min-h-[60vh]">
-					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
-					<span className="ml-3 text-gray-600">Loading...</span>
-				</div>
-			}
-		>
-			<BaselineApprovalContent />
-		</Suspense>
+		<PageGuard requiredAction="view">
+			<Suspense
+				fallback={
+					<div className="flex items-center justify-center min-h-[60vh]">
+						<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
+						<span className="ml-3 text-gray-600">Loading...</span>
+					</div>
+				}
+			>
+				<BaselineApprovalContent />
+			</Suspense>
+		</PageGuard>
 	);
 }

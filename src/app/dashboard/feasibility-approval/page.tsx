@@ -3,8 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, XCircle, Clock, AlertCircle, Download, Eye, FileText } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
-import { hasRouteAccess, hasFullAccess } from "@/lib/auth-utils";
+import PageGuard from "@/components/PageGuard";
 
 type FeasibilityApprovalData = {
 	FDP_ID: number;
@@ -108,31 +107,6 @@ const getStatusStyle = (rawStatus: string | null | undefined) => {
 
 export default function FeasibilityApprovalPage() {
 	const router = useRouter();
-	const { userProfile } = useAuth();
-	
-	// Check route access based on UserType
-	useEffect(() => {
-		if (!userProfile) return;
-		
-		const userType = userProfile.access_level; // UserType is stored in access_level
-		const hasFullAccessToAll = hasFullAccess(
-			userProfile.username,
-			userProfile.supper_user,
-			userType
-		);
-		
-		// Super Admin has access to all pages
-		if (hasFullAccessToAll) {
-			return;
-		}
-		
-		// Check route-specific access
-		const currentRoute = '/dashboard/feasibility-approval';
-		if (!hasRouteAccess(userType, currentRoute)) {
-			router.push('/dashboard');
-		}
-	}, [userProfile, router]);
-	
 	const [records, setRecords] = useState<FeasibilityApprovalData[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -195,8 +169,6 @@ export default function FeasibilityApprovalPage() {
 
 		fetchFeasibilityApproval();
 	}, []);
-
-	// Access control removed - all users can access this page
 
 	const uniquePlanCategories = Array.from(
 		new Set(records.map((r) => r.PlanCategory).filter(Boolean))
@@ -480,7 +452,7 @@ export default function FeasibilityApprovalPage() {
 	};
 
 	return (
-		<>
+		<PageGuard requiredAction="view">
 			<div className="space-y-6">
 				<div className="flex items-center justify-between">
 					<div>
@@ -1339,6 +1311,6 @@ export default function FeasibilityApprovalPage() {
 					</div>
 				</div>
 			)}
-		</>
+		</PageGuard>
 	);
 }

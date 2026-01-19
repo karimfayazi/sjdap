@@ -3,6 +3,8 @@
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Search, CheckCircle, XCircle, Clock } from "lucide-react";
+import { useSectionAccess } from "@/hooks/useSectionAccess";
+import SectionAccessDenied from "@/components/SectionAccessDenied";
 
 type ApprovalStatus = {
 	healthSupport: any[];
@@ -15,8 +17,10 @@ type ApprovalStatus = {
 function FamilyDevelopmentPlanApprovalContent() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
-	// Access control removed - all users can access this page
 	const formNumber = searchParams.get("formNumber") || "";
+
+	// Check access - only users with FdpApproval = 1/TRUE can access this page
+	const { hasAccess, loading: accessLoading, sectionName } = useSectionAccess("FdpApproval");
 
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);

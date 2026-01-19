@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Search, Download, Trash2, FileText, Printer, Edit, Grid, List } from "lucide-react";
+import PermissionStatusLabel from "@/components/PermissionStatusLabel";
+import PageGuard from "@/components/PageGuard";
 
 type LoanData = {
 	Intervention_ID?: number;
@@ -373,10 +375,9 @@ export default function LoanProcessPage() {
 		);
 	}
 
-	// Access control removed - all users can access this page
-
 	return (
-		<div className="space-y-6 relative">
+		<PageGuard requiredAction="view">
+			<div className="space-y-6 relative">
 			{/* Header */}
 			<div className="flex items-center justify-between">
 				<div>
@@ -877,7 +878,8 @@ export default function LoanProcessPage() {
 				</div>
 			)}
 
-		</div>
+			</div>
+		</PageGuard>
 	);
 }
 

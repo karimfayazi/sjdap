@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Download, Search, RefreshCw, Plus, Edit2, Trash2 } from "lucide-react";
+import PageGuard from "@/components/PageGuard";
 
 type BankInformation = {
 	FAMILY_ID: string | null;
@@ -20,7 +21,6 @@ type BankInformation = {
 
 export default function ViewBankInformationPage() {
 	const router = useRouter();
-	// Access control removed - all users can access this page
 	const [banks, setBanks] = useState<BankInformation[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -197,11 +197,10 @@ export default function ViewBankInformationPage() {
 		);
 	});
 
-	// Access control removed - all users can access this page
-
 	if (loading) {
 		return (
-			<div className="space-y-6">
+			<PageGuard requiredAction="view">
+				<div className="space-y-6">
 				<div className="flex justify-between items-center">
 					<div>
 						<div className="flex items-center gap-3 mb-2">
@@ -215,12 +214,14 @@ export default function ViewBankInformationPage() {
 					<span className="ml-3 text-gray-600">Loading bank information...</span>
 				</div>
 			</div>
+			</PageGuard>
 		);
 	}
 
 	if (error) {
 		return (
-			<div className="space-y-6">
+			<PageGuard requiredAction="view">
+				<div className="space-y-6">
 				<div className="flex justify-between items-center">
 					<div>
 						<div className="flex items-center gap-3 mb-2">
@@ -239,11 +240,13 @@ export default function ViewBankInformationPage() {
 					</button>
 				</div>
 			</div>
+			</PageGuard>
 		);
 	}
 
 	return (
-		<div className="space-y-6">
+		<PageGuard requiredAction="view">
+			<div className="space-y-6">
 			{/* Header */}
 			<div className="flex justify-between items-center">
 				<div>
@@ -469,6 +472,7 @@ export default function ViewBankInformationPage() {
 					</div>
 				</div>
 			)}
-		</div>
+			</div>
+		</PageGuard>
 	);
 }

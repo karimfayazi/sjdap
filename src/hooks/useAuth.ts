@@ -89,7 +89,9 @@ export function useAuth() {
 		try {
 			// Add cache-busting parameter to force fresh data from server
 			const cacheBuster = `?t=${Date.now()}`;
-			const res = await fetch(`/api/user-profile${cacheBuster}`);
+			const res = await fetch(`/api/user-profile${cacheBuster}`, {
+				credentials: 'include', // Include cookies in the request
+			});
 			const data = await res.json();
 
 			if (data.success) {
@@ -119,7 +121,9 @@ export function useAuth() {
 			const cacheBuster = `?t=${Date.now()}`;
 			const [userInfo, profile] = await Promise.all([
 				fetchUserInfo(),
-				fetch(`/api/user-profile${cacheBuster}`).then(res => res.json()).then(data => data.success ? data.user : null)
+				fetch(`/api/user-profile${cacheBuster}`, {
+					credentials: 'include', // Include cookies in the request
+				}).then(res => res.json()).then(data => data.success ? data.user : null)
 			]);
 			
 			// If API calls fail, try to get data from localStorage
@@ -139,15 +143,27 @@ export function useAuth() {
 				setUser(userInfo);
 			}
 			
-			// Debug: Log the profile to verify BaselineQOL is present
+			// Debug: Log the profile to verify all fields are present
 			if (profile && typeof window !== "undefined") {
 				console.log('[useAuth] User profile loaded:', {
 					email: profile.email,
 					username: profile.username,
+					access_level: profile.access_level, // This contains UserType from database
+					access_levelType: typeof profile.access_level,
 					BaselineQOL: profile.BaselineQOL,
 					BaselineQOLType: typeof profile.BaselineQOL,
+					supper_user: profile.supper_user,
+					full_name: profile.full_name,
 					allKeys: Object.keys(profile)
 				});
+				
+				// Warn if access_level (UserType) is missing
+				if (!profile.access_level) {
+					console.warn('[useAuth] WARNING: access_level (UserType) is missing from profile!', {
+						profile,
+						allKeys: Object.keys(profile)
+					});
+				}
 			}
 			
 			setUserProfile(profile);

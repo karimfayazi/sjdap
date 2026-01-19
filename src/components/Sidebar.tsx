@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useCanAccessRoute } from "@/hooks/useCanAccessRoute";
 import {
     LayoutDashboard,
     FileText,
@@ -25,7 +26,6 @@ import {
     Folder,
     Clock,
     Trash2,
-    UserCircle,
 } from "lucide-react";
 
 type SidebarProps = {
@@ -115,7 +115,6 @@ const getNavigationGroups = (userSection?: string | null, isLoading?: boolean): 
 							{ label: "Bank Account Approval", href: "/dashboard/approval-section/bank-account-approval" },
 						]
 					},
-					{ label: "User Information", href: "/dashboard/user-information", icon: UserCircle },
 					{ label: "Logout", href: "/logout", icon: LogOut },
 				],
 			},
@@ -175,7 +174,6 @@ const getNavigationGroups = (userSection?: string | null, isLoading?: boolean): 
 						{ label: "Delete All", href: "/dashboard/others/delete-all" },
 					]
 				},
-				{ label: "User Information", href: "/dashboard/user-information", icon: UserCircle },
 				{ label: "Logout", href: "/logout", icon: LogOut },
 			],
 		},
@@ -187,6 +185,7 @@ export default function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
 	const { userProfile, loading } = useAuth();
     const [expandedMenus, setExpandedMenus] = useState<{ [key: string]: boolean }>({});
 	const [effectiveSection, setEffectiveSection] = useState<string | null | undefined>(userProfile?.section);
+	const canAccessRoute = useCanAccessRoute;
 
 	// Derive section from profile or from localStorage fallback
 	useEffect(() => {
@@ -210,7 +209,58 @@ export default function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
 		}
 	}, [userProfile?.section]);
 
-	const GROUPS = getNavigationGroups(effectiveSection, loading);
+	// Filter navigation groups based on permissions
+	const filterNavGroups = (groups: NavGroup[]): NavGroup[] => {
+		if (loading || !userProfile) {
+			return groups;
+		}
+
+		return groups.map(group => ({
+			...group,
+			items: group.items
+				.map(item => {
+					// Check if main route has access
+					if (item.href && !canAccessRoute(item.href)) {
+						return null;
+					}
+
+					// Filter subItems based on permissions
+					if (item.subItems) {
+						const filteredSubItems = item.subItems.filter(subItem => 
+							canAccessRoute(subItem.href)
+						);
+						// Only show parent if it has at least one accessible subItem
+						if (filteredSubItems.length === 0) {
+							return null;
+						}
+						return { ...item, subItems: filteredSubItems };
+					}
+
+					// Filter subMenus
+					if (item.subMenus) {
+						const filteredSubMenus = item.subMenus
+							.map(subMenu => ({
+								...subMenu,
+								items: subMenu.items.filter(subItem => 
+									canAccessRoute(subItem.href)
+								)
+							}))
+							.filter(subMenu => subMenu.items.length > 0);
+						
+						if (filteredSubMenus.length === 0) {
+							return null;
+						}
+						return { ...item, subMenus: filteredSubMenus };
+					}
+
+					return item;
+				})
+				.filter((item): item is NavItem => item !== null)
+		})).filter(group => group.items.length > 0);
+	};
+
+	const baseGroups = getNavigationGroups(effectiveSection, loading);
+	const GROUPS = filterNavGroups(baseGroups);
     const [expandedSubMenus, setExpandedSubMenus] = useState<{ [key: string]: boolean }>({});
     
     const toggleMenu = (label: string) => {

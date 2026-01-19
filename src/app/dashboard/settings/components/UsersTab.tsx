@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Filter, Check, X, Loader2, User, Shield } from "lucide-react";
+import { Search, Filter, Check, X, Loader2, User, Shield, Key, Save } from "lucide-react";
 
 type User = {
 	UserId: number;
@@ -21,6 +21,25 @@ type Role = {
 	IsActive: boolean;
 };
 
+type Permission = {
+	PermissionId: number;
+	PermKey: string;
+	ActionKey: string;
+	PageId: number;
+	IsAllowed: boolean;
+};
+
+type Page = {
+	PageId: number;
+	PageKey: string;
+	PageName: string;
+	RoutePath: string;
+	SectionKey: string | null;
+	permissions: Permission[];
+};
+
+const ACTION_KEYS = ["View", "Create", "Update", "Delete"];
+
 export default function UsersTab() {
 	const [users, setUsers] = useState<User[]>([]);
 	const [loading, setLoading] = useState(true);
@@ -34,6 +53,12 @@ export default function UsersTab() {
 	const [selectedRoleIds, setSelectedRoleIds] = useState<number[]>([]);
 	const [savingRoles, setSavingRoles] = useState(false);
 	const [loadingUserDetails, setLoadingUserDetails] = useState(false);
+	
+	// Permissions state
+	const [pages, setPages] = useState<Page[]>([]);
+	const [permissionChanges, setPermissionChanges] = useState<Map<number, boolean>>(new Map());
+	const [savingPermissions, setSavingPermissions] = useState(false);
+	const [loadingPermissions, setLoadingPermissions] = useState(false);
 
 	// Fetch users
 	useEffect(() => {
@@ -140,7 +165,14 @@ export default function UsersTab() {
 			}
 
 			// Ensure selectedUser always has a valid numeric UserId
-			setSelectedUser({ ...user, UserId: userId });
+			const userWithValidId = { ...user, UserId: userId };
+			console.log("[UsersTab] Setting selectedUser with validated UserId:", {
+				userId,
+				userWithValidId,
+				userWithValidIdUserId: userWithValidId.UserId,
+				originalUser: user
+			});
+			setSelectedUser(userWithValidId);
 			setLoadingUserDetails(true);
 
 			console.log("[UsersTab] Fetching user details for userId:", userId);
@@ -179,13 +211,30 @@ export default function UsersTab() {
 					.filter((id: any) => id !== null && id !== undefined && !isNaN(Number(id)));
 				setSelectedRoleIds(validRoleIds);
 				
-				// Update selectedUser with API response data, but preserve UserId
-				if (data.user) {
-					setSelectedUser({ ...data.user, UserId: userId });
-				} else {
-					// Ensure selectedUser still has UserId even if API doesn't return user object
-					setSelectedUser((prev) => prev ? { ...prev, UserId: userId } : { ...user, UserId: userId });
-				}
+			// Update selectedUser with API response data, but preserve UserId
+			// CRITICAL: Always ensure UserId is preserved in selectedUser state
+			if (data.user) {
+				const updatedUser = { ...data.user, UserId: userId };
+				console.log("[UsersTab] Updating selectedUser with API response:", {
+					userId,
+					apiUserHasUserId: 'UserId' in data.user,
+					apiUserUserId: data.user.UserId,
+					updatedUserUserId: updatedUser.UserId,
+					updatedUserKeys: Object.keys(updatedUser)
+				});
+				setSelectedUser(updatedUser);
+			} else {
+				// Ensure selectedUser still has UserId even if API doesn't return user object
+				console.log("[UsersTab] API didn't return user object, preserving UserId:", { userId, previousUser: user });
+				setSelectedUser((prev) => {
+					const preserved = prev ? { ...prev, UserId: userId } : { ...user, UserId: userId };
+					console.log("[UsersTab] Preserved selectedUser:", { preserved, preservedUserId: preserved.UserId });
+					return preserved;
+				});
+			}
+			
+			// Fetch user permissions
+			await fetchUserPermissions(userId);
 			} else {
 				const errorMsg = data.message || "Failed to fetch user details";
 				console.error("[UsersTab] Error:", errorMsg, data);
@@ -205,6 +254,132 @@ export default function UsersTab() {
 		);
 	};
 
+	const fetchUserPermissions = async (userId: number) => {
+		try {
+			setLoadingPermissions(true);
+			
+			// Fetch all pages with permissions structure (use a dummy roleId to get structure)
+			// We'll get all permissions and then overlay user's specific permissions
+			const pagesResponse = await fetch("/api/settings/role-permissions?roleId=1");
+			const pagesData = await pagesResponse.json();
+			
+			if (!pagesData.success) {
+				console.error("[UsersTab] Failed to fetch pages structure");
+				setPages([]);
+				return;
+			}
+			
+			// Fetch user's current permissions
+			const userPermsResponse = await fetch(`/api/settings/user-permissions?userId=${userId}`);
+			const userPermsData = await userPermsResponse.json();
+			
+			// Create a map of user's permissions
+			const userPermsMap = new Map<number, boolean>();
+			if (userPermsData.success && userPermsData.permissions) {
+				for (const up of userPermsData.permissions) {
+					const isAllowed = up.IsAllowed === true || up.IsAllowed === 1 || up.IsAllowed === 'Yes';
+					userPermsMap.set(up.PermissionId, isAllowed);
+				}
+			}
+			
+			// Map pages with user permissions (default to false if not set)
+			const pagesWithUserPerms = pagesData.pages.map((page: any) => ({
+				...page,
+				permissions: page.permissions.map((perm: any) => ({
+					...perm,
+					IsAllowed: userPermsMap.get(perm.PermissionId) || false
+				}))
+			}));
+			
+			setPages(pagesWithUserPerms);
+			setPermissionChanges(new Map());
+		} catch (err: any) {
+			console.error("[UsersTab] Error fetching user permissions:", err);
+			setPages([]);
+		} finally {
+			setLoadingPermissions(false);
+		}
+	};
+
+	const handlePermissionToggle = (permissionId: number, currentValue: boolean) => {
+		const newChanges = new Map(permissionChanges);
+		const newValue = !currentValue;
+		newChanges.set(permissionId, newValue);
+		setPermissionChanges(newChanges);
+	};
+
+	const getPermissionValue = (permission: Permission) => {
+		if (permissionChanges.has(permission.PermissionId)) {
+			return permissionChanges.get(permission.PermissionId)!;
+		}
+		return permission.IsAllowed;
+	};
+
+	const handleSavePermissions = async () => {
+		if (!selectedUser) {
+			setError("No user selected. Please select a user first.");
+			return;
+		}
+
+		if (permissionChanges.size === 0) {
+			alert("No permission changes to save");
+			return;
+		}
+
+		try {
+			setSavingPermissions(true);
+			setError(null);
+			
+			const rawId = selectedUser?.UserId ?? (selectedUser as any)?.userId ?? (selectedUser as any)?.id;
+			const userId = Number(rawId);
+
+			if (!Number.isFinite(userId) || userId <= 0) {
+				const msg = `Invalid User ID format. Expected numeric UserId, got: ${rawId}`;
+				setError(msg);
+				setSavingPermissions(false);
+				return;
+			}
+			
+			const updates = Array.from(permissionChanges.entries()).map(([permissionId, isAllowed]) => ({
+				permissionId,
+				isAllowed,
+			}));
+			
+			console.log("[UsersTab] Saving permissions:", {
+				userId,
+				updatesCount: updates.length,
+				updates
+			});
+			
+			const response = await fetch("/api/settings/user-permissions", {
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					userId: userId,
+					updates: updates
+				}),
+			});
+
+			const data = await response.json();
+
+			if (data.success) {
+				await fetchUserPermissions(userId);
+				alert("User permissions updated successfully!");
+			} else {
+				const errorMsg = data.message || "Failed to update permissions";
+				setError(errorMsg);
+				alert(errorMsg);
+			}
+		} catch (err: any) {
+			const errorMsg = err.message || "Error updating permissions";
+			console.error("[UsersTab] Save permissions exception:", err);
+			setError(errorMsg);
+			alert(errorMsg);
+		} finally {
+			setSavingPermissions(false);
+		}
+	};
+
 	const handleSaveRoles = async () => {
 		if (!selectedUser) {
 			setError("No user selected. Please select a user first.");
@@ -221,15 +396,31 @@ export default function UsersTab() {
 				(selectedUser as any)?.userId ??
 				(selectedUser as any)?.id;
 
+			// Enhanced logging to track the issue
+			console.log("[UsersTab] handleSaveRoles - Full state check:", {
+				selectedUser,
+				hasSelectedUser: !!selectedUser,
+				selectedUserKeys: selectedUser ? Object.keys(selectedUser) : [],
+				rawId,
+				rawIdType: typeof rawId,
+				selectedUserUserId: selectedUser?.UserId,
+				selectedUserUserIdType: typeof selectedUser?.UserId,
+			});
+
 			const userId = Number(rawId);
 
 			// Debug log before save
-			console.log("[UsersTab] saving for user", { selectedUser, rawId, userId });
+			console.log("[UsersTab] saving for user", { selectedUser, rawId, userId, userIdIsValid: Number.isFinite(userId) && userId > 0 });
 
 			if (!Number.isFinite(userId) || userId <= 0) {
 				const msg = `Invalid User ID format. Expected numeric UserId, got: ${rawId}`;
-				console.error("[UsersTab] Save Error:", msg, { selectedUser });
+				console.error("[UsersTab] Save Error:", msg, { 
+					selectedUser, 
+					selectedUserStringified: JSON.stringify(selectedUser),
+					allSelectedUserProps: selectedUser ? Object.entries(selectedUser).map(([k, v]) => `${k}:${v}(${typeof v})`) : []
+				});
 				setError(msg);
+				setSavingRoles(false);
 				return;
 			}
 			
@@ -242,10 +433,13 @@ export default function UsersTab() {
 				})
 				.filter((id): id is number => id !== null);
 			
-			console.log("[UsersTab] Saving roles:", {
+			console.log("[UsersTab] Saving roles - API call:", {
 				userId,
+				userIdType: typeof userId,
+				url: `/api/settings/users/${userId}/roles`,
 				selectedRoleIds,
-				validRoleIds
+				validRoleIds,
+				payload: { roleIds: validRoleIds }
 			});
 			
 			const response = await fetch(`/api/settings/users/${userId}/roles`, {
@@ -504,7 +698,7 @@ export default function UsersTab() {
 										</div>
 										<button
 											onClick={handleSaveRoles}
-											disabled={savingRoles}
+											disabled={savingRoles || !selectedUser || !selectedUser.UserId || !Number.isFinite(Number(selectedUser.UserId)) || Number(selectedUser.UserId) <= 0}
 											className="mt-4 w-full px-4 py-2 bg-[#0b4d2b] text-white rounded-lg hover:bg-[#0a3d22] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
 										>
 											{savingRoles ? (
@@ -519,6 +713,86 @@ export default function UsersTab() {
 												</>
 											)}
 										</button>
+									</div>
+
+									{/* User Permissions */}
+									<div>
+										<div className="flex items-center justify-between mb-3">
+											<h4 className="text-sm font-medium text-gray-700 flex items-center gap-2">
+												<Key className="h-4 w-4" />
+												User Permissions
+											</h4>
+											{permissionChanges.size > 0 && (
+												<button
+													onClick={handleSavePermissions}
+													disabled={savingPermissions}
+													className="inline-flex items-center gap-1 px-3 py-1 text-xs bg-[#0b4d2b] text-white rounded hover:bg-[#0a3d22] transition-colors disabled:opacity-50"
+												>
+													{savingPermissions ? (
+														<Loader2 className="h-3 w-3 animate-spin" />
+													) : (
+														<Save className="h-3 w-3" />
+													)}
+													Save ({permissionChanges.size})
+												</button>
+											)}
+										</div>
+										{loadingPermissions ? (
+											<div className="flex items-center justify-center py-4">
+												<Loader2 className="h-4 w-4 animate-spin text-[#0b4d2b]" />
+												<span className="ml-2 text-xs text-gray-600">Loading permissions...</span>
+											</div>
+										) : pages.length === 0 ? (
+											<p className="text-xs text-gray-500">No permissions available</p>
+										) : (
+											<div className="space-y-3 max-h-96 overflow-y-auto">
+												{Object.entries(
+													pages.reduce((acc, page) => {
+														const section = page.SectionKey || "Other";
+														if (!acc[section]) acc[section] = [];
+														acc[section].push(page);
+														return acc;
+													}, {} as Record<string, Page[]>)
+												).map(([section, sectionPages]) => (
+													<div key={section} className="border border-gray-200 rounded p-2">
+														<div className="text-xs font-semibold text-gray-700 mb-2 uppercase">
+															{section}
+														</div>
+														{sectionPages.map((page) => (
+															<div key={page.PageId} className="mb-2 last:mb-0">
+																<div className="text-xs font-medium text-gray-600 mb-1">
+																	{page.PageName}
+																</div>
+																<div className="flex flex-wrap gap-2 ml-2">
+																	{page.permissions.map((permission) => {
+																		const isAllowed = getPermissionValue(permission);
+																		return (
+																			<label
+																				key={permission.PermissionId}
+																				className="flex items-center gap-1 text-xs cursor-pointer"
+																			>
+																				<input
+																					type="checkbox"
+																					checked={isAllowed}
+																					onChange={() =>
+																						handlePermissionToggle(
+																							permission.PermissionId,
+																							isAllowed
+																						)
+																					}
+																					className="w-3 h-3 text-[#0b4d2b] rounded focus:ring-[#0b4d2b]"
+																				/>
+																				<span className="text-gray-600">{permission.ActionKey}</span>
+																			</label>
+																		);
+																	})}
+																</div>
+															</div>
+														))}
+													</div>
+												))}
+											</div>
+										)}
 									</div>
 								</div>
 							)}

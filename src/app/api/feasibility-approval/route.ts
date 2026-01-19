@@ -1,44 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPeDb, getDb } from "@/lib/db";
 import sql from "mssql";
+import { requireRoutePermission } from "@/lib/api-permission-helper";
 
 export const maxDuration = 120;
 
 export async function GET(request: NextRequest) {
 	try {
-		// Auth
-		const authCookie = request.cookies.get("auth");
-		if (!authCookie || !authCookie.value) {
-			return NextResponse.json(
-				{ success: false, message: "Unauthorized", records: [] },
-				{ status: 401 }
-			);
+		// Check permission for feasibility-approval route
+		const permissionCheck = await requireRoutePermission(
+			request,
+			"/dashboard/feasibility-approval",
+			"view"
+		);
+
+		if (!permissionCheck.hasAccess) {
+			return permissionCheck.error;
 		}
 
-		const userId = authCookie.value.split(":")[1];
-		if (!userId) {
-			return NextResponse.json(
-				{ success: false, message: "Invalid session", records: [] },
-				{ status: 401 }
-			);
-		}
-
-		// Check if user is Super Admin
-		const userPool = await getDb();
-		const userRequest = userPool.request();
-		(userRequest as any).timeout = 120000;
-		userRequest.input("user_id", userId);
-		userRequest.input("email_address", userId);
-		
-		const userResult = await userRequest.query(`
-			SELECT TOP(1) [UserType] 
-			FROM [SJDA_Users].[dbo].[PE_User] 
-			WHERE [UserId] = @user_id OR [email_address] = @email_address
-		`);
-		
-		const user = userResult.recordset?.[0];
-		const userType = user?.UserType && typeof user.UserType === 'string' ? user.UserType.trim() : '';
-		const isSuperAdmin = userType === 'Super Admin';
+		const userId = permissionCheck.userId;
 
 		// Fetch feasibility data with joins
 		const pool = await getPeDb();
@@ -142,22 +122,18 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
 	try {
-		const authCookie = request.cookies.get("auth");
+		// Check permission for feasibility-approval route (edit action for approvals)
+		const permissionCheck = await requireRoutePermission(
+			request,
+			"/dashboard/feasibility-approval",
+			"edit"
+		);
 
-		if (!authCookie || !authCookie.value) {
-			return NextResponse.json(
-				{ success: false, message: "Unauthorized" },
-				{ status: 401 }
-			);
+		if (!permissionCheck.hasAccess) {
+			return permissionCheck.error;
 		}
 
-		const userId = authCookie.value.split(":")[1];
-		if (!userId) {
-			return NextResponse.json(
-				{ success: false, message: "Invalid session" },
-				{ status: 401 }
-			);
-		}
+		const userId = permissionCheck.userId;
 
 		const body = await request.json().catch(() => ({}));
 		const { fdpId, approvalStatus, approvalRemarks } = body || {};

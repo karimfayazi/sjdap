@@ -1,27 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getTrackingSystemDb, getBaselineDb, getDb, getPlanInterventionDb } from "@/lib/db";
+import { requireRoutePermission } from "@/lib/api-permission-helper";
 
 export const maxDuration = 120;
 
 // GET - Fetch all loan authorization records
 export async function GET(request: NextRequest) {
 	try {
-		const authCookie = request.cookies.get("auth");
-		
-		if (!authCookie || !authCookie.value) {
-			return NextResponse.json(
-				{ success: false, message: "Unauthorized" },
-				{ status: 401 }
-			);
+		// Check permission for finance/loan-process route
+		const permissionCheck = await requireRoutePermission(
+			request,
+			"/dashboard/finance/loan-process",
+			"view"
+		);
+
+		if (!permissionCheck.hasAccess) {
+			return permissionCheck.error;
 		}
 
-		const userId = authCookie.value.split(":")[1];
-		if (!userId) {
-			return NextResponse.json(
-				{ success: false, message: "Invalid session" },
-				{ status: 401 }
-			);
-		}
+		const userId = permissionCheck.userId;
 
 		// Check if requesting dropdown options
 		const searchParams = request.nextUrl.searchParams;

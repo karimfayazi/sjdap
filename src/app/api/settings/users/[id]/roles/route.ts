@@ -8,7 +8,7 @@ export const maxDuration = 120;
 // PUT /api/settings/users/[id]/roles
 export async function PUT(
 	request: NextRequest,
-	{ params }: { params: { id: string } }
+	{ params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
 	try {
 		// Auth check
@@ -36,9 +36,26 @@ export async function PUT(
 			);
 		}
 
-		const targetUserId = decodeURIComponent(params.id);
+		// Handle params - in Next.js 15+, params might be a Promise
+		const resolvedParams = params instanceof Promise ? await params : params;
+		const targetUserId = decodeURIComponent(resolvedParams.id);
+		
+		console.log("[settings/users/[id]/roles] Received request:", {
+			rawParams: resolvedParams,
+			targetUserId,
+			targetUserIdType: typeof targetUserId,
+			targetUserIdLength: targetUserId?.length,
+			url: request.url
+		});
+		
 		const body = await request.json();
 		const { roleIds } = body;
+		
+		console.log("[settings/users/[id]/roles] Request body:", {
+			roleIds,
+			roleIdsType: Array.isArray(roleIds) ? 'array' : typeof roleIds,
+			roleIdsLength: Array.isArray(roleIds) ? roleIds.length : 'N/A'
+		});
 
 		if (!Array.isArray(roleIds)) {
 			return NextResponse.json(

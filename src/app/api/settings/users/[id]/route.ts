@@ -195,10 +195,24 @@ export async function GET(
 		// Remove Password from response for security
 		const { Password, ...userWithoutPassword } = user;
 
+		// CRITICAL: Ensure UserId is always present in the response
+		// Even if it was removed by destructuring, explicitly add it back
+		const userResponse = {
+			...userWithoutPassword,
+			UserId: userRoleId // Use the validated numeric UserId
+		};
+
+		console.log("[settings/users/[id]] Returning user response:", {
+			userId: userResponse.UserId,
+			userIdType: typeof userResponse.UserId,
+			hasUserId: 'UserId' in userResponse,
+			userKeys: Object.keys(userResponse)
+		});
+
 		return NextResponse.json({
 			success: true,
 			ok: true,
-			user: userWithoutPassword,
+			user: userResponse,
 			assignedRoles: rolesResult.recordset,
 			availableRoles: allRolesResult.recordset,
 			userPermissions

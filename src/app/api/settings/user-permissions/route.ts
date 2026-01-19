@@ -33,11 +33,20 @@ export async function GET(request: NextRequest) {
 		}
 
 		const { searchParams } = new URL(request.url);
-		const targetUserId = searchParams.get("userId");
+		const targetUserIdParam = searchParams.get("userId");
 
-		if (!targetUserId) {
+		if (!targetUserIdParam) {
 			return NextResponse.json(
 				{ success: false, message: "userId is required" },
+				{ status: 400 }
+			);
+		}
+
+		// Validate and convert userId to integer
+		const targetUserId = parseInt(targetUserIdParam, 10);
+		if (isNaN(targetUserId) || targetUserId <= 0) {
+			return NextResponse.json(
+				{ success: false, message: "Invalid userId. Must be a positive integer." },
 				{ status: 400 }
 			);
 		}
@@ -46,7 +55,6 @@ export async function GET(request: NextRequest) {
 		const sqlRequest = pool.request();
 		(sqlRequest as any).timeout = 120000;
 		sqlRequest.input("user_id", targetUserId);
-		sqlRequest.input("email_address", targetUserId);
 
 		try {
 			const result = await sqlRequest.query(`
@@ -64,7 +72,7 @@ export async function GET(request: NextRequest) {
 				FROM [SJDA_Users].[dbo].[PE_Rights_UserPermission] up
 				INNER JOIN [SJDA_Users].[dbo].[PE_Rights_Permission] p ON up.[PermissionId] = p.[PermissionId]
 				INNER JOIN [SJDA_Users].[dbo].[PE_Rights_Page] pg ON p.[PageId] = pg.[PageId]
-				WHERE up.[UserId] = @user_id OR up.[UserId] = @email_address
+				WHERE up.[UserId] = @user_id
 				ORDER BY pg.[SectionKey], pg.[PageName], p.[ActionKey]
 			`);
 
@@ -121,11 +129,23 @@ export async function PUT(request: NextRequest) {
 		}
 
 		const body = await request.json();
-		const { userId: targetUserId, updates } = body;
+		const { userId: targetUserIdParam, updates } = body;
 
-		if (!targetUserId || !Array.isArray(updates)) {
+		if (!targetUserIdParam || !Array.isArray(updates)) {
 			return NextResponse.json(
 				{ success: false, message: "userId and updates array are required" },
+				{ status: 400 }
+			);
+		}
+
+		// Validate and convert userId to integer
+		const targetUserId = typeof targetUserIdParam === 'number' 
+			? targetUserIdParam 
+			: parseInt(String(targetUserIdParam), 10);
+		
+		if (isNaN(targetUserId) || targetUserId <= 0) {
+			return NextResponse.json(
+				{ success: false, message: "Invalid userId. Must be a positive integer." },
 				{ status: 400 }
 			);
 		}
@@ -155,28 +175,18 @@ export async function PUT(request: NextRequest) {
 				request.input("PermissionId", permissionId);
 				request.input("IsAllowed", isAllowed);
 
-				// Check if record exists
-				const checkResult = await request.query(`
-					SELECT COUNT(*) AS Count
-					FROM [SJDA_Users].[dbo].[PE_Rights_UserPermission]
-					WHERE [UserId] = @UserId AND [PermissionId] = @PermissionId
+				// Use MERGE (UPSERT) for better performance and atomicity
+				await request.query(`
+					MERGE [SJDA_Users].[dbo].[PE_Rights_UserPermission] AS target
+					USING (SELECT @UserId AS UserId, @PermissionId AS PermissionId) AS source
+					ON target.[UserId] = source.[UserId] AND target.[PermissionId] = source.[PermissionId]
+					WHEN MATCHED THEN
+						UPDATE SET 
+							[IsAllowed] = @IsAllowed
+					WHEN NOT MATCHED THEN
+						INSERT ([UserId], [PermissionId], [IsAllowed], [AssignedAt])
+						VALUES (@UserId, @PermissionId, @IsAllowed, GETDATE());
 				`);
-
-				if (checkResult.recordset[0].Count > 0) {
-					// Update existing
-					await request.query(`
-						UPDATE [SJDA_Users].[dbo].[PE_Rights_UserPermission]
-						SET [IsAllowed] = @IsAllowed
-						WHERE [UserId] = @UserId AND [PermissionId] = @PermissionId
-					`);
-				} else {
-					// Insert new
-					await request.query(`
-						INSERT INTO [SJDA_Users].[dbo].[PE_Rights_UserPermission] 
-							([UserId], [PermissionId], [IsAllowed], [AssignedAt])
-						VALUES (@UserId, @PermissionId, @IsAllowed, GETDATE())
-					`);
-				}
 			}
 
 			await transaction.commit();

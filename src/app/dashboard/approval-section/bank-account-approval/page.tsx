@@ -3,12 +3,14 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, CreditCard } from "lucide-react";
+import PageGuard from "@/components/PageGuard";
+
 export default function BankAccountApprovalPage() {
 	const router = useRouter();
-	// Access control removed - all users can access this page
 
 	return (
-		<div className="space-y-6">
+		<PageGuard requiredAction="view">
+			<div className="space-y-6">
 			{/* Header */}
 			<div className="flex justify-between items-center">
 				<div>
@@ -91,6 +93,7 @@ export default function BankAccountApprovalPage() {
 					</div>
 				</div>
 			</div>
-		</div>
+			</div>
+		</PageGuard>
 	);
 }

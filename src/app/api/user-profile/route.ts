@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { isSuperUser, normalizePermission } from "@/lib/auth-utils";
+import { getAllowedPermissionIds, getUserAllowedPermissions } from "@/lib/permission-service";
+import { isSuperAdmin } from "@/lib/rbac-utils";
 
 // Increase timeout for this route to 120 seconds
 export const maxDuration = 120;
@@ -154,16 +156,6 @@ export async function GET(request: NextRequest) {
 		// Set supper_user to 'Yes' if admin or super admin, otherwise null
 		let supperUserValue: string | boolean | number | null = isAdmin ? 'Yes' : null;
 		
-		// Permission columns have been removed - no need to check individual permissions
-
-		// Permission columns have been removed from table - grant access to all users
-		// All users now have access to all sections
-		const isSuperUserValue = true; // All users are treated as having full access
-		
-		console.log('[user-profile] Permission columns removed - granting access to all sections for all users');
-		
-		// Map all fields to userProfile
-		// Since permission columns have been removed, grant access to ALL sections for ALL users
 		// Ensure UserType is properly set - handle null, undefined, and trim whitespace
 		const userTypeValue = user.UserType 
 			? (typeof user.UserType === 'string' ? user.UserType.trim() : String(user.UserType).trim())
@@ -175,6 +167,26 @@ export async function GET(request: NextRequest) {
 			userId: user.UserId,
 			email: user.email_address
 		});
+		
+		// Get user's allowed permissions from PE_Rights_UserPermission (SINGLE SOURCE OF TRUTH)
+		const userIdForPerms = user.UserId || user.email_address;
+		const isSuperAdminUser = await isSuperAdmin(userIdForPerms);
+		const allowedPermissionIds = isSuperAdminUser ? [] : await getAllowedPermissionIds(userIdForPerms);
+		const allowedPermissions = isSuperAdminUser ? [] : await getUserAllowedPermissions(userIdForPerms);
+		
+		console.log('[user-profile] Permission check:', {
+			userId: userIdForPerms,
+			isSuperAdmin: isSuperAdminUser,
+			allowedPermissionIds: allowedPermissionIds,
+			allowedPermissionsCount: allowedPermissions.length
+		});
+		
+		// Build section access based on actual permissions
+		// Check if user has any permission for routes in each section
+		const hasRouteInSection = (routePrefix: string): boolean => {
+			if (isSuperAdminUser) return true;
+			return allowedPermissions.some(p => p.RoutePath.startsWith(routePrefix));
+		};
 		
 		// Safely get user fields with fallbacks for missing columns
 		const userProfile = {
@@ -192,28 +204,33 @@ export async function GET(request: NextRequest) {
 			access_delete: null, // PE_User doesn't have CAN_DELETE field
 			access_reports: null, // PE_User doesn't have SEE_REPORTS field
 			section: null, // PE_User doesn't have SECTION field
-			supper_user: 'Yes', // All users have full access
-			access_loans: 1, // All users have access to loans
-			bank_account: 1, // All users have access to bank accounts
-			// Grant access to ALL sections for ALL users (permission columns removed)
-			BaselineQOL: true,
-			Dashboard: true,
-			PowerBI: true,
-			Family_Development_Plan: true,
-			Family_Approval_CRC: true,
-			Family_Income: true,
-			ROP: true,
-			Setting: true,
-			Other: true,
-			SWB_Families: true,
-			ActualIntervention: true,
-			FinanceSection: true,
-			BankInformation: true,
-			BaselineApproval: true,
-			FeasibilityApproval: true,
-			FdpApproval: true,
-			InterventionApproval: true,
-			BankAccountApproval: true,
+			supper_user: isSuperAdminUser ? 'Yes' : null, // Only Super Admin has full access
+			access_loans: hasRouteInSection('/dashboard/finance') ? 1 : 0,
+			bank_account: hasRouteInSection('/dashboard/finance/bank-information') ? 1 : 0,
+			// Section access based on actual permissions from PE_Rights_UserPermission
+			BaselineQOL: hasRouteInSection('/dashboard/baseline-qol'),
+			Dashboard: hasRouteInSection('/dashboard'),
+			PowerBI: false, // Not implemented yet
+			Family_Development_Plan: hasRouteInSection('/dashboard/family-development-plan'),
+			Family_Approval_CRC: hasRouteInSection('/dashboard/family-approval-crc'),
+			Family_Income: hasRouteInSection('/dashboard/family-income'),
+			ROP: hasRouteInSection('/dashboard/rops'),
+			Setting: hasRouteInSection('/dashboard/settings'),
+			Other: hasRouteInSection('/dashboard/others'),
+			SWB_Families: hasRouteInSection('/dashboard/swb-families'),
+			ActualIntervention: hasRouteInSection('/dashboard/actual-intervention'),
+			FinanceSection: hasRouteInSection('/dashboard/finance'),
+			BankInformation: hasRouteInSection('/dashboard/finance/bank-information'),
+			BaselineApproval: hasRouteInSection('/dashboard/approval-section/baseline-approval'),
+			FeasibilityApproval: hasRouteInSection('/dashboard/feasibility-approval'),
+			FdpApproval: hasRouteInSection('/dashboard/approval-section/family-development-plan-approval'),
+			InterventionApproval: hasRouteInSection('/dashboard/approval-section/intervention-approval'),
+			BankAccountApproval: hasRouteInSection('/dashboard/approval-section/bank-account-approval'),
+			// Include permission metadata for debugging (only in dev)
+			...(process.env.NODE_ENV === 'development' ? {
+				_allowedPermissionIds: allowedPermissionIds,
+				_allowedPermissions: allowedPermissions,
+			} : {}),
 		};
 
 		// Check if client wants raw user data

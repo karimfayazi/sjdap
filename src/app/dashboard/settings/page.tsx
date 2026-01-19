@@ -40,6 +40,7 @@ function SettingsPageContent() {
 	// Check Super Admin access
 	useEffect(() => {
 		const checkSuperAdminAccess = async () => {
+			// Wait for loading to complete - CRITICAL: Don't check until auth is fully loaded
 			if (loading) {
 				setCheckingAccess(true);
 				return;
@@ -50,47 +51,185 @@ function SettingsPageContent() {
 			// Get userId from auth cookie first (most reliable)
 			const userIdFromCookie = getUserId();
 
+			// Debug logging (dev only)
+			if (process.env.NODE_ENV === 'development') {
+				console.log('[SettingsPage] Auth state check:', {
+					loading,
+					userIdFromCookie,
+					hasUserProfile: !!userProfile,
+					userProfileKeys: userProfile ? Object.keys(userProfile) : [],
+					cookies: typeof document !== 'undefined' ? document.cookie : 'N/A (SSR)',
+					allCookies: typeof document !== 'undefined' ? document.cookie.split('; ') : []
+				});
+			}
+
+			// If no userId from cookie AND no profile after loading is complete, check if cookie exists
 			if (!userIdFromCookie && !userProfile) {
+				// Double-check: maybe cookie exists but getUserId() failed to parse it
+				if (typeof window !== 'undefined') {
+					const allCookies = document.cookie.split('; ');
+					const authCookie = allCookies.find((row) => row.startsWith("auth="));
+					
+					if (process.env.NODE_ENV === 'development') {
+						console.log('[SettingsPage] No userId/profile found, checking cookies:', {
+							authCookie,
+							allCookies,
+							hasAuthCookie: !!authCookie
+						});
+					}
+
+					// If auth cookie exists but getUserId() returned null, there might be a parsing issue
+					if (authCookie) {
+						// Cookie exists but parsing failed - wait a bit and retry, or show error
+						console.warn('[SettingsPage] Auth cookie exists but getUserId() returned null. Cookie:', authCookie);
+						// Don't deny access yet - try to fetch profile directly
+						try {
+							const res = await fetch("/api/user-profile?t=" + Date.now());
+							const data = await res.json();
+							if (data.success && data.user) {
+								// Profile exists - use it
+								const profile = data.user;
+								const rawType = profile.access_level || "";
+								const normalize = (v?: string | null) => (v || "").trim().toLowerCase();
+								const adminValues = ["super admin", "supper admin"];
+								const isSuperAdmin = adminValues.includes(normalize(rawType));
+								
+								setShownType(rawType || "Error: UserType not found");
+								setAccessDenied(!isSuperAdmin);
+								setCheckingAccess(false);
+								return;
+							}
+						} catch (error) {
+							console.error('[SettingsPage] Error fetching profile as fallback:', error);
+						}
+					}
+				}
+
+				// Only show "Not Authenticated" if we're certain there's no session
 				setAccessDenied(true);
-				setShownType("Unknown");
+				setShownType("Not Authenticated");
 				setCheckingAccess(false);
 				return;
 			}
 
 			// Use exact logic as specified
-			const normalize = (v?: string) => (v || "").trim().toLowerCase();
+			const normalize = (v?: string | null) => (v || "").trim().toLowerCase();
 			const adminValues = ["super admin", "supper admin"];
 
-			const rawType =
-				userProfile?.access_level ||
-				(userProfile as any)?.AccessLevel ||
-				(userProfile as any)?.UserType ||
-				(userProfile as any)?.userType ||
-				"";
+			// Read UserType from access_level (which contains UserType from database)
+			// The user-profile API returns access_level: userTypeValue where userTypeValue = user.UserType
+			// Use 'let' instead of 'const' because rawType may be reassigned when fetching profile
+			let rawType = userProfile?.access_level || "";
+
+			// Debug logging (dev only)
+			if (process.env.NODE_ENV === 'development') {
+				console.log('[SettingsPage] Checking Super Admin access:', {
+					userIdFromCookie,
+					hasUserProfile: !!userProfile,
+					access_level: userProfile?.access_level,
+					rawType,
+					normalized: normalize(rawType),
+					email: userProfile?.email,
+					username: userProfile?.username,
+					fullProfile: userProfile
+				});
+			}
 
 			let isSuperAdmin = adminValues.includes(normalize(rawType));
-			let shownType = rawType || "Unknown";
+			let shownType = rawType || "Loading...";
 
+			// If we don't have a profile yet but have userIdFromCookie, try to fetch it
+			if (!userProfile && userIdFromCookie) {
+				if (process.env.NODE_ENV === 'development') {
+					console.log('[SettingsPage] Profile not loaded, fetching directly...');
+				}
+				try {
+					const res = await fetch("/api/user-profile?t=" + Date.now(), {
+						credentials: 'include', // Include cookies
+					});
+					const data = await res.json();
+					if (data.success && data.user) {
+						// Use the fetched profile
+						const fetchedProfile = data.user;
+						const fetchedRawType = fetchedProfile.access_level || "";
+						if (fetchedRawType) {
+							rawType = fetchedRawType;
+							isSuperAdmin = adminValues.includes(normalize(fetchedRawType));
+							shownType = fetchedRawType;
+							
+							if (process.env.NODE_ENV === 'development') {
+								console.log('[SettingsPage] Profile fetched successfully:', {
+									access_level: fetchedRawType,
+									isSuperAdmin
+								});
+							}
+						}
+					}
+				} catch (error) {
+					console.error('[SettingsPage] Error fetching profile:', error);
+				}
+			}
+
+			// If not Super Admin based on access_level, check via API as fallback
 			if (!isSuperAdmin) {
 				try {
 					const res = await fetch("/api/check-super-admin", {
 						method: "POST",
 						headers: { "Content-Type": "application/json" },
+						credentials: 'include', // Include cookies
 						body: JSON.stringify({
-							userId: (userProfile as any)?.UserId ?? (userProfile as any)?.userId ?? userProfile?.username ?? userIdFromCookie,
-							email: (userProfile as any)?.email_address ?? userProfile?.email,
+							userId: userProfile?.username ?? userIdFromCookie,
+							email: userProfile?.email,
 						}),
 					});
 					const data = await res.json();
+					
+					if (process.env.NODE_ENV === 'development') {
+						console.log('[SettingsPage] check-super-admin API response:', data);
+					}
+					
 					if (data?.isSuperAdmin) {
 						isSuperAdmin = true;
 						shownType = data.userType || "Super Admin";
 					} else if (data?.ok && data?.userType) {
 						// User found but not Super Admin - use the returned userType
 						shownType = data.userType;
+					} else if (data?.ok && !data?.userType && rawType) {
+						// API returned ok but no userType - use rawType from profile
+						shownType = rawType;
+					} else if (!data?.ok && rawType) {
+						// API failed but we have rawType - use it
+						shownType = rawType;
+					} else if (!data?.ok && !rawType) {
+						// Both failed - show error message
+						shownType = "Error loading user type";
 					}
 				} catch (error) {
 					console.error('[SettingsPage] Error checking Super Admin status:', error);
+					// If API call fails but we have rawType, use it
+					if (rawType) {
+						shownType = rawType;
+					} else {
+						shownType = "Error checking access";
+					}
+				}
+			} else {
+				// User is Super Admin based on access_level
+				shownType = rawType; // Use the actual value from database
+			}
+
+			// Never show "Unknown" - if we have a session, we should have a userType
+			if (shownType === "Unknown" || shownType === "") {
+				if (userIdFromCookie || userProfile) {
+					// We have a session but no userType - this is an error
+					console.error('[SettingsPage] User session exists but UserType is missing:', {
+						userIdFromCookie,
+						userProfile,
+						access_level: userProfile?.access_level
+					});
+					shownType = "Error: UserType not found";
+				} else {
+					shownType = "Not Authenticated";
 				}
 			}
 
