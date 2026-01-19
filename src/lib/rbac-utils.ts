@@ -89,6 +89,12 @@ export async function hasPermission(
 	routePath: string,
 	actionKey: string
 ): Promise<boolean> {
+	// RBAC DISABLED: Allow all authenticated users
+	const { isRBACDisabled } = await import("./rbac-config");
+	if (isRBACDisabled()) {
+		return true;
+	}
+
 	try {
 		// Super Admin has all permissions
 		if (await isSuperAdmin(userId)) {
@@ -100,17 +106,22 @@ export async function hasPermission(
 		request.input("user_id", userId);
 		request.input("email_address", userId);
 		request.input("route_path", routePath);
-		request.input("action_key", actionKey);
+		// Normalize action key to uppercase (DB stores ActionKey as uppercase)
+		const normalizedActionKey = actionKey.toUpperCase();
+		request.input("action_key", normalizedActionKey);
 
 		// Check user permission overrides first (most specific)
+		// Use canonical permission check: PageId -> PermissionId -> UserPermission
 		const userPermResult = await request.query(`
 			SELECT TOP(1) up.[IsAllowed]
-			FROM [SJDA_Users].[dbo].[PE_Rights_UserPermission] up
-			INNER JOIN [SJDA_Users].[dbo].[PE_Rights_Permission] p ON up.[PermissionId] = p.[PermissionId]
-			INNER JOIN [SJDA_Users].[dbo].[PE_Rights_Page] pg ON p.[PageId] = pg.[PageId]
+			FROM [SJDA_Users].[dbo].[PE_Rights_Page] pg
+			INNER JOIN [SJDA_Users].[dbo].[PE_Rights_Permission] p 
+				ON pg.[PageId] = p.[PageId] 
+				AND UPPER(LTRIM(RTRIM(p.[ActionKey]))) = @action_key
+			INNER JOIN [SJDA_Users].[dbo].[PE_Rights_UserPermission] up 
+				ON p.[PermissionId] = up.[PermissionId]
 			WHERE (up.[UserId] = @user_id OR up.[UserId] = @email_address)
 				AND pg.[RoutePath] = @route_path
-				AND p.[ActionKey] = @action_key
 				AND p.[IsActive] = 1
 				AND pg.[IsActive] = 1
 		`);
@@ -121,16 +132,21 @@ export async function hasPermission(
 		}
 
 		// Check role permissions
+		// Use canonical permission check: PageId -> PermissionId -> RolePermission
 		const rolePermResult = await request.query(`
 			SELECT TOP(1) rp.[IsAllowed]
-			FROM [SJDA_Users].[dbo].[PE_Rights_UserRole] ur
-			INNER JOIN [SJDA_Users].[dbo].[PE_Rights_RolePermission] rp ON ur.[RoleId] = rp.[RoleId]
-			INNER JOIN [SJDA_Users].[dbo].[PE_Rights_Permission] p ON rp.[PermissionId] = p.[PermissionId]
-			INNER JOIN [SJDA_Users].[dbo].[PE_Rights_Page] pg ON p.[PageId] = pg.[PageId]
-			INNER JOIN [SJDA_Users].[dbo].[PE_Rights_Role] r ON ur.[RoleId] = r.[RoleId]
+			FROM [SJDA_Users].[dbo].[PE_Rights_Page] pg
+			INNER JOIN [SJDA_Users].[dbo].[PE_Rights_Permission] p 
+				ON pg.[PageId] = p.[PageId] 
+				AND UPPER(LTRIM(RTRIM(p.[ActionKey]))) = @action_key
+			INNER JOIN [SJDA_Users].[dbo].[PE_Rights_RolePermission] rp 
+				ON p.[PermissionId] = rp.[PermissionId]
+			INNER JOIN [SJDA_Users].[dbo].[PE_Rights_UserRole] ur 
+				ON rp.[RoleId] = ur.[RoleId]
+			INNER JOIN [SJDA_Users].[dbo].[PE_Rights_Role] r 
+				ON ur.[RoleId] = r.[RoleId]
 			WHERE (ur.[UserId] = @user_id OR ur.[UserId] = @email_address)
 				AND pg.[RoutePath] = @route_path
-				AND p.[ActionKey] = @action_key
 				AND p.[IsActive] = 1
 				AND pg.[IsActive] = 1
 				AND r.[IsActive] = 1

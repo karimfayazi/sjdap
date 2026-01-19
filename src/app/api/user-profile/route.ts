@@ -3,35 +3,97 @@ import { getDb } from "@/lib/db";
 import { isSuperUser, normalizePermission } from "@/lib/auth-utils";
 import { getAllowedPermissionIds, getUserAllowedPermissions } from "@/lib/permission-service";
 import { isSuperAdmin } from "@/lib/rbac-utils";
+import { getUserIdFromNextRequest } from "@/lib/auth";
 
 // Increase timeout for this route to 120 seconds
 export const maxDuration = 120;
 
 export async function GET(request: NextRequest) {
+	// Log all request cookies for debugging
+	const allCookies = request.cookies.getAll();
+	console.log('[user-profile:API] All cookies:', allCookies.map(c => ({ name: c.name, value: c.value?.substring(0, 50) + '...' })));
+	
 	try {
+		// Log raw cookie for debugging
 		const authCookie = request.cookies.get("auth");
+		console.log('[user-profile:API] Raw auth cookie:', authCookie?.value || 'NOT FOUND');
+		console.log('[user-profile:API] Auth cookie exists:', !!authCookie);
+		console.log('[user-profile:API] Auth cookie value length:', authCookie?.value?.length || 0);
 		
-		if (!authCookie || !authCookie.value) {
+		// Use robust userId extraction that handles URL encoding
+		let userId: string | null;
+		try {
+			userId = getUserIdFromNextRequest(request);
+			console.log('[user-profile:API] Extracted userId:', userId);
+		} catch (parseError: any) {
+			console.error('[user-profile:API] Error parsing userId from cookie:', {
+				error: parseError?.message,
+				stack: parseError?.stack,
+				cookieValue: authCookie?.value
+			});
 			return NextResponse.json(
-				{ success: false, message: "Unauthorized" },
+				{ 
+					success: false, 
+					error: "Not authenticated",
+					message: "Invalid session cookie format"
+				},
+				{ status: 401 }
+			);
+		}
+		
+		if (!userId || userId.trim() === '') {
+			console.error('[user-profile:API] No userId extracted - returning 401', {
+				hasAuthCookie: !!authCookie,
+				cookieValue: authCookie?.value || null,
+				cookieValueLength: authCookie?.value?.length || 0
+			});
+			return NextResponse.json(
+				{ 
+					success: false, 
+					error: "Not authenticated",
+					message: "Unauthorized - Invalid or missing session"
+				},
 				{ status: 401 }
 			);
 		}
 
-		const userId = authCookie.value.split(":")[1];
-		if (!userId) {
+		// Get database connection - wrap in try-catch to handle connection errors
+		let pool;
+		try {
+			pool = await getDb();
+			console.log('[user-profile:API] Database connection established');
+		} catch (dbError: any) {
+			console.error('[user-profile:API] Database connection error:', {
+				error: dbError?.message,
+				stack: dbError?.stack,
+				userId: userId
+			});
 			return NextResponse.json(
-				{ success: false, message: "Invalid session" },
-				{ status: 401 }
+				{
+					success: false,
+					error: "Database connection failed",
+					message: "Unable to connect to database. Please try again later."
+				},
+				{ status: 503 }
 			);
 		}
 
-		const pool = await getDb();
 		const request_query = pool.request();
 		
 		// Handle both numeric UserId and string email_address
 		// Try to parse userId as number first, if it fails, treat as string (email)
-		const userIdNum = !isNaN(Number(userId)) && userId.trim() !== '' ? parseInt(userId, 10) : null;
+		let userIdNum: number | null = null;
+		try {
+			if (!isNaN(Number(userId)) && userId.trim() !== '') {
+				userIdNum = parseInt(userId, 10);
+				if (isNaN(userIdNum) || userIdNum <= 0) {
+					userIdNum = null;
+				}
+			}
+		} catch (parseError: any) {
+			console.warn('[user-profile:API] Error parsing userId as number, treating as string:', parseError?.message);
+			userIdNum = null;
+		}
 		
 		if (userIdNum !== null && userIdNum > 0) {
 			request_query.input("user_id", userIdNum);
@@ -41,10 +103,14 @@ export async function GET(request: NextRequest) {
 		request_query.input("email_address", userId);
 		(request_query as any).timeout = 120000;
 		
-		console.log('[user-profile] Querying user:', {
+		console.log('[user-profile:API] Querying user:', {
 			userId: userId,
 			userIdNum: userIdNum,
-			queryType: userIdNum !== null ? 'numeric' : 'string'
+			queryType: userIdNum !== null ? 'numeric' : 'string',
+			queryParams: {
+				user_id: userIdNum !== null ? userIdNum : userId,
+				email_address: userId
+			}
 		});
 		
 		// Select only columns that exist in the table (permission columns have been removed)
@@ -170,11 +236,43 @@ export async function GET(request: NextRequest) {
 		
 		// Get user's allowed permissions from PE_Rights_UserPermission (SINGLE SOURCE OF TRUTH)
 		const userIdForPerms = user.UserId || user.email_address;
-		const isSuperAdminUser = await isSuperAdmin(userIdForPerms);
-		const allowedPermissionIds = isSuperAdminUser ? [] : await getAllowedPermissionIds(userIdForPerms);
-		const allowedPermissions = isSuperAdminUser ? [] : await getUserAllowedPermissions(userIdForPerms);
 		
-		console.log('[user-profile] Permission check:', {
+		let isSuperAdminUser = false;
+		let allowedPermissionIds: any[] = [];
+		let allowedPermissions: any[] = [];
+		
+		try {
+			isSuperAdminUser = await isSuperAdmin(userIdForPerms);
+			console.log('[user-profile:API] Super admin check result:', isSuperAdminUser);
+			
+			if (!isSuperAdminUser) {
+				try {
+					allowedPermissionIds = await getAllowedPermissionIds(userIdForPerms);
+					allowedPermissions = await getUserAllowedPermissions(userIdForPerms);
+				} catch (permError: any) {
+					console.error('[user-profile:API] Error fetching permissions:', {
+						error: permError?.message,
+						stack: permError?.stack,
+						userId: userIdForPerms
+					});
+					// Continue with empty permissions - don't fail the request
+					allowedPermissionIds = [];
+					allowedPermissions = [];
+				}
+			}
+		} catch (superAdminError: any) {
+			console.error('[user-profile:API] Error checking super admin status:', {
+				error: superAdminError?.message,
+				stack: superAdminError?.stack,
+				userId: userIdForPerms
+			});
+			// Continue with default values - don't fail the request
+			isSuperAdminUser = false;
+			allowedPermissionIds = [];
+			allowedPermissions = [];
+		}
+		
+		console.log('[user-profile:API] Permission check:', {
 			userId: userIdForPerms,
 			isSuperAdmin: isSuperAdminUser,
 			allowedPermissionIds: allowedPermissionIds,
@@ -268,16 +366,16 @@ export async function GET(request: NextRequest) {
 
 		return NextResponse.json(response);
 	} catch (error) {
-		console.error("[user-profile] Error fetching user profile:", error);
-		
 		const errorMessage = error instanceof Error ? error.message : String(error);
 		const errorStack = error instanceof Error ? error.stack : undefined;
 		
 		// Log full error details for debugging
-		console.error("[user-profile] Full error details:", {
+		console.error("[user-profile:API] UNEXPECTED ERROR - Full error details:", {
 			message: errorMessage,
 			stack: errorStack,
-			error: error
+			error: error,
+			errorName: error instanceof Error ? error.name : typeof error,
+			errorType: typeof error
 		});
 		
 		const isConnectionError =

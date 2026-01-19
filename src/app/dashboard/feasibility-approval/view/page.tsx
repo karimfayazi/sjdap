@@ -172,7 +172,34 @@ function FeasibilityApprovalViewContent() {
 				}),
 			});
 
-			const data = await response.json().catch(() => ({}));
+			// Get response text for debugging
+			const responseText = await response.text();
+			let data: any = {};
+			try {
+				data = JSON.parse(responseText);
+			} catch (parseError) {
+				console.error("[feasibility-approval/view] Failed to parse PUT response JSON:", responseText);
+				data = { message: responseText || "Unknown error" };
+			}
+
+			// Log full response for debugging
+			console.log("[feasibility-approval/view] PUT API Response:", {
+				status: response.status,
+				statusText: response.statusText,
+				body: data
+			});
+
+			if (response.status === 401) {
+				throw new Error("Not Authenticated. Please log in again.");
+			}
+
+			if (response.status === 403) {
+				const requiredPermission = data?.requiredPermission || "Unknown";
+				throw new Error(
+					`Access Denied. Required Permission: ${requiredPermission}. ` +
+					`Please contact your system administrator if you believe you should have access.`
+				);
+			}
 
 			if (!response.ok || !data.success) {
 				throw new Error(data?.message || "Failed to update approval status");

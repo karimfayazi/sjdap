@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, XCircle, Clock, AlertCircle, Download, Eye, FileText } from "lucide-react";
-import PageGuard from "@/components/PageGuard";
 
 type FeasibilityApprovalData = {
 	FDP_ID: number;
@@ -141,25 +140,105 @@ export default function FeasibilityApprovalPage() {
 	const [logError, setLogError] = useState<string | null>(null);
 
 	useEffect(() => {
+		const abortController = new AbortController();
+		
 		const fetchFeasibilityApproval = async () => {
 			try {
 				setLoading(true);
 				setError(null);
 
-				const response = await fetch("/api/feasibility-approval");
-				const data = await response.json().catch(() => ({}));
+				const response = await fetch("/api/feasibility-approval", {
+					signal: abortController.signal
+				});
+				
+				// Check if response has a body before reading
+				const contentType = response.headers.get("content-type") || "";
+				const hasJsonBody = contentType.includes("application/json");
+				
+				// Read response as text first (before any parsing)
+				let rawBody = "";
+				try {
+					rawBody = await response.text();
+				} catch (readError) {
+					console.error("[feasibility-approval] Error reading response body:", readError);
+					rawBody = "";
+				}
+				
+				// Parse JSON safely
+				let parsedBody: any = null;
+				if (rawBody && rawBody.trim()) {
+					try {
+						parsedBody = JSON.parse(rawBody);
+						// Check if parsed body is empty object
+						if (parsedBody && typeof parsedBody === 'object' && Object.keys(parsedBody).length === 0) {
+							console.warn("[feasibility-approval] Parsed JSON is empty object, rawBody:", rawBody?.substring(0, 200));
+							parsedBody = { 
+								message: "Empty response object from server", 
+								emptyObject: true,
+								status: response.status,
+								statusText: response.statusText,
+								rawBody: rawBody?.substring(0, 500)
+							};
+						} else if (parsedBody && Object.keys(parsedBody).length > 0) {
+							console.log("[feasibility-approval] Successfully parsed JSON:", parsedBody);
+						}
+					} catch (parseError) {
+						console.error("[feasibility-approval] Failed to parse response JSON:", {
+							rawBody: rawBody?.substring(0, 500),
+							rawBodyLength: rawBody?.length,
+							parseError: parseError instanceof Error ? parseError.message : String(parseError)
+						});
+						parsedBody = { 
+							message: rawBody || "Unknown error", 
+							parseError: true,
+							rawBody: rawBody?.substring(0, 500)
+						};
+					}
+				} else {
+					console.warn("[feasibility-approval] Empty or whitespace-only response body");
+					parsedBody = { 
+						message: "Empty response from server", 
+						emptyBody: true,
+						status: response.status,
+						statusText: response.statusText
+					};
+				}
 
-				if (!response.ok) {
-					setError(data?.message || "Failed to load feasibility approval data");
+				// Log complete debug info for all statuses
+				const debugInfo = {
+					status: response.status,
+					statusText: response.statusText,
+					url: response.url,
+					rawBody: rawBody,
+					parsedBody: parsedBody,
+					contentType: response.headers.get("content-type")
+				};
+				console.log("[feasibility-approval] API Response:", debugInfo);
+
+				if (response.status === 401) {
+					const errorMsg = parsedBody?.message || "Not Authenticated. Please log in again.";
+					setError(errorMsg);
+					console.error("[feasibility-approval] 401 Unauthorized:", debugInfo);
 					return;
 				}
 
-				if (data.success) {
-					setRecords(data.records || []);
+				if (!response.ok) {
+					const errorMsg = parsedBody?.message || `Failed to load feasibility approval data (${response.status})`;
+					setError(errorMsg);
+					console.error("[feasibility-approval] Error response:", debugInfo);
+					return;
+				}
+
+				if (parsedBody?.success) {
+					setRecords(parsedBody.records || []);
 				} else {
-					setError(data.message || "Failed to load feasibility approval data");
+					setError(parsedBody?.message || "Failed to load feasibility approval data");
 				}
 			} catch (err) {
+				// Don't set error if request was aborted
+				if (err instanceof Error && err.name === 'AbortError') {
+					return;
+				}
 				console.error("Error fetching feasibility approval data:", err);
 				setError("Error fetching feasibility approval data");
 			} finally {
@@ -168,6 +247,11 @@ export default function FeasibilityApprovalPage() {
 		};
 
 		fetchFeasibilityApproval();
+		
+		// Cleanup: abort request on unmount
+		return () => {
+			abortController.abort();
+		};
 	}, []);
 
 	const uniquePlanCategories = Array.from(
@@ -408,10 +492,44 @@ export default function FeasibilityApprovalPage() {
 				}),
 			});
 
-			const data = await response.json().catch(() => ({}));
+			// Read response as text first (before any parsing)
+			const rawBody = await response.text();
+			
+			// Parse JSON safely
+			let parsedBody: any = null;
+			if (rawBody && rawBody.trim()) {
+				try {
+					parsedBody = JSON.parse(rawBody);
+				} catch (parseError) {
+					console.error("[feasibility-approval] Failed to parse PUT response JSON:", {
+						rawBody,
+						parseError
+					});
+					parsedBody = { message: rawBody || "Unknown error" };
+				}
+			} else {
+				console.warn("[feasibility-approval] Empty PUT response body");
+				parsedBody = { message: "Empty response from server" };
+			}
 
-			if (!response.ok || !data.success) {
-				throw new Error(data?.message || "Failed to update approval status");
+			// Log complete debug info
+			const debugInfo = {
+				status: response.status,
+				statusText: response.statusText,
+				rawBody: rawBody,
+				parsedBody: parsedBody,
+				contentType: response.headers.get("content-type")
+			};
+			console.log("[feasibility-approval] PUT API Response:", debugInfo);
+
+			if (response.status === 401) {
+				const errorMsg = parsedBody?.message || "Not Authenticated. Please log in again.";
+				throw new Error(errorMsg);
+			}
+
+			if (!response.ok || !parsedBody?.success) {
+				const errorMsg = parsedBody?.message || "Failed to update approval status";
+				throw new Error(errorMsg);
 			}
 
 			// Update list
@@ -452,8 +570,7 @@ export default function FeasibilityApprovalPage() {
 	};
 
 	return (
-		<PageGuard requiredAction="view">
-			<div className="space-y-6">
+		<div className="space-y-6">
 				<div className="flex items-center justify-between">
 					<div>
 						<div className="flex items-center gap-3 mb-2">
@@ -734,7 +851,6 @@ export default function FeasibilityApprovalPage() {
 						</div>
 					</>
 				)}
-			</div>
 
 			{/* Detail Modal */}
 			{detailRecord && (
@@ -1311,6 +1427,6 @@ export default function FeasibilityApprovalPage() {
 					</div>
 				</div>
 			)}
-		</PageGuard>
+		</div>
 	);
 }

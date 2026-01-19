@@ -3,8 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, XCircle, CreditCard, RefreshCw, Users, FileText, MapPin, Hash } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
-import { hasRouteAccess, hasFullAccess } from "@/lib/auth-utils";
+import RequirePermission from "@/components/RequirePermission";
 
 type FamilyRecord = {
 	FormNumber: string;
@@ -35,31 +34,6 @@ type MemberInterventions = {
 
 export default function ActualInterventionPage() {
 	const router = useRouter();
-	const { userProfile } = useAuth();
-	
-	// Check route access based on UserType
-	useEffect(() => {
-		if (!userProfile) return;
-		
-		const userType = userProfile.access_level; // UserType is stored in access_level
-		const hasFullAccessToAll = hasFullAccess(
-			userProfile.username,
-			userProfile.supper_user,
-			userType
-		);
-		
-		// Super Admin has access to all pages
-		if (hasFullAccessToAll) {
-			return;
-		}
-		
-		// Check route-specific access
-		const currentRoute = '/dashboard/actual-intervention';
-		if (!hasRouteAccess(userType, currentRoute)) {
-			router.push('/dashboard');
-		}
-	}, [userProfile, router]);
-	
 	const [records, setRecords] = useState<FamilyRecord[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -150,31 +124,27 @@ export default function ActualInterventionPage() {
 		return parts.length > 0 ? parts.join(" / ") : "N/A";
 	};
 
-	// Access control removed - all users can access this page
-
-	if (loading) {
-		return (
-			<div className="space-y-6">
-				<div className="flex justify-between items-center bg-white rounded-xl shadow-md border border-gray-200 p-6">
-					<div>
-						<h1 className="text-3xl font-bold bg-gradient-to-r from-[#0b4d2b] to-[#0d5d35] bg-clip-text text-transparent">
-							Actual Intervention
-						</h1>
-						<p className="text-gray-600 mt-2 font-medium">Manage family interventions and member details</p>
-					</div>
-				</div>
-				<div className="flex items-center justify-center min-h-[400px]">
-					<div className="text-center">
-						<div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#0b4d2b]"></div>
-						<p className="mt-4 text-gray-600 font-medium">Loading families...</p>
-					</div>
-				</div>
-			</div>
-		);
-	}
-
 	return (
-		<div className="space-y-6">
+		<RequirePermission permission="Actual Intervention">
+			{loading ? (
+				<div className="space-y-6">
+					<div className="flex justify-between items-center bg-white rounded-xl shadow-md border border-gray-200 p-6">
+						<div>
+							<h1 className="text-3xl font-bold bg-gradient-to-r from-[#0b4d2b] to-[#0d5d35] bg-clip-text text-transparent">
+								Actual Intervention
+							</h1>
+							<p className="text-gray-600 mt-2 font-medium">Manage family interventions and member details</p>
+						</div>
+					</div>
+					<div className="flex items-center justify-center min-h-[400px]">
+						<div className="text-center">
+							<div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#0b4d2b]"></div>
+							<p className="mt-4 text-gray-600 font-medium">Loading families...</p>
+						</div>
+					</div>
+				</div>
+			) : (
+				<div className="space-y-6">
 			{/* Header */}
 			<div className="flex justify-between items-center bg-white rounded-xl shadow-md border border-gray-200 p-6">
 				<div>
@@ -532,6 +502,8 @@ export default function ActualInterventionPage() {
 					</div>
 				</div>
 			)}
-		</div>
+			</div>
+			)}
+		</RequirePermission>
 	);
 }

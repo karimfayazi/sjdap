@@ -50,15 +50,75 @@ export function useAuth() {
 	const getUserId = (): string | null => {
 		if (typeof window === 'undefined') return null;
 		
-		const authCookie = document.cookie
-			.split("; ")
-			.find((row) => row.startsWith("auth="))
-			?.split("=")[1];
-
-		if (authCookie && authCookie.startsWith("authenticated:")) {
-			return authCookie.split(":")[1];
+		try {
+			const rawCookieString = document.cookie;
+			
+			if (process.env.NODE_ENV === 'development') {
+				console.log('[useAuth.getUserId:CLIENT] Raw cookie string:', rawCookieString);
+			}
+			
+			const authCookie = rawCookieString
+				.split("; ")
+				.find((row) => row.startsWith("auth="));
+			
+			if (!authCookie) {
+				if (process.env.NODE_ENV === 'development') {
+					console.log('[useAuth.getUserId:CLIENT] No auth cookie found');
+				}
+				return null;
+			}
+			
+			// Extract value after "auth=" (handle values with = in them)
+			const cookieValue = authCookie.split("=").slice(1).join("=");
+			
+			if (process.env.NODE_ENV === 'development') {
+				console.log('[useAuth.getUserId:CLIENT] Auth cookie found:', authCookie);
+				console.log('[useAuth.getUserId:CLIENT] Cookie value (before extraction):', cookieValue);
+			}
+			
+			// Decode URL encoding (handles %3A for colon)
+			let decoded: string;
+			try {
+				const decodedAttempt = decodeURIComponent(cookieValue);
+				decoded = decodedAttempt !== cookieValue ? decodedAttempt : cookieValue;
+			} catch (error) {
+				decoded = cookieValue;
+			}
+			
+			if (process.env.NODE_ENV === 'development') {
+				console.log('[useAuth.getUserId:CLIENT] Decoded cookie value:', decoded);
+			}
+			
+			// Remove quotes if present
+			decoded = decoded.replace(/^["']|["']$/g, '');
+			
+			// Match authenticated:userId pattern (try multiple patterns)
+			const patterns = [
+				/^authenticated:(.+)$/,  // Standard: authenticated:103
+				/^authenticated%3A(.+)$/, // URL encoded: authenticated%3A103 (if not decoded)
+				/^authenticated(.+)$/     // Fallback: authenticated103
+			];
+			
+			for (const pattern of patterns) {
+				const match = decoded.match(pattern);
+				if (match && match[1]) {
+					const userId = match[1].trim();
+					if (process.env.NODE_ENV === 'development') {
+						console.log('[useAuth.getUserId:CLIENT] Extracted userId:', userId);
+					}
+					return userId || null;
+				}
+			}
+			
+			if (process.env.NODE_ENV === 'development') {
+				console.warn('[useAuth.getUserId:CLIENT] No match found. Decoded value:', decoded);
+			}
+			
+			return null;
+		} catch (error) {
+			console.error('[useAuth.getUserId:CLIENT] Error parsing cookie:', error);
+			return null;
 		}
-		return null;
 	};
 
 	const fetchUserInfo = async (): Promise<UserInfo | null> => {

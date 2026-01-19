@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Download, Search, RefreshCw, Plus, Edit2, Trash2 } from "lucide-react";
-import PageGuard from "@/components/PageGuard";
+import RequirePermission from "@/components/RequirePermission";
 
 type BankInformation = {
 	FAMILY_ID: string | null;
@@ -197,56 +197,45 @@ export default function ViewBankInformationPage() {
 		);
 	});
 
-	if (loading) {
-		return (
-			<PageGuard requiredAction="view">
-				<div className="space-y-6">
-				<div className="flex justify-between items-center">
-					<div>
-						<div className="flex items-center gap-3 mb-2">
-							<h1 className="text-3xl font-bold text-gray-900">View Bank Details</h1>
-						</div>
-						<p className="text-gray-600 mt-2">Bank Information Management</p>
-					</div>
-				</div>
-				<div className="flex items-center justify-center py-12">
-					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
-					<span className="ml-3 text-gray-600">Loading bank information...</span>
-				</div>
-			</div>
-			</PageGuard>
-		);
-	}
-
-	if (error) {
-		return (
-			<PageGuard requiredAction="view">
-				<div className="space-y-6">
-				<div className="flex justify-between items-center">
-					<div>
-						<div className="flex items-center gap-3 mb-2">
-							<h1 className="text-3xl font-bold text-gray-900">View Bank Details</h1>
-						</div>
-						<p className="text-gray-600 mt-2">Bank Information Management</p>
-					</div>
-				</div>
-				<div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-					<p className="text-red-600 mb-4">{error}</p>
-					<button
-						onClick={fetchBanks}
-						className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
-					>
-						Try Again
-					</button>
-				</div>
-			</div>
-			</PageGuard>
-		);
-	}
-
 	return (
-		<PageGuard requiredAction="view">
-			<div className="space-y-6">
+		<RequirePermission permission="Bank Information" requiredAction="view">
+			{loading ? (
+				<div className="space-y-6">
+					<div className="flex justify-between items-center">
+						<div>
+							<div className="flex items-center gap-3 mb-2">
+								<h1 className="text-3xl font-bold text-gray-900">View Bank Details</h1>
+							</div>
+							<p className="text-gray-600 mt-2">Bank Information Management</p>
+						</div>
+					</div>
+					<div className="flex items-center justify-center py-12">
+						<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
+						<span className="ml-3 text-gray-600">Loading bank information...</span>
+					</div>
+				</div>
+			) : error ? (
+				<div className="space-y-6">
+					<div className="flex justify-between items-center">
+						<div>
+							<div className="flex items-center gap-3 mb-2">
+								<h1 className="text-3xl font-bold text-gray-900">View Bank Details</h1>
+							</div>
+							<p className="text-gray-600 mt-2">Bank Information Management</p>
+						</div>
+					</div>
+					<div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+						<p className="text-red-600 mb-4">{error}</p>
+						<button
+							onClick={fetchBanks}
+							className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+						>
+							Try Again
+						</button>
+					</div>
+				</div>
+			) : (
+				<div className="space-y-6">
 			{/* Header */}
 			<div className="flex justify-between items-center">
 				<div>
@@ -473,6 +462,7 @@ export default function ViewBankInformationPage() {
 				</div>
 			)}
 			</div>
-		</PageGuard>
+			)}
+		</RequirePermission>
 	);
 }

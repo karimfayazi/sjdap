@@ -1,17 +1,33 @@
 "use client";
 
-import { useAuth } from "./useAuth";
 import { normalizePermission } from "@/lib/auth-utils";
+import type { UserProfile } from "./useAuth";
+import { isRBACDisabled } from "@/lib/rbac-config";
+import { hasUserTypeAccess } from "@/lib/accessByUserType";
 
 /**
- * Hook to check if user can access a route based on section permissions
+ * Pure function to check if user can access a route based on section permissions
  * Uses userProfile section flags (which are now based on PE_Rights_UserPermission)
+ * 
+ * This is a pure function (no hooks) that can be called inside loops/maps/filters
  */
-export function useCanAccessRoute(route: string): boolean {
-	const { userProfile, loading } = useAuth();
+export function canAccessRoute(userProfile: UserProfile | null, route: string, loading: boolean = false): boolean {
+	// RBAC DISABLED: Allow all authenticated users
+	if (isRBACDisabled()) {
+		return true;
+	}
 
 	if (loading || !userProfile) {
 		return false;
+	}
+
+	// Check UserType-based access FIRST (before RBAC permissions)
+	const userType = userProfile.access_level; // access_level contains UserType from database
+	const hasUserTypeRouteAccess = hasUserTypeAccess(userType, route);
+	
+	if (hasUserTypeRouteAccess) {
+		// UserType allows access - grant immediately without checking RBAC
+		return true;
 	}
 
 	// Super Admin has access to all routes
@@ -20,7 +36,7 @@ export function useCanAccessRoute(route: string): boolean {
 	}
 
 	// Map routes to section permissions
-	const routeToSectionMap: Record<string, keyof typeof userProfile> = {
+	const routeToSectionMap: Record<string, keyof UserProfile> = {
 		'/dashboard': 'Dashboard',
 		'/dashboard/baseline-qol': 'BaselineQOL',
 		'/dashboard/family-development-plan': 'Family_Development_Plan',
@@ -46,7 +62,7 @@ export function useCanAccessRoute(route: string): boolean {
 	};
 
 	// Find matching section for route
-	let sectionKey: keyof typeof userProfile | undefined;
+	let sectionKey: keyof UserProfile | undefined;
 	
 	// Try exact match first
 	if (routeToSectionMap[route]) {
@@ -69,4 +85,17 @@ export function useCanAccessRoute(route: string): boolean {
 
 	const permissionValue = userProfile[sectionKey];
 	return normalizePermission(permissionValue);
+}
+
+/**
+ * Hook to check if user can access a route based on section permissions
+ * This hook calls useAuth() internally - use canAccessRoute() pure function instead when possible
+ * 
+ * @deprecated Use canAccessRoute(userProfile, route, loading) pure function instead when calling inside loops/maps
+ */
+export function useCanAccessRoute(route: string): boolean {
+	// This hook is kept for backward compatibility but should be avoided in loops
+	// eslint-disable-next-line react-hooks/rules-of-hooks
+	const { userProfile, loading } = require("./useAuth").useAuth();
+	return canAccessRoute(userProfile, route, loading);
 }

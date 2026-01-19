@@ -148,11 +148,35 @@ export function hasFullAccess(
  * @returns true if user has access, false otherwise
  */
 export function hasRouteAccess(userType: string | null | undefined, route: string): boolean {
+	// RBAC DISABLED: Allow all authenticated users
+	// Use try-catch to handle both server and client contexts
+	try {
+		const { isRBACDisabled } = require("./rbac-config");
+		if (isRBACDisabled()) {
+			return true;
+		}
+	} catch (e) {
+		// If import fails, check env var directly
+		if (process.env.NEXT_PUBLIC_DISABLE_RBAC === '1' || process.env.NEXT_PUBLIC_DISABLE_RBAC === 'true') {
+			return true;
+		}
+	}
+
 	if (!userType || typeof userType !== 'string') {
 		return false;
 	}
 
 	const normalizedUserType = userType.trim();
+	
+	// Check UserType-based access FIRST (before legacy UserType rules)
+	try {
+		const { hasUserTypeAccess } = require("./accessByUserType");
+		if (hasUserTypeAccess(userType, route)) {
+			return true;
+		}
+	} catch (e) {
+		// If import fails, continue with legacy rules
+	}
 
 	// Super Admin has access to all pages
 	if (normalizedUserType === 'Super Admin') {

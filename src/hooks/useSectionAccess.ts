@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "./useAuth";
 import { normalizePermission } from "@/lib/auth-utils";
+import { hasUserTypeSectionAccess } from "@/lib/accessByUserType";
 
 type SectionPermission = 
 	| "BaselineQOL"
@@ -38,13 +39,31 @@ export function useSectionAccess(section: SectionPermission) {
 			return;
 		}
 
+		// Check UserType-based access FIRST (before RBAC permissions)
+		const userType = userProfile.access_level; // access_level contains UserType from database
+		const hasUserTypeAccess = hasUserTypeSectionAccess(userType, section);
+		
+		if (hasUserTypeAccess) {
+			// UserType allows access - grant immediately without checking RBAC
+			if (process.env.NODE_ENV === "development" && typeof window !== "undefined") {
+				console.log(`[useSectionAccess] UserType access granted:`, {
+					section,
+					userType,
+					user: userProfile.username
+				});
+			}
+			setHasAccess(true);
+			return;
+		}
+
+		// Fall back to RBAC permission check
 		// Get permission value from userProfile (now based on PE_Rights_UserPermission)
 		const permissionValue = userProfile[section as keyof typeof userProfile];
 		const hasSectionAccess = normalizePermission(permissionValue);
 
 		// Debug logging (dev only)
 		if (process.env.NODE_ENV === "development" && typeof window !== "undefined") {
-			console.log(`[useSectionAccess] Section: ${section}, Permission Value:`, permissionValue, `Type:`, typeof permissionValue, `Has Access:`, hasSectionAccess, `User:`, userProfile.username);
+			console.log(`[useSectionAccess] Section: ${section}, Permission Value:`, permissionValue, `Type:`, typeof permissionValue, `Has Access:`, hasSectionAccess, `User:`, userProfile.username, `UserType:`, userType);
 		}
 
 		setHasAccess(hasSectionAccess);

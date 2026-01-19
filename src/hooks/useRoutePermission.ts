@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "./useAuth";
+import { isRBACDisabled } from "@/lib/rbac-config";
+import { hasUserTypeAccess } from "@/lib/accessByUserType";
 
 /**
  * Hook to check if user has permission for a specific route
@@ -15,6 +17,31 @@ export function useRoutePermission(route: string, action?: string) {
 	useEffect(() => {
 		if (authLoading || !userProfile) {
 			setLoading(true);
+			return;
+		}
+
+		// RBAC DISABLED: Grant access to all authenticated users
+		if (isRBACDisabled()) {
+			setHasAccess(true);
+			setLoading(false);
+			return;
+		}
+
+		// Check UserType-based access FIRST (before RBAC permissions)
+		const userType = userProfile.access_level; // access_level contains UserType from database
+		const hasUserTypeRouteAccess = hasUserTypeAccess(userType, route);
+		
+		if (hasUserTypeRouteAccess) {
+			// UserType allows access - grant immediately without checking RBAC
+			if (process.env.NODE_ENV === 'development') {
+				console.log('[useRoutePermission] UserType access granted:', {
+					route,
+					userType,
+					action
+				});
+			}
+			setHasAccess(true);
+			setLoading(false);
 			return;
 		}
 

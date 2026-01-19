@@ -7,6 +7,8 @@
 
 import { getDb } from "./db";
 import { isSuperAdmin } from "./rbac-utils";
+import { normalizeRoutePath } from "./route-normalizer";
+import { isRBACDisabled } from "./rbac-config";
 
 /**
  * Route to Permission Action Key mapping
@@ -201,6 +203,14 @@ export async function hasRoutePermission(
 	routePath: string,
 	actionKey?: string
 ): Promise<boolean> {
+	// RBAC DISABLED: Allow all authenticated users
+	if (isRBACDisabled()) {
+		if (process.env.NODE_ENV === 'development') {
+			console.log('[hasRoutePermission] RBAC disabled - granting access to:', routePath);
+		}
+		return true;
+	}
+
 	try {
 		// Super Admin has all permissions
 		if (await isSuperAdmin(userId)) {
@@ -210,8 +220,8 @@ export async function hasRoutePermission(
 			return true;
 		}
 
-		// Get action key for route
-		const requiredActionKey = actionKey || getActionKeyForRoute(routePath);
+		// Get action key for route and normalize to uppercase (DB stores ActionKey as uppercase)
+		const requiredActionKey = (actionKey || getActionKeyForRoute(routePath)).toUpperCase();
 
 		const pool = await getDb();
 		const request = pool.request();
@@ -228,15 +238,40 @@ export async function hasRoutePermission(
 		request.input("route_path", routePath);
 		request.input("action_key", requiredActionKey);
 
-		// Check user permission overrides first (most specific)
+		// Normalize route path for consistent matching
+		const normalizedRoutePath = normalizeRoutePath(routePath);
+		const normalizedRoutePathWithSlash = normalizedRoutePath + '/';
+		request.input("normalized_route_path", normalizedRoutePath);
+		request.input("normalized_route_path_prefix", normalizedRoutePathWithSlash);
+
+		// Debug: Log what we're checking
+		console.log('[hasRoutePermission] Checking permission:', {
+			userId,
+			routePath,
+			normalizedRoutePath,
+			requiredActionKey
+		});
+
+		// CANONICAL PERMISSION CHECK:
+		// 1. Resolve PageId by RoutePath from PE_Rights_Page
+		// 2. Resolve PermissionId by PageId + ActionKey (uppercase) AND IsActive=1
+		// 3. Check if user has that PermissionId in PE_Rights_UserPermission WHERE IsAllowed=1
 		const userPermResult = await request.query(`
-			SELECT TOP(1) up.[IsAllowed]
-			FROM [SJDA_Users].[dbo].[PE_Rights_UserPermission] up
-			INNER JOIN [SJDA_Users].[dbo].[PE_Rights_Permission] p ON up.[PermissionId] = p.[PermissionId]
-			INNER JOIN [SJDA_Users].[dbo].[PE_Rights_Page] pg ON p.[PageId] = pg.[PageId]
-			WHERE (up.[UserId] = @user_id OR up.[UserId] = @email_address)
-				AND pg.[RoutePath] = @route_path
-				AND p.[ActionKey] = @action_key
+			SELECT TOP(1) 
+				up.[IsAllowed],
+				up.[PermissionId],
+				pg.[PageId],
+				pg.[RoutePath],
+				pg.[PageName],
+				p.[ActionKey],
+				p.[PermissionId] AS RequiredPermissionId
+			FROM [SJDA_Users].[dbo].[PE_Rights_Page] pg
+			INNER JOIN [SJDA_Users].[dbo].[PE_Rights_Permission] p 
+				ON pg.[PageId] = p.[PageId] 
+				AND UPPER(LTRIM(RTRIM(p.[ActionKey]))) = @action_key
+				AND p.[IsActive] = 1
+			INNER JOIN [SJDA_Users].[dbo].[PE_Rights_UserPermission] up 
+				ON p.[PermissionId] = up.[PermissionId]
 				AND (
 					up.[IsAllowed] = 1 
 					OR up.[IsAllowed] = 'Yes' 
@@ -244,29 +279,75 @@ export async function hasRoutePermission(
 					OR up.[IsAllowed] = 'YES'
 					OR up.[IsAllowed] = true
 				)
-				AND p.[IsActive] = 1
+			WHERE (
+					-- Exact match with normalized route (trimmed and case-insensitive)
+					LTRIM(RTRIM(LOWER(pg.[RoutePath]))) = LOWER(@normalized_route_path)
+					-- Or route starts with the normalized path (for sub-routes)
+					OR LTRIM(RTRIM(LOWER(pg.[RoutePath]))) LIKE LOWER(@normalized_route_path_prefix) + '%'
+				)
 				AND pg.[IsActive] = 1
+				AND (up.[UserId] = @user_id OR up.[UserId] = @email_address)
+			ORDER BY LEN(pg.[RoutePath]) DESC -- Prefer most specific route match
 		`);
+		
+		// Log query parameters for debugging
+		console.log('[hasRoutePermission] Query parameters:', {
+			user_id: userIdNum !== null ? userIdNum : userId,
+			email_address: userId,
+			normalized_route_path: normalizedRoutePath,
+			action_key: requiredActionKey
+		});
 
 		if (userPermResult.recordset.length > 0) {
-			const hasAccess = true; // Already filtered by IsAllowed in WHERE clause
-			if (process.env.NODE_ENV === 'development') {
-				console.log('[hasRoutePermission] User:', userId, 'Route:', routePath, 'Action:', requiredActionKey, 'Result: ALLOWED (user permission)');
-			}
-			return hasAccess;
+			const matched = userPermResult.recordset[0];
+			console.log('[hasRoutePermission] ✅ User permission found:', {
+				userId,
+				routePath,
+				matchedRoutePath: matched.RoutePath,
+				matchedActionKey: matched.ActionKey,
+				permissionId: matched.PermissionId,
+				pageName: matched.PageName,
+				isAllowed: matched.IsAllowed
+			});
+			return true;
+		} else {
+			console.log('[hasRoutePermission] ⚠️ No user permission found for:', {
+				userId,
+				routePath,
+				normalizedRoutePath,
+				requiredActionKey
+			});
 		}
 
 		// Check role permissions
+		// Use canonical permission check: PageId -> PermissionId -> RolePermission
 		const rolePermResult = await request.query(`
-			SELECT TOP(1) rp.[IsAllowed]
-			FROM [SJDA_Users].[dbo].[PE_Rights_UserRole] ur
-			INNER JOIN [SJDA_Users].[dbo].[PE_Rights_RolePermission] rp ON ur.[RoleId] = rp.[RoleId]
-			INNER JOIN [SJDA_Users].[dbo].[PE_Rights_Permission] p ON rp.[PermissionId] = p.[PermissionId]
-			INNER JOIN [SJDA_Users].[dbo].[PE_Rights_Page] pg ON p.[PageId] = pg.[PageId]
-			INNER JOIN [SJDA_Users].[dbo].[PE_Rights_Role] r ON ur.[RoleId] = r.[RoleId]
+			SELECT TOP(1) 
+				rp.[IsAllowed],
+				rp.[PermissionId],
+				pg.[PageId],
+				pg.[RoutePath],
+				pg.[PageName],
+				p.[ActionKey],
+				p.[PermissionId] AS RequiredPermissionId,
+				r.[RoleName]
+			FROM [SJDA_Users].[dbo].[PE_Rights_Page] pg
+			INNER JOIN [SJDA_Users].[dbo].[PE_Rights_Permission] p 
+				ON pg.[PageId] = p.[PageId] 
+				AND UPPER(LTRIM(RTRIM(p.[ActionKey]))) = @action_key
+			INNER JOIN [SJDA_Users].[dbo].[PE_Rights_RolePermission] rp 
+				ON p.[PermissionId] = rp.[PermissionId]
+			INNER JOIN [SJDA_Users].[dbo].[PE_Rights_UserRole] ur 
+				ON rp.[RoleId] = ur.[RoleId]
+			INNER JOIN [SJDA_Users].[dbo].[PE_Rights_Role] r 
+				ON ur.[RoleId] = r.[RoleId]
 			WHERE (ur.[UserId] = @user_id OR ur.[UserId] = @email_address)
-				AND pg.[RoutePath] = @route_path
-				AND p.[ActionKey] = @action_key
+				AND (
+					-- Exact match with normalized route (trimmed and case-insensitive)
+					LTRIM(RTRIM(LOWER(pg.[RoutePath]))) = LOWER(@normalized_route_path)
+					-- Or route starts with the normalized path (for sub-routes)
+					OR LTRIM(RTRIM(LOWER(pg.[RoutePath]))) LIKE LOWER(@normalized_route_path_prefix) + '%'
+				)
 				AND (
 					rp.[IsAllowed] = 1 
 					OR rp.[IsAllowed] = 'Yes' 
@@ -277,21 +358,40 @@ export async function hasRoutePermission(
 				AND p.[IsActive] = 1
 				AND pg.[IsActive] = 1
 				AND r.[IsActive] = 1
-			ORDER BY rp.[IsAllowed] DESC
+			ORDER BY LEN(pg.[RoutePath]) DESC, rp.[IsAllowed] DESC -- Prefer most specific route match
 		`);
 
 		if (rolePermResult.recordset.length > 0) {
-			const hasAccess = true; // Already filtered by IsAllowed in WHERE clause
-			if (process.env.NODE_ENV === 'development') {
-				console.log('[hasRoutePermission] User:', userId, 'Route:', routePath, 'Action:', requiredActionKey, 'Result: ALLOWED (role permission)');
-			}
-			return hasAccess;
+			const matched = rolePermResult.recordset[0];
+			console.log('[hasRoutePermission] ✅ Role permission found:', {
+				userId,
+				routePath,
+				matchedRoutePath: matched.RoutePath,
+				matchedActionKey: matched.ActionKey,
+				permissionId: matched.PermissionId,
+				pageName: matched.PageName,
+				roleName: matched.RoleName,
+				isAllowed: matched.IsAllowed
+			});
+			return true;
+		} else {
+			console.log('[hasRoutePermission] ⚠️ No role permission found for:', {
+				userId,
+				routePath,
+				normalizedRoutePath,
+				requiredActionKey
+			});
 		}
 
 		// No permission found - deny access
-		if (process.env.NODE_ENV === 'development') {
-			console.log('[hasRoutePermission] User:', userId, 'Route:', routePath, 'Action:', requiredActionKey, 'Result: DENIED (no permission found)');
-		}
+		console.log('[hasRoutePermission] ❌ DENIED: No user or role permission found');
+		console.log('[hasRoutePermission] Final check result:', {
+			userId,
+			routePath,
+			normalizedRoutePath,
+			requiredActionKey,
+			hasAccess: false
+		});
 		return false;
 	} catch (error) {
 		console.error('[hasRoutePermission] Error checking permission:', error);
@@ -328,6 +428,29 @@ export async function getUserAllowedPermissions(userId: string | number): Promis
 		}
 		request.input("email_address", userId);
 
+		// First, check if user has ANY rows in PE_Rights_UserPermission (diagnostic)
+		const diagnosticResult = await request.query(`
+			SELECT 
+				COUNT(*) AS TotalRows,
+				COUNT(CASE WHEN up.[IsAllowed] IN (1, 'Yes', 'yes', 'YES', true) THEN 1 END) AS AllowedRows,
+				COUNT(CASE WHEN up.[IsAllowed] NOT IN (1, 'Yes', 'yes', 'YES', true) THEN 1 END) AS DeniedRows,
+				COUNT(CASE WHEN p.[IsActive] = 1 THEN 1 END) AS ActivePermissionRows,
+				COUNT(CASE WHEN pg.[IsActive] = 1 THEN 1 END) AS ActivePageRows
+			FROM [SJDA_Users].[dbo].[PE_Rights_UserPermission] up
+			LEFT JOIN [SJDA_Users].[dbo].[PE_Rights_Permission] p ON up.[PermissionId] = p.[PermissionId]
+			LEFT JOIN [SJDA_Users].[dbo].[PE_Rights_Page] pg ON p.[PageId] = pg.[PageId]
+			WHERE (up.[UserId] = @user_id OR up.[UserId] = @email_address)
+		`);
+
+		const diagnostic = diagnosticResult.recordset[0];
+		console.log('[getUserAllowedPermissions] Diagnostic for userId:', userId, {
+			totalRows: diagnostic?.TotalRows || 0,
+			allowedRows: diagnostic?.AllowedRows || 0,
+			deniedRows: diagnostic?.DeniedRows || 0,
+			activePermissionRows: diagnostic?.ActivePermissionRows || 0,
+			activePageRows: diagnostic?.ActivePageRows || 0
+		});
+
 		// Get user permissions with route and action details
 		const result = await request.query(`
 			SELECT DISTINCT
@@ -351,12 +474,39 @@ export async function getUserAllowedPermissions(userId: string | number): Promis
 			ORDER BY pg.[RoutePath], p.[ActionKey]
 		`);
 
-		return result.recordset.map((row: any) => ({
+		const permissions = result.recordset.map((row: any) => ({
 			PermissionId: row.PermissionId,
 			RoutePath: row.RoutePath,
 			ActionKey: row.ActionKey,
 			PageName: row.PageName
 		}));
+
+		if (permissions.length === 0 && diagnostic?.TotalRows > 0) {
+			console.warn('[getUserAllowedPermissions] ⚠️ User has rows but none pass filters:', {
+				userId,
+				totalRows: diagnostic.TotalRows,
+				allowedRows: diagnostic.AllowedRows,
+				deniedRows: diagnostic.DeniedRows,
+				activePermissionRows: diagnostic.ActivePermissionRows,
+				activePageRows: diagnostic.ActivePageRows,
+				reason: diagnostic.AllowedRows === 0 
+					? 'All rows have IsAllowed != Yes/1'
+					: diagnostic.ActivePermissionRows === 0
+					? 'All permissions are inactive'
+					: diagnostic.ActivePageRows === 0
+					? 'All pages are inactive'
+					: 'Unknown filter issue'
+			});
+		} else if (permissions.length === 0 && diagnostic?.TotalRows === 0) {
+			console.warn('[getUserAllowedPermissions] ⚠️ User has NO rows in PE_Rights_UserPermission:', {
+				userId,
+				user_id_param: userIdNum !== null ? userIdNum : userId,
+				email_address_param: userId,
+				note: 'User may need permissions assigned via Settings UI or SQL script'
+			});
+		}
+
+		return permissions;
 	} catch (error) {
 		console.error('[getUserAllowedPermissions] Error:', error);
 		return [];

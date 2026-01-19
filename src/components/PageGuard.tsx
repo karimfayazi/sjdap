@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useRoutePermission } from "@/hooks/useRoutePermission";
 import AccessDenied from "./AccessDenied";
+import { isRBACDisabled } from "@/lib/rbac-config";
 
 type PageGuardProps = {
 	children: React.ReactNode;
@@ -28,6 +29,11 @@ export default function PageGuard({
 	useEffect(() => {
 		setMounted(true);
 	}, []);
+
+	// RBAC DISABLED: Always allow access for authenticated users
+	if (isRBACDisabled()) {
+		return <>{children}</>;
+	}
 
 	// Wait for mount and permission check
 	if (!mounted || loading) {

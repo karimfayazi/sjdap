@@ -1,24 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPeDb, getDb } from "@/lib/db";
 import sql from "mssql";
-import { requireRoutePermission } from "@/lib/api-permission-helper";
+import { getUserIdFromNextRequest } from "@/lib/auth";
+import { isSuperAdmin } from "@/lib/rbac-utils";
 
 export const maxDuration = 120;
 
 export async function GET(request: NextRequest) {
 	try {
-		// Check permission for feasibility-approval route
-		const permissionCheck = await requireRoutePermission(
-			request,
-			"/dashboard/feasibility-approval",
-			"view"
-		);
-
-		if (!permissionCheck.hasAccess) {
-			return permissionCheck.error;
+		// Permission check removed - allow all authenticated users
+		// Get userId directly from auth cookie
+		const userId = getUserIdFromNextRequest(request);
+		
+		if (!userId) {
+			return NextResponse.json(
+				{
+					success: false,
+					message: "Not authenticated",
+				},
+				{ status: 401 }
+			);
 		}
 
-		const userId = permissionCheck.userId;
+		// Check if user is Super Admin for data filtering
+		const isSuperAdminUser = await isSuperAdmin(userId);
 
 		// Fetch feasibility data with joins
 		const pool = await getPeDb();
@@ -28,7 +33,7 @@ export async function GET(request: NextRequest) {
 
 		// Build WHERE clause for regional council filtering using subquery
 		let regionalCouncilFilter = '';
-		if (!isSuperAdmin) {
+		if (!isSuperAdminUser) {
 			// Use EXISTS subquery to filter by user's regional councils
 			// This is safer and more efficient than fetching names first
 			regionalCouncilFilter = `
@@ -122,18 +127,19 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
 	try {
-		// Check permission for feasibility-approval route (edit action for approvals)
-		const permissionCheck = await requireRoutePermission(
-			request,
-			"/dashboard/feasibility-approval",
-			"edit"
-		);
-
-		if (!permissionCheck.hasAccess) {
-			return permissionCheck.error;
+		// Permission check removed - allow all authenticated users
+		// Get userId directly from auth cookie
+		const userId = getUserIdFromNextRequest(request);
+		
+		if (!userId) {
+			return NextResponse.json(
+				{
+					success: false,
+					message: "Not authenticated",
+				},
+				{ status: 401 }
+			);
 		}
-
-		const userId = permissionCheck.userId;
 
 		const body = await request.json().catch(() => ({}));
 		const { fdpId, approvalStatus, approvalRemarks } = body || {};
