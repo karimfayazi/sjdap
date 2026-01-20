@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Search, Plus, Edit2, Trash2, RefreshCw, X } from "lucide-react";
 import PageGuard from "@/components/PageGuard";
 
@@ -29,6 +30,7 @@ type UserFormData = {
 };
 
 export default function UserDefinePage() {
+	const router = useRouter();
 	const [users, setUsers] = useState<User[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -109,35 +111,13 @@ export default function UserDefinePage() {
 	};
 
 	const handleAdd = () => {
-		setFormData({
-			email_address: "",
-			UserFullName: "",
-			Password: "",
-			UserType: "",
-			Designation: "",
-			Regional_Council: "",
-			Local_Council: "",
-			AccessScope: "",
-		});
-		setEditingUser(null);
-		setShowAddModal(true);
-		setError(null);
+		// Navigate to add page instead of opening modal
+		router.push("/dashboard/admin/user-define/add");
 	};
 
 	const handleEdit = (user: User) => {
-		setFormData({
-			email_address: user.email_address,
-			UserFullName: user.UserFullName,
-			Password: "", // Leave blank for edit
-			UserType: user.UserType,
-			Designation: user.Designation || "",
-			Regional_Council: user.Regional_Council || "",
-			Local_Council: user.Local_Council || "",
-			AccessScope: user.AccessScope || "",
-		});
-		setEditingUser(user);
-		setShowEditModal(true);
-		setError(null);
+		// Navigate to edit page instead of opening modal
+		router.push(`/dashboard/admin/user-define/edit/${user.UserId}`);
 	};
 
 	const handleDelete = (userId: number) => {

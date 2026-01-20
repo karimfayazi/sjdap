@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useRoutePermission } from "@/hooks/useRoutePermission";
 import AccessDenied from "./AccessDenied";
 import { isRBACDisabled } from "@/lib/rbac-config";
+import { isBypassedRoute } from "@/lib/rbac-bypass";
 
 type PageGuardProps = {
 	children: React.ReactNode;
@@ -29,6 +30,11 @@ export default function PageGuard({
 	useEffect(() => {
 		setMounted(true);
 	}, []);
+
+	// Check if route is bypassed (accessible to all authenticated users)
+	if (pathname && isBypassedRoute(pathname)) {
+		return <>{children}</>;
+	}
 
 	// RBAC DISABLED: Always allow access for authenticated users
 	if (isRBACDisabled()) {

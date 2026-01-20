@@ -9,6 +9,7 @@ import { getSectionNameFromRoute } from "@/lib/route-helpers";
 import AccessRestricted from "./AccessRestricted";
 import { isRBACDisabled } from "@/lib/rbac-config";
 import { hasUserTypeAccess } from "@/lib/accessByUserType";
+import { isBypassedRoute } from "@/lib/rbac-bypass";
 
 type RequirePermissionProps = {
 	children: React.ReactNode;
@@ -56,6 +57,11 @@ export default function RequirePermission({
 	useEffect(() => {
 		setMounted(true);
 	}, []);
+
+	// Check if route is bypassed (accessible to all authenticated users)
+	if (pathname && isBypassedRoute(pathname)) {
+		return <>{children}</>;
+	}
 
 	// RBAC DISABLED: Always allow access for authenticated users
 	if (isRBACDisabled()) {

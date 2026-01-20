@@ -104,6 +104,7 @@ export async function GET(request: NextRequest) {
 		const total = countResult.recordset[0]?.Total || 0;
 
 		// Query to get data with pagination - JOIN with PE_FamilyMember to count family members and calculate income
+		// Also check approval status from EconomicDevelopment
 		const query = `
 			SELECT 
 				app.[FormNumber],
@@ -123,7 +124,16 @@ export async function GET(request: NextRequest) {
 							ISNULL(fm.TotalMemberIncome, 0)
 						) / ISNULL(fm.MemberCount, 1)
 					ELSE 0
-				END as PerCapitaIncome
+				END as PerCapitaIncome,
+				-- Check approval status from EconomicDevelopment
+				MAX(CASE 
+					WHEN ed.[ApprovalStatus] IS NOT NULL 
+						AND (LOWER(LTRIM(RTRIM(ed.[ApprovalStatus]))) = 'accepted' 
+							OR LOWER(LTRIM(RTRIM(ed.[ApprovalStatus]))) = 'approved'
+							OR LOWER(LTRIM(RTRIM(ed.[ApprovalStatus]))) LIKE '%approve%')
+					THEN ed.[ApprovalStatus]
+					ELSE NULL
+				END) as ApprovalStatus
 			FROM [SJDA_Users].[dbo].[PE_Application_BasicInfo] app
 			LEFT JOIN (
 				SELECT
@@ -133,7 +143,22 @@ export async function GET(request: NextRequest) {
 				FROM [SJDA_Users].[dbo].[PE_FamilyMember]
 				GROUP BY [FormNo]
 			) fm ON app.[FormNumber] = fm.[FormNo]
+			LEFT JOIN [SJDA_Users].[dbo].[PE_FDP_EconomicDevelopment] ed 
+				ON app.[FormNumber] = ed.[FamilyID] 
+				AND ed.[IsActive] = 1
 			${whereClause}
+			GROUP BY 
+				app.[FormNumber],
+				app.[Full_Name],
+				app.[CNICNumber],
+				app.[RegionalCommunity],
+				app.[LocalCommunity],
+				app.[Area_Type],
+				fm.MemberCount,
+				fm.TotalMemberIncome,
+				app.[MonthlyIncome_Remittance],
+				app.[MonthlyIncome_Rental],
+				app.[MonthlyIncome_OtherSources]
 			ORDER BY app.[FormNumber] DESC
 			OFFSET ${offset} ROWS
 			FETCH NEXT ${limit} ROWS ONLY

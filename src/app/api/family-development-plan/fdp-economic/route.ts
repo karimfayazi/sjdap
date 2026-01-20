@@ -173,8 +173,33 @@ export async function PUT(request: NextRequest) {
 
 		const body = await request.json();
 		const pool = await getPeDb();
-		const sqlRequest = pool.request();
+		
+		// Check if FDP is already approved - reject edits if approved
+		const checkRequest = pool.request();
+		checkRequest.input("FDP_EconomicID", sql.Int, parseInt(fdpEconomicId));
+		const checkQuery = `
+			SELECT TOP 1 [FamilyID], [ApprovalStatus]
+			FROM [SJDA_Users].[dbo].[PE_FDP_EconomicDevelopment]
+			WHERE [FDP_EconomicID] = @FDP_EconomicID
+				AND [IsActive] = 1
+		`;
+		const checkResult = await checkRequest.query(checkQuery);
+		const record = checkResult.recordset?.[0];
+		
+		if (record) {
+			const approvalStatus = (record.ApprovalStatus || "").toString().trim().toLowerCase();
+			if (approvalStatus === "accepted" || approvalStatus === "approved" || approvalStatus.includes("approve")) {
+				return NextResponse.json(
+					{
+						success: false,
+						message: "Cannot edit FDP that has already been approved.",
+					},
+					{ status: 409 } // Conflict
+				);
+			}
+		}
 
+		const sqlRequest = pool.request();
 		sqlRequest.input("FDP_EconomicID", sql.Int, parseInt(fdpEconomicId));
 		sqlRequest.input("BaselineFamilyIncome", sql.Decimal(18, 2), body.BaselineFamilyIncome || 0);
 		sqlRequest.input("FamilyMembersCount", sql.Int, body.FamilyMembersCount || 0);

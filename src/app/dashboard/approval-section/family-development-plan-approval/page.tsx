@@ -2,464 +2,490 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Search, CheckCircle, XCircle, Clock } from "lucide-react";
-import { useSectionAccess } from "@/hooks/useSectionAccess";
-import SectionAccessDenied from "@/components/SectionAccessDenied";
+import { Download, Search, RefreshCw, Eye, X, FileText } from "lucide-react";
 
-type ApprovalStatus = {
-	healthSupport: any[];
-	foodSupport: any[];
-	educationSupport: any[];
-	housingSupport: any[];
-	economicSupport: any[];
+type FamilyDevelopmentPlan = {
+	FormNumber: string | null;
+	Full_Name: string | null;
+	CNICNumber: string | null;
+	RegionalCommunity: string | null;
+	LocalCommunity: string | null;
+	TotalFamilyMembers: number | null;
+	Area_Type: string | null;
+	IncomeLevel: string | null;
+	MaxSocialSupport: number | null;
 };
 
 function FamilyDevelopmentPlanApprovalContent() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
-	const formNumber = searchParams.get("formNumber") || "";
-
-	// Check access - only users with FdpApproval = 1/TRUE can access this page
-	const { hasAccess, loading: accessLoading, sectionName } = useSectionAccess("FdpApproval");
-
-	const [loading, setLoading] = useState(false);
+	
+	const [applications, setApplications] = useState<FamilyDevelopmentPlan[]>([]);
+	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
-	const [approvalData, setApprovalData] = useState<ApprovalStatus | null>(null);
-	const [searchFormNumber, setSearchFormNumber] = useState(formNumber);
+	const [currentPage, setCurrentPage] = useState(1);
+	const [totalRecords, setTotalRecords] = useState(0);
+	const [searchTerm, setSearchTerm] = useState("");
+	const [filters, setFilters] = useState({
+		formNumber: "",
+		fullName: "",
+		cnicNumber: "",
+		regionalCommunity: "",
+		localCommunity: "",
+	});
+	const itemsPerPage = 50;
+	const [debouncedFilters, setDebouncedFilters] = useState(filters);
 
-	const fetchApprovalStatus = async (formNum: string) => {
-		if (!formNum.trim()) {
-			setError("Please enter a Form Number");
-			return;
-		}
+	// Debounce filter changes to prevent focus loss
+	useEffect(() => {
+		const timer = setTimeout(() => {
+			setDebouncedFilters(filters);
+		}, 500); // 500ms delay
 
+		return () => clearTimeout(timer);
+	}, [filters]);
+
+	const fetchApplications = async () => {
 		try {
 			setLoading(true);
 			setError(null);
+			
+			const params = new URLSearchParams({
+				page: currentPage.toString(),
+				limit: itemsPerPage.toString(),
+			});
 
-			const response = await fetch(
-				`/api/family-development-plan/approval-status?formNumber=${encodeURIComponent(formNum)}`
-			);
+			// Add filter parameters (use debounced filters)
+			if (debouncedFilters.formNumber) params.append("formNumber", debouncedFilters.formNumber);
+			if (debouncedFilters.fullName) params.append("fullName", debouncedFilters.fullName);
+			if (debouncedFilters.cnicNumber) params.append("cnicNumber", debouncedFilters.cnicNumber);
+			if (debouncedFilters.regionalCommunity) params.append("regionalCommunity", debouncedFilters.regionalCommunity);
+			if (debouncedFilters.localCommunity) params.append("localCommunity", debouncedFilters.localCommunity);
+
+			const response = await fetch(`/api/family-development-plan?${params.toString()}`);
 			const data = await response.json();
 
-			if (!response.ok || !data.success) {
-				throw new Error(data?.message || "Failed to fetch approval status");
+			if (data.success) {
+				setApplications(data.data || []);
+				setTotalRecords(data.total || 0);
+			} else {
+				setError(data.message || "Failed to fetch family development plan data");
 			}
-
-			setApprovalData(data.data);
-		} catch (err) {
-			console.error("Error fetching approval status:", err);
-			setError(err instanceof Error ? err.message : "Error fetching approval status");
-			setApprovalData(null);
+		} catch (err: any) {
+			console.error("Error fetching family development plan data:", err);
+			setError(err.message || "Error fetching family development plan data");
 		} finally {
 			setLoading(false);
 		}
 	};
 
 	useEffect(() => {
-		if (formNumber) {
-			fetchApprovalStatus(formNumber);
-		}
-	}, [formNumber]);
+		fetchApplications();
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [currentPage, debouncedFilters]);
 
-	const handleSearch = () => {
-		if (searchFormNumber) {
-			router.push(`/dashboard/approval-section/family-development-plan-approval?formNumber=${encodeURIComponent(searchFormNumber)}`);
+	const handleFilterChange = (key: string, value: string) => {
+		setFilters((prev) => ({ ...prev, [key]: value }));
+		setCurrentPage(1);
+	};
+
+	const clearFilters = () => {
+		const emptyFilters = {
+			formNumber: "",
+			fullName: "",
+			cnicNumber: "",
+			regionalCommunity: "",
+			localCommunity: "",
+		};
+		setFilters(emptyFilters);
+		setDebouncedFilters(emptyFilters);
+		setSearchTerm("");
+		setCurrentPage(1);
+	};
+
+	const exportToCSV = () => {
+		try {
+			if (applications.length === 0) {
+				alert("No data to export");
+				return;
+			}
+
+			const headers = [
+				"FormNumber",
+				"Full_Name",
+				"CNICNumber",
+				"RegionalCommunity",
+				"LocalCommunity",
+				"TotalFamilyMembers",
+				"Area_Type",
+				"IncomeLevel",
+				"MaxSocialSupport",
+			];
+			const csvRows = [];
+			csvRows.push(headers.join(","));
+
+			applications.forEach((app) => {
+				const row = headers.map((header) => {
+					const value = app[header as keyof FamilyDevelopmentPlan];
+					if (value === null || value === undefined) return "";
+					const cellStr = String(value);
+					if (cellStr.includes(",") || cellStr.includes('"') || cellStr.includes("\n")) {
+						return `"${cellStr.replace(/"/g, '""')}"`;
+					}
+					return cellStr;
+				});
+				csvRows.push(row.join(","));
+			});
+
+			const csvContent = csvRows.join("\n");
+			const BOM = "\uFEFF";
+			const blob = new Blob([BOM + csvContent], { type: "text/csv;charset=utf-8;" });
+			
+			const link = document.createElement("a");
+			const url = URL.createObjectURL(blob);
+			link.setAttribute("href", url);
+			
+			const date = new Date();
+			const dateStr = date.toISOString().split('T')[0];
+			link.setAttribute("download", `Family_Development_Plan_${dateStr}.csv`);
+			
+			link.style.visibility = "hidden";
+			document.body.appendChild(link);
+			link.click();
+			document.body.removeChild(link);
+			
+			setTimeout(() => URL.revokeObjectURL(url), 100);
+		} catch (error) {
+			console.error("Export error:", error);
+			alert("Failed to export data. Please try again.");
 		}
 	};
 
-	const getStatusBadge = (status: string | null) => {
-		if (!status) return null;
-		
-		const statusLower = status.toLowerCase();
-		if (statusLower === "approved") {
-			return (
-				<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-					<CheckCircle className="h-3 w-3 mr-1" />
-					Approved
-				</span>
-			);
-		} else if (statusLower === "rejected") {
-			return (
-				<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-					<XCircle className="h-3 w-3 mr-1" />
-					Rejected
-				</span>
-			);
-		} else {
-			return (
-				<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-					<Clock className="h-3 w-3 mr-1" />
-					{status || "Pending"}
-				</span>
-			);
-		}
-	};
+	const filteredApplications = applications.filter((app) => {
+		if (!searchTerm) return true;
+		const search = searchTerm.toLowerCase();
+		return (
+			(app.FormNumber && String(app.FormNumber).toLowerCase().includes(search)) ||
+			(app.Full_Name && String(app.Full_Name).toLowerCase().includes(search)) ||
+			(app.CNICNumber && String(app.CNICNumber).toLowerCase().includes(search)) ||
+			(app.RegionalCommunity && String(app.RegionalCommunity).toLowerCase().includes(search)) ||
+			(app.LocalCommunity && String(app.LocalCommunity).toLowerCase().includes(search))
+		);
+	});
 
-	const formatCurrency = (value: number | null | undefined): string => {
-		if (value === null || value === undefined) return "N/A";
-		return `PKR ${parseFloat(value.toString()).toLocaleString()}`;
-	};
+	const totalPages = Math.ceil(totalRecords / itemsPerPage);
 
-	// Check access - only users with FdpApproval = 1/TRUE can access this page
-	if (accessLoading) {
+	if (loading) {
 		return (
 			<div className="space-y-6">
+				<div className="flex justify-between items-center">
+					<div>
+					<div className="flex items-center gap-3 mb-2">
+						<h1 className="text-3xl font-bold text-gray-900">Family Development Plan Approval</h1>
+					</div>
+					<p className="text-gray-600 mt-2">Family Development Plan Management</p>
+					</div>
+				</div>
 				<div className="flex items-center justify-center py-12">
 					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
-					<span className="ml-3 text-gray-600">Checking permissions...</span>
+					<span className="ml-3 text-gray-600">Loading family development plan data...</span>
 				</div>
 			</div>
 		);
 	}
 
-	if (hasAccess === false) {
-		return <SectionAccessDenied sectionName={sectionName} requiredPermission="FdpApproval" />;
+	if (error) {
+		return (
+			<div className="space-y-6">
+				<div className="flex justify-between items-center">
+					<div>
+					<div className="flex items-center gap-3 mb-2">
+						<h1 className="text-3xl font-bold text-gray-900">Family Development Plan Approval</h1>
+					</div>
+					<p className="text-gray-600 mt-2">Family Development Plan Management</p>
+					</div>
+				</div>
+				<div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+					<p className="text-red-600 mb-4">{error}</p>
+					<button
+						onClick={fetchApplications}
+						className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+					>
+						Try Again
+					</button>
+				</div>
+			</div>
+		);
 	}
 
 	return (
 		<div className="space-y-6">
 			{/* Header */}
-			<div className="flex justify-between items-center">
+			<div className="flex justify-between items-center bg-white rounded-xl shadow-md border border-gray-200 p-6">
 				<div>
 					<div className="flex items-center gap-3 mb-2">
-						<h1 className="text-3xl font-bold text-gray-900">Family Development Plan Approval</h1>
+						<h1 className="text-3xl font-bold bg-gradient-to-r from-[#0b4d2b] to-[#0d5d35] bg-clip-text text-transparent">
+							Family Development Plan Approval
+						</h1>
 					</div>
-					<p className="text-gray-600 mt-2">View section-wise approval status for family development plans</p>
+					<p className="text-gray-600 mt-2 font-medium">Family Development Plan Management System</p>
 				</div>
-				<button
-					onClick={() => router.push("/dashboard")}
-					className="inline-flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
-				>
-					<ArrowLeft className="h-4 w-4" />
-					Back to Dashboard
-				</button>
-			</div>
-
-			{/* Search Form */}
-			<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
-				<div className="flex gap-4 items-end">
-					<div className="flex-1">
-						<label className="block text-sm font-medium text-gray-700 mb-2">
-							Form Number
-						</label>
-						<input
-							type="text"
-							value={searchFormNumber}
-							onChange={(e) => setSearchFormNumber(e.target.value)}
-							onKeyDown={(e) => {
-								if (e.key === "Enter") {
-									handleSearch();
-								}
-							}}
-							placeholder="Enter Form Number (e.g., PE-00005)"
-							className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-						/>
-					</div>
+				<div className="flex items-center gap-3">
 					<button
-						onClick={handleSearch}
-						disabled={loading}
-						className="inline-flex items-center gap-2 px-6 py-2 bg-[#0b4d2b] text-white rounded-md hover:bg-[#0a3d22] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+						onClick={fetchApplications}
+						className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-lg hover:from-gray-700 hover:to-gray-800 transition-all shadow-md hover:shadow-lg font-semibold"
 					>
-						<Search className="h-4 w-4" />
-						Search
+						<RefreshCw className="h-4 w-4" />
+						Refresh
+					</button>
+					<button
+						onClick={exportToCSV}
+						className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-[#0b4d2b] to-[#0d5d35] text-white rounded-lg hover:from-[#0a3d22] hover:to-[#0b4d2b] transition-all shadow-md hover:shadow-lg font-semibold"
+					>
+						<Download className="h-4 w-4" />
+						Export CSV
 					</button>
 				</div>
 			</div>
 
-			{/* Error Message */}
-			{error && (
-				<div className="bg-red-50 border border-red-200 rounded-lg p-4">
-					<p className="text-red-600 text-sm font-medium">Error: {error}</p>
+			{/* Filters */}
+			<div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 shadow-md p-6">
+				<div className="mb-4">
+					<h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+						<Search className="h-5 w-5 text-[#0b4d2b]" />
+						Filter Options
+					</h3>
+					<p className="text-sm text-gray-600 mt-1">Use the filters below to search for specific applications</p>
 				</div>
-			)}
-
-			{/* Loading State */}
-			{loading && (
-				<div className="flex items-center justify-center py-12">
-					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
-					<span className="ml-3 text-gray-600">Loading approval status...</span>
+				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-1">Form Number</label>
+						<input
+							type="text"
+							placeholder="Enter Form Number"
+							value={filters.formNumber}
+							onChange={(e) => handleFilterChange("formNumber", e.target.value)}
+							className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-30 focus:outline-none transition-all shadow-sm hover:shadow-md"
+						/>
+					</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+						<input
+							type="text"
+							placeholder="Enter Full Name"
+							value={filters.fullName}
+							onChange={(e) => handleFilterChange("fullName", e.target.value)}
+							className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-30 focus:outline-none transition-all shadow-sm hover:shadow-md"
+						/>
+					</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-1">CNIC Number</label>
+						<input
+							type="text"
+							placeholder="Enter CNIC Number"
+							value={filters.cnicNumber}
+							onChange={(e) => handleFilterChange("cnicNumber", e.target.value)}
+							className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-30 focus:outline-none transition-all shadow-sm hover:shadow-md"
+						/>
+					</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-1">Regional Community</label>
+						<input
+							type="text"
+							placeholder="Enter Regional Community"
+							value={filters.regionalCommunity}
+							onChange={(e) => handleFilterChange("regionalCommunity", e.target.value)}
+							className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-30 focus:outline-none transition-all shadow-sm hover:shadow-md"
+						/>
+					</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-1">Local Community</label>
+						<input
+							type="text"
+							placeholder="Enter Local Community"
+							value={filters.localCommunity}
+							onChange={(e) => handleFilterChange("localCommunity", e.target.value)}
+							className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-30 focus:outline-none transition-all shadow-sm hover:shadow-md"
+						/>
+					</div>
 				</div>
-			)}
-
-			{/* Approval Status Sections */}
-			{approvalData && !loading && (
-				<div className="space-y-6">
-					{/* Health Support Section */}
-					{approvalData.healthSupport.length > 0 && (
-						<div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-							<div className="bg-[#0b4d2b] px-6 py-4">
-								<h2 className="text-xl font-semibold text-white">Health Support</h2>
-							</div>
-							<div className="overflow-x-auto">
-								<table className="min-w-full divide-y divide-gray-200">
-									<thead className="bg-gray-50">
-										<tr>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Beneficiary ID with Name</th>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Monthly Total Cost</th>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Monthly PE Contribution</th>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Number of Months</th>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total PE Contribution</th>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Approval Status</th>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-										</tr>
-									</thead>
-									<tbody className="bg-white divide-y divide-gray-200">
-										{approvalData.healthSupport.map((record) => (
-											<tr key={record.FDP_HealthSupportID} className="hover:bg-gray-50">
-												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{record.FDP_HealthSupportID}</td>
-												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-													{record.BeneficiaryID || "N/A"} {record.BeneficiaryName && `- ${record.BeneficiaryName}`}
-												</td>
-												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(record.HealthMonthlyTotalCost)}</td>
-												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(record.HealthMonthlyPEContribution)}</td>
-												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{record.HealthNumberOfMonths || "N/A"}</td>
-												<td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{formatCurrency(record.HealthTotalPEContribution)}</td>
-												<td className="px-6 py-4 whitespace-nowrap">{getStatusBadge(record.ApprovalStatus)}</td>
-												<td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-													<button
-														onClick={() => router.push(`/dashboard/approval-section/family-development-plan-approval/view?section=Health&recordId=${record.FDP_HealthSupportID}&formNumber=${encodeURIComponent(formNumber)}`)}
-														className="text-[#0b4d2b] hover:text-[#0a3d22] font-medium"
-													>
-														View
-													</button>
-												</td>
-											</tr>
-										))}
-									</tbody>
-								</table>
-							</div>
-						</div>
-					)}
-
-					{/* Food Support Section */}
-					{approvalData.foodSupport.length > 0 && (
-						<div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-							<div className="bg-[#0b4d2b] px-6 py-4">
-								<h2 className="text-xl font-semibold text-white">Food Support</h2>
-							</div>
-							<div className="overflow-x-auto">
-								<table className="min-w-full divide-y divide-gray-200">
-									<thead className="bg-gray-50">
-										<tr>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Beneficiary ID with Name</th>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Monthly Total Cost</th>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Monthly PE Contribution</th>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Number of Months</th>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total PE Contribution</th>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Approval Status</th>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-										</tr>
-									</thead>
-									<tbody className="bg-white divide-y divide-gray-200">
-										{approvalData.foodSupport.map((record) => (
-											<tr key={record.FDP_FoodSupportID} className="hover:bg-gray-50">
-												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{record.FDP_FoodSupportID}</td>
-												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-													{record.FamilyID || "N/A"} {record.HeadName && `- ${record.HeadName}`}
-												</td>
-												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(record.FoodSupportMonthlyTotalCost)}</td>
-												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(record.FoodSupportMonthlyPEContribution)}</td>
-												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{record.FoodSupportNumberOfMonths || "N/A"}</td>
-												<td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{formatCurrency(record.FoodSupportTotalPEContribution)}</td>
-												<td className="px-6 py-4 whitespace-nowrap">{getStatusBadge(record.ApprovalStatus)}</td>
-												<td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-													<button
-														onClick={() => router.push(`/dashboard/approval-section/family-development-plan-approval/view?section=Food&recordId=${record.FDP_FoodSupportID}&formNumber=${encodeURIComponent(formNumber)}`)}
-														className="text-[#0b4d2b] hover:text-[#0a3d22] font-medium"
-													>
-														View
-													</button>
-												</td>
-											</tr>
-										))}
-									</tbody>
-								</table>
-							</div>
-						</div>
-					)}
-
-					{/* Education Support Section */}
-					{approvalData.educationSupport.length > 0 && (
-						<div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-							<div className="bg-[#0b4d2b] px-6 py-4">
-								<h2 className="text-xl font-semibold text-white">Education Support</h2>
-							</div>
-							<div className="overflow-x-auto">
-								<table className="min-w-full divide-y divide-gray-200">
-									<thead className="bg-gray-50">
-										<tr>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Beneficiary ID with Name</th>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Monthly Total Cost</th>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Monthly PE Contribution</th>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Number of Months</th>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total PE Contribution</th>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Approval Status</th>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-										</tr>
-									</thead>
-									<tbody className="bg-white divide-y divide-gray-200">
-										{approvalData.educationSupport.map((record) => {
-											// Calculate monthly total cost (tuition + hostel + transport)
-											const monthlyTotalCost = 
-												(parseFloat(record.EduMonthlyTuitionTotalCost) || 0) +
-												(parseFloat(record.EduMonthlyHostelTotalCost) || 0) +
-												(parseFloat(record.EduMonthlyTransportTotalCost) || 0);
-											
-											// Calculate monthly PE contribution (tuition + hostel + transport)
-											const monthlyPEContribution = 
-												(parseFloat(record.EduMonthlyTuitionPEContribution) || 0) +
-												(parseFloat(record.EduMonthlyHostelPEContribution) || 0) +
-												(parseFloat(record.EduMonthlyTransportPEContribution) || 0);
-											
-											// Get max number of months
-											const numberOfMonths = Math.max(
-												parseInt(record.EduTuitionNumberOfMonths) || 0,
-												parseInt(record.EduHostelNumberOfMonths) || 0,
-												parseInt(record.EduTransportNumberOfMonths) || 0
-											);
-											
-											return (
-												<tr key={record.FDP_SocialEduID} className="hover:bg-gray-50">
-													<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{record.FDP_SocialEduID}</td>
-													<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-														{record.BeneficiaryID || "N/A"} {record.BeneficiaryName && `- ${record.BeneficiaryName}`}
-													</td>
-													<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(monthlyTotalCost)}</td>
-													<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(monthlyPEContribution)}</td>
-													<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{numberOfMonths > 0 ? numberOfMonths : "N/A"}</td>
-													<td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{formatCurrency(record.EduTotalPEContribution)}</td>
-													<td className="px-6 py-4 whitespace-nowrap">{getStatusBadge(record.ApprovalStatus)}</td>
-													<td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-														<button
-															onClick={() => router.push(`/dashboard/approval-section/family-development-plan-approval/view?section=Education&recordId=${record.FDP_SocialEduID}&formNumber=${encodeURIComponent(formNumber)}`)}
-															className="text-[#0b4d2b] hover:text-[#0a3d22] font-medium"
-														>
-															View
-														</button>
-													</td>
-												</tr>
-											);
-										})}
-									</tbody>
-								</table>
-							</div>
-						</div>
-					)}
-
-					{/* Housing Support Section */}
-					{approvalData.housingSupport.length > 0 && (
-						<div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-							<div className="bg-[#0b4d2b] px-6 py-4">
-								<h2 className="text-xl font-semibold text-white">Housing Support</h2>
-							</div>
-							<div className="overflow-x-auto">
-								<table className="min-w-full divide-y divide-gray-200">
-									<thead className="bg-gray-50">
-										<tr>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Beneficiary ID with Name</th>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Monthly Total Cost</th>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Monthly PE Contribution</th>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Number of Months</th>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total PE Contribution</th>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Approval Status</th>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-										</tr>
-									</thead>
-									<tbody className="bg-white divide-y divide-gray-200">
-										{approvalData.housingSupport.map((record) => (
-											<tr key={record.FDP_HabitatSupportID} className="hover:bg-gray-50">
-												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{record.FDP_HabitatSupportID}</td>
-												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-													{record.FamilyID || "N/A"} {record.HeadName && `- ${record.HeadName}`}
-												</td>
-												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(record.HabitatMonthlyTotalCost)}</td>
-												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(record.HabitatMonthlyPEContribution)}</td>
-												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{record.HabitatNumberOfMonths || "N/A"}</td>
-												<td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{formatCurrency(record.HabitatTotalPEContribution)}</td>
-												<td className="px-6 py-4 whitespace-nowrap">{getStatusBadge(record.ApprovalStatus)}</td>
-												<td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-													<button
-														onClick={() => router.push(`/dashboard/approval-section/family-development-plan-approval/view?section=Habitat&recordId=${record.FDP_HabitatSupportID}&formNumber=${encodeURIComponent(formNumber)}`)}
-														className="text-[#0b4d2b] hover:text-[#0a3d22] font-medium"
-													>
-														View
-													</button>
-												</td>
-											</tr>
-										))}
-									</tbody>
-								</table>
-							</div>
-						</div>
-					)}
-
-					{/* Economic Support Section */}
-					{approvalData.economicSupport.length > 0 && (
-						<div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-							<div className="bg-[#0b4d2b] px-6 py-4">
-								<h2 className="text-xl font-semibold text-white">Economic Support</h2>
-							</div>
-							<div className="overflow-x-auto">
-								<table className="min-w-full divide-y divide-gray-200">
-									<thead className="bg-gray-50">
-										<tr>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Form Number</th>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Beneficiary</th>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Intervention Type</th>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trade</th>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Investment Required</th>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">PE Investment</th>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Approval Status</th>
-											<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-										</tr>
-									</thead>
-									<tbody className="bg-white divide-y divide-gray-200">
-										{approvalData.economicSupport.map((record) => (
-											<tr key={record.FDP_EconomicID} className="hover:bg-gray-50">
-												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{record.FDP_EconomicID}</td>
-												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{record.FamilyID || "N/A"}</td>
-												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-													{record.BeneficiaryID || "N/A"} {record.BeneficiaryName && `- ${record.BeneficiaryName}`}
-												</td>
-												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{record.InterventionType || "N/A"}</td>
-												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{record.Trade || record.SubFieldOfInvestment || "N/A"}</td>
-												<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(record.InvestmentRequiredTotal)}</td>
-												<td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{formatCurrency(record.InvestmentFromPEProgram)}</td>
-												<td className="px-6 py-4 whitespace-nowrap">{getStatusBadge(record.ApprovalStatus)}</td>
-												<td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-													<button
-														onClick={() => router.push(`/dashboard/approval-section/family-development-plan-approval/view?section=Economic&recordId=${record.FDP_EconomicID}&formNumber=${encodeURIComponent(formNumber)}`)}
-														className="text-[#0b4d2b] hover:text-[#0a3d22] font-medium"
-													>
-														View
-													</button>
-												</td>
-											</tr>
-										))}
-									</tbody>
-								</table>
-							</div>
-						</div>
-					)}
-
-					{/* No Data Message */}
-					{approvalData.healthSupport.length === 0 &&
-						approvalData.foodSupport.length === 0 &&
-						approvalData.educationSupport.length === 0 &&
-						approvalData.housingSupport.length === 0 &&
-						approvalData.economicSupport.length === 0 && (
-							<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-12 text-center">
-								<p className="text-gray-500 text-lg">No approval records found for this Form Number.</p>
-							</div>
-						)}
+				<div className="mt-6 flex justify-end gap-3">
+					<button
+						onClick={clearFilters}
+						className="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-all shadow-sm hover:shadow-md flex items-center gap-2"
+					>
+						<X className="h-4 w-4" />
+						Clear Filters
+					</button>
 				</div>
-			)}
+			</div>
+
+			{/* Table */}
+			<div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+				{/* Table Header Section */}
+				<div className="bg-gradient-to-r from-[#0b4d2b] via-[#0d5d35] to-[#0b4d2b] px-6 py-4 border-b-2 border-[#0a3d22]">
+					<h3 className="text-lg font-bold text-white flex items-center gap-2">
+						<FileText className="h-5 w-5" />
+						Family Development Plan Records
+					</h3>
+					<p className="text-sm text-white/80 mt-1">Total Records: {totalRecords}</p>
+				</div>
+
+				<div className="overflow-x-auto">
+					<table className="w-full divide-y divide-gray-200" style={{ tableLayout: 'fixed' }}>
+						<colgroup>
+							<col style={{ width: '8%' }} />
+							<col style={{ width: '12%' }} />
+							<col style={{ width: '10%' }} />
+							<col style={{ width: '14%' }} />
+							<col style={{ width: '6%' }} />
+							<col style={{ width: '8%' }} />
+							<col style={{ width: '8%' }} />
+							<col style={{ width: '10%' }} />
+							<col style={{ width: '24%' }} />
+						</colgroup>
+						<thead className="bg-white">
+							<tr>
+								<th className="px-4 py-4 text-left text-xs font-bold text-gray-900 uppercase tracking-wider border-r border-gray-300">
+									Form #
+								</th>
+								<th className="px-4 py-4 text-left text-xs font-bold text-gray-900 uppercase tracking-wider border-r border-gray-300">
+									Full Name
+								</th>
+								<th className="px-4 py-4 text-left text-xs font-bold text-gray-900 uppercase tracking-wider border-r border-gray-300">
+									CNIC
+								</th>
+								<th className="px-4 py-4 text-left text-xs font-bold text-gray-900 uppercase tracking-wider border-r border-gray-300">
+									Regional / Local
+								</th>
+								<th className="px-4 py-4 text-center text-xs font-bold text-gray-900 uppercase tracking-wider border-r border-gray-300">
+									Members
+								</th>
+								<th className="px-4 py-4 text-left text-xs font-bold text-gray-900 uppercase tracking-wider border-r border-gray-300">
+									Area
+								</th>
+								<th className="px-4 py-4 text-left text-xs font-bold text-gray-900 uppercase tracking-wider border-r border-gray-300">
+									Income
+								</th>
+								<th className="px-4 py-4 text-left text-xs font-bold text-gray-900 uppercase tracking-wider border-r border-gray-300">
+									Max Support
+								</th>
+								<th className="px-4 py-4 text-left text-xs font-bold text-gray-900 uppercase tracking-wider">
+									Actions
+								</th>
+							</tr>
+						</thead>
+						<tbody className="bg-white divide-y divide-gray-200">
+							{filteredApplications.length === 0 ? (
+								<tr>
+									<td colSpan={9} className="px-6 py-16 text-center">
+										<div className="flex flex-col items-center justify-center">
+											<div className="p-4 bg-gray-100 rounded-full mb-4">
+												<FileText className="h-8 w-8 text-gray-400" />
+											</div>
+											<p className="text-lg font-semibold text-gray-700">No records found</p>
+											<p className="text-sm text-gray-500 mt-2">Try adjusting your search or filter criteria</p>
+										</div>
+									</td>
+								</tr>
+							) : (
+								filteredApplications.map((app, index) => (
+									<tr 
+										key={index} 
+										className={`transition-all duration-150 ${
+											index % 2 === 0 
+												? 'bg-white hover:bg-blue-50' 
+												: 'bg-gray-50 hover:bg-blue-100'
+										}`}
+									>
+										<td className="px-4 py-3 text-sm font-semibold text-[#0b4d2b] truncate border-r border-gray-200" 
+											title={app.FormNumber || "-"}
+										>
+											{app.FormNumber || "-"}
+										</td>
+										<td className="px-4 py-3 text-sm font-medium text-gray-900 truncate border-r border-gray-200" title={app.Full_Name || "-"}>
+											{app.Full_Name || "-"}
+										</td>
+										<td className="px-4 py-3 text-sm text-gray-700 truncate border-r border-gray-200" title={app.CNICNumber || "-"}>
+											{app.CNICNumber || "-"}
+										</td>
+										<td className="px-4 py-3 text-sm text-gray-700 truncate border-r border-gray-200" title={`${app.RegionalCommunity || "-"} / ${app.LocalCommunity || "-"}`}>
+											<span className="font-medium text-gray-800">{app.RegionalCommunity || "-"}</span>
+											<span className="text-gray-400 mx-1">/</span>
+											<span className="text-gray-600">{app.LocalCommunity || "-"}</span>
+										</td>
+										<td className="px-4 py-3 text-sm font-bold text-center border-r border-gray-200">
+											<span className="inline-flex items-center justify-center w-8 h-8 bg-[#0b4d2b]/10 text-[#0b4d2b] rounded-full font-bold">
+												{app.TotalFamilyMembers !== null ? app.TotalFamilyMembers : 0}
+											</span>
+										</td>
+										<td className="px-4 py-3 text-sm text-gray-700 truncate border-r border-gray-200" title={app.Area_Type || "-"}>
+											<span className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-xs font-medium">
+												{app.Area_Type || "-"}
+											</span>
+										</td>
+										<td className="px-4 py-3 text-sm font-semibold text-gray-900 truncate border-r border-gray-200" title={app.IncomeLevel || "-"}>
+											<span className="inline-flex items-center px-2 py-1 bg-purple-100 text-purple-800 rounded-md text-xs font-medium">
+												{app.IncomeLevel || "-"}
+											</span>
+										</td>
+										<td className="px-4 py-3 text-sm font-bold text-gray-900 truncate border-r border-gray-200" title={app.MaxSocialSupport && app.MaxSocialSupport > 0 ? `PKR ${app.MaxSocialSupport.toLocaleString()}` : "-"}>
+											{app.MaxSocialSupport && app.MaxSocialSupport > 0 ? (
+												<span className="inline-flex items-center px-2 py-1 bg-green-100 text-green-800 rounded-md text-xs font-bold">
+													PKR {app.MaxSocialSupport.toLocaleString()}
+												</span>
+											) : (
+												<span className="text-gray-400">-</span>
+											)}
+										</td>
+										<td className="px-4 py-3 text-sm">
+											<div className="flex items-center gap-2 flex-wrap">
+												<button
+													onClick={() => app.FormNumber && router.push(`/dashboard/family-development-plan/view-fdp?formNumber=${encodeURIComponent(app.FormNumber)}`)}
+													disabled={!app.FormNumber}
+													className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white rounded-md text-xs font-semibold hover:bg-purple-700 transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+													title="View FDP"
+												>
+													<Eye className="h-3.5 w-3.5" />
+													<span>View FDP</span>
+												</button>
+											</div>
+										</td>
+									</tr>
+								))
+							)}
+						</tbody>
+					</table>
+				</div>
+
+				{/* Pagination */}
+				{totalPages > 1 && (
+					<div className="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 border-t-2 border-gray-300 flex items-center justify-between">
+						<div className="text-sm font-medium text-gray-700">
+							Showing <span className="font-bold text-[#0b4d2b]">{((currentPage - 1) * itemsPerPage) + 1}</span> to <span className="font-bold text-[#0b4d2b]">{Math.min(currentPage * itemsPerPage, totalRecords)}</span> of <span className="font-bold text-[#0b4d2b]">{totalRecords}</span> results
+						</div>
+						<div className="flex items-center gap-3">
+							<button
+								onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+								disabled={currentPage === 1}
+								className="px-4 py-2 bg-white border-2 border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-[#0b4d2b] hover:text-white hover:border-[#0b4d2b] transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-gray-700"
+							>
+								Previous
+							</button>
+							<span className="px-4 py-2 bg-[#0b4d2b] text-white rounded-lg text-sm font-bold shadow-md">
+								Page {currentPage} of {totalPages}
+							</span>
+							<button
+								onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+								disabled={currentPage === totalPages}
+								className="px-4 py-2 bg-white border-2 border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-[#0b4d2b] hover:text-white hover:border-[#0b4d2b] transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-gray-700"
+							>
+								Next
+							</button>
+						</div>
+					</div>
+				)}
+			</div>
 		</div>
 	);
 }

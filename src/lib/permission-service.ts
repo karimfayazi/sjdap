@@ -9,6 +9,7 @@ import { getDb } from "./db";
 import { isSuperAdmin } from "./rbac-utils";
 import { normalizeRoutePath } from "./route-normalizer";
 import { isRBACDisabled } from "./rbac-config";
+import { isBypassedRoute } from "./rbac-bypass";
 
 /**
  * Route to Permission Action Key mapping
@@ -203,6 +204,14 @@ export async function hasRoutePermission(
 	routePath: string,
 	actionKey?: string
 ): Promise<boolean> {
+	// Check if route is bypassed (accessible to all authenticated users)
+	if (isBypassedRoute(routePath)) {
+		if (process.env.NODE_ENV === 'development') {
+			console.log('[hasRoutePermission] Route bypassed - granting access to:', routePath);
+		}
+		return true;
+	}
+
 	// RBAC DISABLED: Allow all authenticated users
 	if (isRBACDisabled()) {
 		if (process.env.NODE_ENV === 'development') {

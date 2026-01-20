@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { hasRoutePermission } from "./permission-service";
 import { getUserIdFromNextRequest } from "./auth";
 import { isRBACDisabled } from "./rbac-config";
+import { isBypassedRoute } from "./rbac-bypass";
 
 /**
  * Get userId from auth cookie (uses robust parsing)
@@ -68,6 +69,12 @@ export async function requireRoutePermission(
 				{ status: 401 }
 			)
 		};
+	}
+
+	// Check if route is bypassed (accessible to all authenticated users)
+	if (isBypassedRoute(routePath)) {
+		console.log('[requireRoutePermission] Route bypassed - granting access to:', routePath);
+		return { hasAccess: true, userId };
 	}
 
 	// RBAC DISABLED: Skip permission check, allow all authenticated users

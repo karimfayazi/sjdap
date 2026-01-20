@@ -67,6 +67,11 @@ function ViewFDPContent() {
 	const [housingInterventions, setHousingInterventions] = useState<SocialIntervention[]>([]);
 	const [foodInterventions, setFoodInterventions] = useState<SocialIntervention[]>([]);
 	const [totalSocialSupport, setTotalSocialSupport] = useState(0);
+	const [approvalStatus, setApprovalStatus] = useState<string>("");
+	const [approvalRemarks, setApprovalRemarks] = useState<string>("");
+	const [savingApproval, setSavingApproval] = useState(false);
+	const [approvalError, setApprovalError] = useState<string | null>(null);
+	const [approvalSuccess, setApprovalSuccess] = useState(false);
 
 	useEffect(() => {
 		if (!formNumber) {
@@ -91,6 +96,9 @@ function ViewFDPContent() {
 					setHousingInterventions(data.data.housingInterventions || []);
 					setFoodInterventions(data.data.foodInterventions || []);
 					setTotalSocialSupport(data.data.totalSocialSupport || 0);
+					// Load approval status and remarks
+					setApprovalStatus(data.data.approvalStatus || "");
+					setApprovalRemarks(data.data.approvalRemarks || "");
 				} else {
 					setError(data.message || "Failed to load FDP overview data");
 				}
@@ -500,6 +508,57 @@ function ViewFDPContent() {
 		pdf.save(`FDP_Overview_${familyInfo.FamilyID}_${new Date().toISOString().split('T')[0]}.pdf`);
 	};
 
+	const handleSaveApproval = async () => {
+		if (!formNumber || !approvalStatus) {
+			setApprovalError("Please select an approval status");
+			return;
+		}
+
+		try {
+			setSavingApproval(true);
+			setApprovalError(null);
+			setApprovalSuccess(false);
+
+			const response = await fetch("/api/family-development-plan/fdp-approval", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({
+					formNumber,
+					approvalStatus,
+					approvalRemarks,
+				}),
+			});
+
+			const data = await response.json();
+
+			if (!response.ok || !data.success) {
+				throw new Error(data.message || "Failed to save approval information");
+			}
+
+			setApprovalSuccess(true);
+			// Reload data to get updated status
+			const refreshResponse = await fetch(`/api/family-development-plan/view-fdp?formNumber=${encodeURIComponent(formNumber)}`);
+			const refreshData = await refreshResponse.json();
+			if (refreshData.success && refreshData.data) {
+				setApprovalStatus(refreshData.data.approvalStatus || "");
+				setApprovalRemarks(refreshData.data.approvalRemarks || "");
+			}
+		} catch (err: any) {
+			console.error("Error saving approval:", err);
+			setApprovalError(err.message || "Error saving approval information");
+		} finally {
+			setSavingApproval(false);
+		}
+	};
+
+	const isApproved = () => {
+		const status = (approvalStatus || "").toString().trim().toLowerCase();
+		// Only disable if status is Accepted/Approved, not if Rejected
+		return status === "accepted" || status === "approved" || (status.includes("approve") && !status.includes("reject"));
+	};
+
 	if (loading) {
 		return (
 			<div className="flex items-center justify-center min-h-[60vh]">
@@ -540,13 +599,6 @@ function ViewFDPContent() {
 					</div>
 				</div>
 				<div className="flex items-center gap-3">
-					<button
-						onClick={() => router.push(`/dashboard/family-development-plan/crc-approval?formNumber=${formNumber}`)}
-						disabled={!formNumber}
-						className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-					>
-						CRC-Approval
-					</button>
 					<button
 						onClick={downloadPDF}
 						disabled={!familyInfo}
@@ -893,6 +945,89 @@ function ViewFDPContent() {
 							readOnly
 							className="w-full rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-gray-600 cursor-not-allowed font-semibold"
 						/>
+					</div>
+				</div>
+			</div>
+
+			{/* Approval Information */}
+			<div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+				<h2 className="text-xl font-semibold text-gray-900 mb-4">6. Approval Information</h2>
+				
+				{approvalSuccess && (
+					<div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md">
+						<p className="text-green-800 text-sm font-medium">Approval information saved successfully!</p>
+					</div>
+				)}
+
+				{approvalError && (
+					<div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+						<p className="text-red-800 text-sm font-medium">Error: {approvalError}</p>
+					</div>
+				)}
+
+				<div className="space-y-4">
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-2">
+							Approval Status <span className="text-red-500">*</span>
+						</label>
+						<div className="flex gap-6">
+							<label className="flex items-center">
+								<input
+									type="radio"
+									name="approvalStatus"
+									value="Accepted"
+									checked={approvalStatus === "Accepted"}
+									onChange={(e) => setApprovalStatus(e.target.value)}
+									disabled={isApproved()}
+									className="mr-2 h-4 w-4 text-[#0b4d2b] focus:ring-[#0b4d2b] border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+								/>
+								<span className={`text-sm ${isApproved() ? 'text-gray-400' : 'text-gray-700'}`}>Accepted</span>
+							</label>
+							<label className="flex items-center">
+								<input
+									type="radio"
+									name="approvalStatus"
+									value="Rejected"
+									checked={approvalStatus === "Rejected"}
+									onChange={(e) => setApprovalStatus(e.target.value)}
+									disabled={isApproved()}
+									className="mr-2 h-4 w-4 text-[#0b4d2b] focus:ring-[#0b4d2b] border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+								/>
+								<span className={`text-sm ${isApproved() ? 'text-gray-400' : 'text-gray-700'}`}>Rejected</span>
+							</label>
+						</div>
+						{isApproved() && (
+							<p className="mt-2 text-sm text-gray-500 italic">This FDP has already been approved and cannot be modified.</p>
+						)}
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-2">Approval Remarks</label>
+						<textarea
+							value={approvalRemarks}
+							onChange={(e) => setApprovalRemarks(e.target.value)}
+							disabled={isApproved()}
+							placeholder="Enter approval remarks..."
+							rows={4}
+							className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
+						/>
+					</div>
+
+					<div className="flex justify-end">
+						<button
+							onClick={handleSaveApproval}
+							disabled={savingApproval || isApproved() || !approvalStatus}
+							className="inline-flex items-center gap-2 px-6 py-2 bg-[#0b4d2b] text-white rounded-md hover:bg-[#0a3d22] transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+						>
+							{savingApproval ? (
+								<>
+									<div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+									Saving...
+								</>
+							) : (
+								"Save Approval"
+							)}
+						</button>
 					</div>
 				</div>
 			</div>

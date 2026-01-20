@@ -1042,16 +1042,32 @@ function FDPEconomicContent() {
 											</span>
 										</td>
 										<td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-											<button
-												type="button"
-												onClick={() => {
-													setSelectedRecordId(record.FDP_EconomicID);
-													router.push(`/dashboard/family-development-plan/fdp-economic?formNumber=${encodeURIComponent(formNumber || "")}&memberNo=${encodeURIComponent(memberNo || "")}&memberName=${encodeURIComponent(memberName || "")}&fdpEconomicId=${record.FDP_EconomicID}`);
-												}}
-												className="text-[#0b4d2b] hover:text-[#0a3d22] mr-3"
-											>
-												Edit
-											</button>
+											{(() => {
+												const isApproved = record.ApprovalStatus && (
+													(record.ApprovalStatus.toString().trim().toLowerCase() === "accepted") ||
+													(record.ApprovalStatus.toString().trim().toLowerCase() === "approved") ||
+													(record.ApprovalStatus.toString().trim().toLowerCase().includes("approve"))
+												);
+												
+												if (isApproved) {
+													return (
+														<span className="text-gray-400 text-xs italic">Cannot edit approved record</span>
+													);
+												}
+												
+												return (
+													<button
+														type="button"
+														onClick={() => {
+															setSelectedRecordId(record.FDP_EconomicID);
+															router.push(`/dashboard/family-development-plan/fdp-economic?formNumber=${encodeURIComponent(formNumber || "")}&memberNo=${encodeURIComponent(memberNo || "")}&memberName=${encodeURIComponent(memberName || "")}&fdpEconomicId=${record.FDP_EconomicID}`);
+														}}
+														className="text-[#0b4d2b] hover:text-[#0a3d22] mr-3"
+													>
+														Edit
+													</button>
+												);
+											})()}
 										</td>
 									</tr>
 								))}

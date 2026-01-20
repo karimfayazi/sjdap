@@ -16,6 +16,7 @@ type FamilyDevelopmentPlan = {
 	Area_Type: string | null;
 	IncomeLevel: string | null;
 	MaxSocialSupport: number | null;
+	ApprovalStatus: string | null;
 };
 
 type FamilyMember = {
@@ -231,6 +232,12 @@ function FamilyDevelopmentPlanPageContent() {
 			(app.LocalCommunity && String(app.LocalCommunity).toLowerCase().includes(search))
 		);
 	});
+
+	const isFDPApproved = (app: FamilyDevelopmentPlan): boolean => {
+		if (!app.ApprovalStatus) return false;
+		const status = (app.ApprovalStatus || "").toString().trim().toLowerCase();
+		return status === "accepted" || status === "approved" || status.includes("approve");
+	};
 
 	const totalPages = Math.ceil(totalRecords / itemsPerPage);
 

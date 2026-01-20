@@ -4,6 +4,7 @@ import { normalizePermission } from "@/lib/auth-utils";
 import type { UserProfile } from "./useAuth";
 import { isRBACDisabled } from "@/lib/rbac-config";
 import { hasUserTypeAccess } from "@/lib/accessByUserType";
+import { isBypassedRoute } from "@/lib/rbac-bypass";
 
 /**
  * Pure function to check if user can access a route based on section permissions
@@ -12,6 +13,11 @@ import { hasUserTypeAccess } from "@/lib/accessByUserType";
  * This is a pure function (no hooks) that can be called inside loops/maps/filters
  */
 export function canAccessRoute(userProfile: UserProfile | null, route: string, loading: boolean = false): boolean {
+	// Check if route is bypassed (accessible to all authenticated users)
+	if (isBypassedRoute(route)) {
+		return true;
+	}
+
 	// RBAC DISABLED: Allow all authenticated users
 	if (isRBACDisabled()) {
 		return true;

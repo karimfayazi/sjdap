@@ -232,6 +232,14 @@ export async function GET(request: NextRequest) {
 			housingInterventions.reduce((sum: number, record: any) => sum + (parseFloat(record.HabitatTotalPEContribution) || 0), 0) +
 			foodInterventions.reduce((sum: number, record: any) => sum + (parseFloat(record.FoodSupportTotalPEContribution) || 0), 0);
 
+		// Fetch current approval status from EconomicDevelopment (use first record's status as overall status)
+		let approvalStatus: string | null = null;
+		let approvalRemarks: string | null = null;
+		if (economicInterventions.length > 0) {
+			approvalStatus = economicInterventions[0].ApprovalStatus || null;
+			approvalRemarks = economicInterventions[0].ApprovalRemarks || null;
+		}
+
 		return NextResponse.json({
 			success: true,
 			data: {
@@ -243,6 +251,8 @@ export async function GET(request: NextRequest) {
 				housingInterventions,
 				foodInterventions,
 				totalSocialSupport,
+				approvalStatus,
+				approvalRemarks,
 			},
 		});
 	} catch (error: any) {

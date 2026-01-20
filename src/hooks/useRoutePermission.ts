@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "./useAuth";
 import { isRBACDisabled } from "@/lib/rbac-config";
 import { hasUserTypeAccess } from "@/lib/accessByUserType";
+import { isBypassedRoute } from "@/lib/rbac-bypass";
 
 /**
  * Hook to check if user has permission for a specific route
@@ -17,6 +18,13 @@ export function useRoutePermission(route: string, action?: string) {
 	useEffect(() => {
 		if (authLoading || !userProfile) {
 			setLoading(true);
+			return;
+		}
+
+		// Check if route is bypassed (accessible to all authenticated users)
+		if (isBypassedRoute(route)) {
+			setHasAccess(true);
+			setLoading(false);
 			return;
 		}
 

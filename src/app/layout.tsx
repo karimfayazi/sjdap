@@ -43,7 +43,13 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="SJDA" />
       </head>
-      <body className="antialiased h-full flex flex-col overflow-hidden" style={{ fontFamily: 'Calibri, "Segoe UI", Arial, Helvetica, sans-serif' }}>
+      {/* suppressHydrationWarning prevents hydration mismatch warnings from browser extensions 
+          (e.g., Grammarly) that inject attributes into the DOM before React hydrates */}
+      <body 
+        suppressHydrationWarning 
+        className="antialiased h-full flex flex-col overflow-hidden" 
+        style={{ fontFamily: 'Calibri, "Segoe UI", Arial, Helvetica, sans-serif' }}
+      >
         <ServiceWorkerRegistration />
         <MasterLayout>
           {children}

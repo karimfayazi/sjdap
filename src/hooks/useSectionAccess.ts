@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "./useAuth";
 import { normalizePermission } from "@/lib/auth-utils";
 import { hasUserTypeSectionAccess } from "@/lib/accessByUserType";
+import { isBypassedRoute } from "@/lib/rbac-bypass";
 
 type SectionPermission = 
 	| "BaselineQOL"
@@ -28,6 +29,7 @@ type SectionPermission =
 
 export function useSectionAccess(section: SectionPermission) {
 	const router = useRouter();
+	const pathname = usePathname();
 	const { userProfile, loading: authLoading } = useAuth();
 	const [hasAccess, setHasAccess] = useState<boolean | null>(null);
 
@@ -36,6 +38,12 @@ export function useSectionAccess(section: SectionPermission) {
 
 		if (!userProfile) {
 			setHasAccess(false);
+			return;
+		}
+
+		// Check if current route is bypassed (accessible to all authenticated users)
+		if (pathname && isBypassedRoute(pathname)) {
+			setHasAccess(true);
 			return;
 		}
 

@@ -3,28 +3,9 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { useSectionAccess } from "@/hooks/useSectionAccess";
-import SectionAccessDenied from "@/components/SectionAccessDenied";
 
 export default function InterventionApprovalPage() {
 	const router = useRouter();
-	const { hasAccess, loading: accessLoading, sectionName } = useSectionAccess("InterventionApproval");
-
-	// Check access - only users with InterventionApproval = 1/TRUE can access this page
-	if (accessLoading) {
-		return (
-			<div className="space-y-6">
-				<div className="flex items-center justify-center py-12">
-					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
-					<span className="ml-3 text-gray-600">Checking permissions...</span>
-				</div>
-			</div>
-		);
-	}
-
-	if (hasAccess === false) {
-		return <SectionAccessDenied sectionName={sectionName} requiredPermission="InterventionApproval" />;
-	}
 
 	return (
 		<div className="space-y-6">
