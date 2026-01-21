@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
 		// Query to get family members for the given FormNumber
 		const query = `
 			SELECT 
-				[MemberNo],
+				[BeneficiaryID],
 				[FormNo],
 				[FullName],
 				[BFormOrCNIC],
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
 				[MonthlyIncome]
 			FROM [SJDA_Users].[dbo].[PE_FamilyMember]
 			WHERE [FormNo] = @formNumber
-			ORDER BY [MemberNo]
+			ORDER BY [BeneficiaryID]
 		`;
 
 		const sqlRequest = pool.request();

@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
 		const sqlRequest = pool.request();
 
 		// Input parameters
-		sqlRequest.input("FamilyID", sql.VarChar, body.FamilyID);
+		sqlRequest.input("FormNumber", sql.VarChar, body.FormNumber);
 		sqlRequest.input("BaselineFamilyIncome", sql.Decimal(18, 2), body.BaselineFamilyIncome || 0);
 		sqlRequest.input("FamilyMembersCount", sql.Int, body.FamilyMembersCount || 0);
 		sqlRequest.input("SelfSufficiencyIncomePerCapita", sql.Decimal(18, 2), body.SelfSufficiencyIncomePerCapita || 0);
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
 		const insertQuery = `
 			INSERT INTO [SJDA_Users].[dbo].[PE_FDP_EconomicDevelopment]
 			(
-				[FamilyID], [BaselineFamilyIncome], [FamilyMembersCount],
+				[FormNumber], [BaselineFamilyIncome], [FamilyMembersCount],
 				[SelfSufficiencyIncomePerCapita], [BaselinePovertyLevel],
 				[BeneficiaryID], [BeneficiaryName], [BeneficiaryAge], [BeneficiaryGender],
 				[BeneficiaryCurrentOccupation], [InterventionType], [FieldOfInvestment],
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
 			)
 			VALUES
 			(
-				@FamilyID, @BaselineFamilyIncome, @FamilyMembersCount,
+				@FormNumber, @BaselineFamilyIncome, @FamilyMembersCount,
 				@SelfSufficiencyIncomePerCapita, @BaselinePovertyLevel,
 				@BeneficiaryID, @BeneficiaryName, @BeneficiaryAge, @BeneficiaryGender,
 				@BeneficiaryCurrentOccupation, @InterventionType, @FieldOfInvestment,
@@ -121,8 +121,8 @@ export async function GET(request: NextRequest) {
 			query += ` AND [FDP_EconomicID] = @FDP_EconomicID`;
 			query += ` ORDER BY [FDP_EconomicID] DESC`;
 		} else if (familyID) {
-			sqlRequest.input("FamilyID", sql.VarChar, familyID);
-			query += ` AND [FamilyID] = @FamilyID`;
+			sqlRequest.input("FormNumber", sql.VarChar, familyID);
+			query += ` AND [FormNumber] = @FormNumber`;
 			if (beneficiaryID) {
 				sqlRequest.input("BeneficiaryID", sql.VarChar, beneficiaryID);
 				query += ` AND [BeneficiaryID] = @BeneficiaryID`;
@@ -178,7 +178,7 @@ export async function PUT(request: NextRequest) {
 		const checkRequest = pool.request();
 		checkRequest.input("FDP_EconomicID", sql.Int, parseInt(fdpEconomicId));
 		const checkQuery = `
-			SELECT TOP 1 [FamilyID], [ApprovalStatus]
+			SELECT TOP 1 [FormNumber], [ApprovalStatus]
 			FROM [SJDA_Users].[dbo].[PE_FDP_EconomicDevelopment]
 			WHERE [FDP_EconomicID] = @FDP_EconomicID
 				AND [IsActive] = 1

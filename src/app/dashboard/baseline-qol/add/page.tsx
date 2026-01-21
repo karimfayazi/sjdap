@@ -80,7 +80,7 @@ type FamilyMemberData = {
 
 export default function AddBaselineApplicationPage() {
 	const router = useRouter();
-	const { userProfile } = useAuth();
+	const { user, userProfile } = useAuth();
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [success, setSuccess] = useState(false);
@@ -137,6 +137,29 @@ export default function AddBaselineApplicationPage() {
 	const [loadingCommunityCenters, setLoadingCommunityCenters] = useState(false);
 	const [isEditMode, setIsEditMode] = useState(false);
 	const [formNoParam, setFormNoParam] = useState<string | null>(null);
+
+	// Auto-fill "Received By Name" from logged-in user and keep it read-only
+	useEffect(() => {
+		// Only proceed when we have a user profile and no value already set
+		if (!userProfile) return;
+
+		// For new applications (no formNo in URL), if ReceivedByName is empty, set from user profile
+		if (!formNoParam && !formData.ReceivedByName) {
+			const nameFromProfile =
+				userProfile.full_name ||
+				userProfile.username ||
+				user?.name ||
+				user?.username ||
+				"";
+
+			if (nameFromProfile) {
+				setFormData((prev) => ({
+					...prev,
+					ReceivedByName: nameFromProfile,
+				}));
+			}
+		}
+	}, [userProfile, user, formNoParam, formData.ReceivedByName]);
 
 	// FIRST: Check URL parameter for formNo and set it immediately
 	useEffect(() => {
@@ -1292,10 +1315,22 @@ export default function AddBaselineApplicationPage() {
 								type="text"
 								value={formData.ReceivedByName}
 								onChange={(e) => handleChange("ReceivedByName", e.target.value)}
+								readOnly={!!userProfile}
 								required
-								className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-								placeholder="Enter name of person who received"
+								className={`w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${
+									userProfile ? "bg-gray-50 cursor-not-allowed" : ""
+								}`}
+								placeholder={
+									userProfile
+										? "Auto-filled from your user profile"
+										: "Enter name of person who received"
+								}
 							/>
+							{userProfile && (
+								<p className="mt-1 text-xs text-gray-500">
+									This is auto-filled from the logged-in user and cannot be changed.
+								</p>
+							)}
 						</div>
 
 						<div>

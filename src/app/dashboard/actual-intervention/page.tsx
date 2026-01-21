@@ -15,7 +15,8 @@ type FamilyRecord = {
 };
 
 type FamilyMember = {
-	MemberNo: string;
+	// Using BeneficiaryID as the unique member identifier
+	BeneficiaryID: string;
 	FullName: string;
 	BFormOrCNIC: string;
 	Relationship: string;
@@ -370,7 +371,8 @@ export default function ActualInterventionPage() {
 													</thead>
 													<tbody className="bg-white divide-y divide-gray-200">
 														{members.map((member, index) => {
-															const interventions = memberInterventions[member.MemberNo] || {
+															const memberKey = member.BeneficiaryID;
+															const interventions = memberInterventions[memberKey] || {
 																economic: false,
 																education: false,
 																food: false,
@@ -379,7 +381,7 @@ export default function ActualInterventionPage() {
 
 															return (
 																<tr 
-																	key={member.MemberNo} 
+																	key={memberKey} 
 																	className={`transition-colors ${
 																		index % 2 === 0 
 																			? "bg-white hover:bg-blue-50" 
@@ -387,7 +389,7 @@ export default function ActualInterventionPage() {
 																	}`}
 																>
 																	<td className="px-6 py-4 whitespace-nowrap">
-																		<span className="text-sm font-semibold text-[#0b4d2b]">{member.MemberNo || "N/A"}</span>
+																		<span className="text-sm font-semibold text-[#0b4d2b]">{memberKey || "N/A"}</span>
 																	</td>
 																	<td className="px-6 py-4 whitespace-nowrap">
 																		<span className="text-sm font-medium text-gray-900">{member.FullName || "N/A"}</span>
@@ -424,14 +426,14 @@ export default function ActualInterventionPage() {
 																					<>
 																						<button
 																							type="button"
-																							onClick={() => selectedFormNumber && handleInterventionClick(selectedFormNumber, "economic", member.MemberNo)}
+																							onClick={() => selectedFormNumber && handleInterventionClick(selectedFormNumber, "economic", memberKey)}
 																							className="inline-flex items-center rounded-lg px-4 py-2 text-xs font-semibold bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md hover:from-blue-700 hover:to-blue-800 transition-all cursor-pointer"
 																						>
 																							Economic
 																						</button>
 																						<button
 																							type="button"
-																							onClick={() => selectedFormNumber && handleBankAccountClick(selectedFormNumber, member.MemberNo)}
+																							onClick={() => selectedFormNumber && handleBankAccountClick(selectedFormNumber, memberKey)}
 																							className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-md hover:from-indigo-700 hover:to-indigo-800 transition-all cursor-pointer"
 																						>
 																							<CreditCard className="h-3.5 w-3.5" />
@@ -442,7 +444,7 @@ export default function ActualInterventionPage() {
 																				{interventions.education && (
 																					<button
 																						type="button"
-																						onClick={() => selectedFormNumber && handleInterventionClick(selectedFormNumber, "education", member.MemberNo)}
+																						onClick={() => selectedFormNumber && handleInterventionClick(selectedFormNumber, "education", memberKey)}
 																						className="inline-flex items-center rounded-lg px-4 py-2 text-xs font-semibold bg-gradient-to-r from-green-600 to-green-700 text-white shadow-md hover:from-green-700 hover:to-green-800 transition-all cursor-pointer"
 																					>
 																						Education
@@ -451,7 +453,7 @@ export default function ActualInterventionPage() {
 																				{interventions.food && (
 																					<button
 																						type="button"
-																						onClick={() => selectedFormNumber && handleInterventionClick(selectedFormNumber, "food", member.MemberNo)}
+																						onClick={() => selectedFormNumber && handleInterventionClick(selectedFormNumber, "food", memberKey)}
 																						className="inline-flex items-center rounded-lg px-4 py-2 text-xs font-semibold bg-gradient-to-r from-amber-600 to-amber-700 text-white shadow-md hover:from-amber-700 hover:to-amber-800 transition-all cursor-pointer"
 																					>
 																						Food
@@ -460,7 +462,7 @@ export default function ActualInterventionPage() {
 																				{interventions.habitat && (
 																					<button
 																						type="button"
-																						onClick={() => selectedFormNumber && handleInterventionClick(selectedFormNumber, "habitat", member.MemberNo)}
+																						onClick={() => selectedFormNumber && handleInterventionClick(selectedFormNumber, "habitat", memberKey)}
 																						className="inline-flex items-center rounded-lg px-4 py-2 text-xs font-semibold bg-gradient-to-r from-purple-600 to-purple-700 text-white shadow-md hover:from-purple-700 hover:to-purple-800 transition-all cursor-pointer"
 																					>
 																						Habitat

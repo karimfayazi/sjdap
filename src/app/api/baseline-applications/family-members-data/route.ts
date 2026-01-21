@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
 		const query = `
 			SELECT 
 				[FormNo],
-				[MemberNo],
+				[BeneficiaryID],
 				[FullName],
 				[BFormOrCNIC],
 				[Relationship],
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
 				[ReasonNotEarning]
 			FROM [SJDA_Users].[dbo].[PE_FamilyMember]
 			WHERE [FormNo] = @FormNo
-			ORDER BY [MemberNo]
+			ORDER BY [BeneficiaryID]
 		`;
 
 		const result = await request_query.query(query);
@@ -168,38 +168,38 @@ export async function POST(request: NextRequest) {
 					const member = familyMembers[i];
 					try {
 						// Validate required fields
-						if (!member.MemberNo || !member.FullName) {
-							throw new Error(`Member ${i + 1} is missing required fields: MemberNo=${member.MemberNo}, FullName=${member.FullName}`);
+						if (!member.BeneficiaryID || !member.FullName) {
+							throw new Error(`Member ${i + 1} is missing required fields: BeneficiaryID=${member.BeneficiaryID}, FullName=${member.FullName}`);
 						}
 						
-						// Check if this MemberNo already exists
+						// Check if this BeneficiaryID already exists
 						const checkMemberRequest = new sql.Request(transaction);
-						checkMemberRequest.input("MemberNo", member.MemberNo);
+						checkMemberRequest.input("BeneficiaryID", member.BeneficiaryID);
 						const memberCheckResult = await checkMemberRequest.query(`
 							SELECT COUNT(*) as RecordCount 
 							FROM [SJDA_Users].[dbo].[PE_FamilyMember] 
-							WHERE [MemberNo] = @MemberNo
+							WHERE [BeneficiaryID] = @BeneficiaryID
 						`);
 						const memberExists = (memberCheckResult.recordset[0]?.RecordCount || 0) > 0;
 						
 						const memberRequest = new sql.Request(transaction);
 						
 						// Prepare all input values
-						// Ensure FormNo and MemberNo are set correctly
+						// Ensure FormNo and BeneficiaryID are set correctly
 						const formNoValue = formNumber || member.FormNo || "";
-						const memberNoValue = member.MemberNo || "";
+						const beneficiaryIDValue = member.BeneficiaryID || "";
 						
 						if (!formNoValue) {
 							throw new Error(`Member ${i + 1} is missing FormNo`);
 						}
-						if (!memberNoValue) {
-							throw new Error(`Member ${i + 1} is missing MemberNo`);
+						if (!beneficiaryIDValue) {
+							throw new Error(`Member ${i + 1} is missing BeneficiaryID`);
 						}
 						
-						console.log(`Member ${i + 1} - FormNo: ${formNoValue}, MemberNo: ${memberNoValue}`);
+						console.log(`Member ${i + 1} - FormNo: ${formNoValue}, BeneficiaryID: ${beneficiaryIDValue}`);
 						
 						memberRequest.input("FormNo", formNoValue);
-						memberRequest.input("MemberNo", memberNoValue);
+						memberRequest.input("BeneficiaryID", beneficiaryIDValue);
 						memberRequest.input("FullName", member.FullName || null);
 						memberRequest.input("BFormOrCNIC", toNullIfEmpty(member.BFormOrCNIC));
 						memberRequest.input("Relationship", toNullIfEmpty(member.RelationshipId || member.Relationship));
@@ -262,7 +262,7 @@ export async function POST(request: NextRequest) {
 							memberRequest.input("UpdatedOn", now);
 							memberRequest.input("UpdatedBy", currentUser);
 							
-							console.log(`Updating member ${i + 1}/${familyMembers.length}: FormNo=${formNoValue}, MemberNo=${memberNoValue}`);
+							console.log(`Updating member ${i + 1}/${familyMembers.length}: FormNo=${formNoValue}, BeneficiaryID=${beneficiaryIDValue}`);
 							
 							const updateQuery = `
 								UPDATE [SJDA_Users].[dbo].[PE_FamilyMember]
@@ -290,11 +290,11 @@ export async function POST(request: NextRequest) {
 									[ReasonNotEarning] = @ReasonNotEarning,
 									[UpdatedOn] = @UpdatedOn,
 									[UpdatedBy] = @UpdatedBy
-								WHERE [MemberNo] = @MemberNo
+								WHERE [BeneficiaryID] = @BeneficiaryID
 							`;
 							
 							const result = await memberRequest.query(updateQuery);
-							console.log(`Successfully updated member ${i + 1}: FormNo=${formNoValue}, MemberNo=${memberNoValue}, rows affected:`, result.rowsAffected);
+							console.log(`Successfully updated member ${i + 1}: FormNo=${formNoValue}, BeneficiaryID=${beneficiaryIDValue}, rows affected:`, result.rowsAffected);
 						} else {
 							// INSERT new member
 							memberRequest.input("CreatedOn", now);
@@ -302,11 +302,11 @@ export async function POST(request: NextRequest) {
 							memberRequest.input("UpdatedOn", now);
 							memberRequest.input("UpdatedBy", currentUser);
 							
-							console.log(`Inserting new member ${i + 1}/${familyMembers.length}: FormNo=${formNoValue}, MemberNo=${memberNoValue}`);
+							console.log(`Inserting new member ${i + 1}/${familyMembers.length}: FormNo=${formNoValue}, BeneficiaryID=${beneficiaryIDValue}`);
 							
 							const insertQuery = `
 								INSERT INTO [SJDA_Users].[dbo].[PE_FamilyMember]
-								([FormNo], [MemberNo], [FullName], [BFormOrCNIC], [Relationship],
+								([FormNo], [BeneficiaryID], [FullName], [BFormOrCNIC], [Relationship],
 								 [Gender], [MaritalStatus], [DOBMonth], [DOBYear], [Occupation], 
 								 [PrimaryLocation], [IsPrimaryEarner],
 								 [IsCurrentlyStudying], [InstitutionType],
@@ -317,7 +317,7 @@ export async function POST(request: NextRequest) {
 								 [MonthlyIncome], [JoblessDuration], [ReasonNotEarning],
 								 [CreatedOn], [CreatedBy], [UpdatedOn], [UpdatedBy])
 								VALUES 
-								(@FormNo, @MemberNo, @FullName, @BFormOrCNIC, @Relationship,
+								(@FormNo, @BeneficiaryID, @FullName, @BFormOrCNIC, @Relationship,
 								 @Gender, @MaritalStatus, @DOBMonth, @DOBYear, @Occupation,
 								 @PrimaryLocation, @IsPrimaryEarner,
 								 @IsCurrentlyStudying, @InstitutionType,
@@ -330,10 +330,10 @@ export async function POST(request: NextRequest) {
 							`;
 							
 							const result = await memberRequest.query(insertQuery);
-							console.log(`Successfully inserted member ${i + 1}: FormNo=${formNoValue}, MemberNo=${memberNoValue}, rows affected:`, result.rowsAffected);
+							console.log(`Successfully inserted member ${i + 1}: FormNo=${formNoValue}, BeneficiaryID=${beneficiaryIDValue}, rows affected:`, result.rowsAffected);
 						}
 					} catch (memberError: any) {
-						console.error(`Error inserting member ${i + 1} (${member.MemberNo}):`, memberError);
+						console.error(`Error inserting member ${i + 1} (${member.BeneficiaryID}):`, memberError);
 						console.error("Member data:", JSON.stringify(member, null, 2));
 						console.error("Error details:", {
 							message: memberError.message,
@@ -354,7 +354,7 @@ export async function POST(request: NextRequest) {
 						}
 						
 						// Include SQL error number in the thrown error for better debugging
-						const errorToThrow = new Error(`Failed to save member ${i + 1} (${member.MemberNo || 'Unknown'}): ${memberErrorMessage}`);
+						const errorToThrow = new Error(`Failed to save member ${i + 1} (${member.BeneficiaryID || 'Unknown'}): ${memberErrorMessage}`);
 						(errorToThrow as any).sqlErrorNumber = memberError.number;
 						(errorToThrow as any).sqlErrorState = memberError.state;
 						throw errorToThrow;

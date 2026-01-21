@@ -6,7 +6,7 @@ import { ArrowLeft, Download } from "lucide-react";
 import jsPDF from "jspdf";
 
 type FamilyInfo = {
-	FamilyID: string;
+	FormNumber: string;
 	HeadName: string;
 	BaselineFamilyIncome: number;
 	FamilyMembersCount: number;
@@ -149,11 +149,11 @@ function ViewFDPContent() {
 		pdf.text("Overview of Family Development Plan [FDP]", pageWidth / 2, yPos + 10, { align: 'center' });
 		yPos += 18;
 
-		// Family ID
+		// Form Number
 		pdf.setTextColor(0, 0, 0);
 		pdf.setFontSize(10);
 		pdf.setFont("helvetica", "normal");
-		pdf.text(`Family ID: ${familyInfo.FamilyID}`, pageWidth / 2, yPos, { align: 'center' });
+		pdf.text(`Form Number: ${familyInfo.FormNumber}`, pageWidth / 2, yPos, { align: 'center' });
 		yPos += sectionSpacing;
 
 		// Section 1: Family-Level Information
@@ -168,7 +168,7 @@ function ViewFDPContent() {
 		pdf.setFontSize(8);
 		pdf.setFont("helvetica", "normal");
 		const familyInfoData = [
-			["Family ID", familyInfo.FamilyID],
+			["Form Number", familyInfo.FormNumber],
 			["Head Name (Self)", familyInfo.HeadName],
 			["Baseline Family Income", formatCurrency(familyInfo.BaselineFamilyIncome)],
 			["Family Members Count", familyInfo.FamilyMembersCount.toString()],
@@ -505,7 +505,7 @@ function ViewFDPContent() {
 		pdf.setFont("helvetica", "normal");
 
 		// Save PDF
-		pdf.save(`FDP_Overview_${familyInfo.FamilyID}_${new Date().toISOString().split('T')[0]}.pdf`);
+		pdf.save(`FDP_Overview_${familyInfo.FormNumber}_${new Date().toISOString().split('T')[0]}.pdf`);
 	};
 
 	const handleSaveApproval = async () => {
@@ -619,7 +619,7 @@ function ViewFDPContent() {
 							<label className="block text-sm font-medium text-gray-700 mb-2">Family ID</label>
 							<input
 								type="text"
-								value={familyInfo.FamilyID}
+								value={familyInfo.FormNumber}
 								readOnly
 								className="w-full rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-gray-600 cursor-not-allowed"
 							/>

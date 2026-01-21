@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
 		const query = `
 			SELECT 
 				f.[FDP_ID],
-				f.[FamilyID],
+				f.[FormNumber],
 				f.[MemberID],
 				f.[MemberName],
 				f.[PlanCategory],
@@ -83,22 +83,22 @@ export async function GET(request: NextRequest) {
 				f.[SystemDate],
 				f.[CreatedBy],
 				-- Family Member Info
-				m.[MemberNo],
+				m.[BeneficiaryID],
 				m.[FormNo] AS MemberFormNo,
 				m.[FullName] AS MemberFullName,
 				m.[BFormOrCNIC] AS MemberBFormOrCNIC,
 				m.[Gender] AS MemberGender,
 				-- Application Basic Info
-				b.[FormNumber],
+				b.[FormNumber] AS ApplicationFormNumber,
 				b.[Full_Name] AS ApplicationFullName,
 				b.[CNICNumber],
 				b.[RegionalCommunity],
 				b.[LocalCommunity]
 			FROM [SJDA_Users].[dbo].[PE_FamilyDevelopmentPlan_Feasibility] f
 			LEFT JOIN [SJDA_Users].[dbo].[PE_FamilyMember] m 
-				ON f.[MemberID] = m.[MemberNo] AND f.[FamilyID] = m.[FormNo]
+				ON f.[MemberID] = m.[BeneficiaryID] AND f.[FormNumber] = m.[FormNo]
 			LEFT JOIN [SJDA_Users].[dbo].[PE_Application_BasicInfo] b 
-				ON f.[FamilyID] = b.[FormNumber]
+				ON f.[FormNumber] = b.[FormNumber]
 			WHERE 1=1 ${regionalCouncilFilter}
 			ORDER BY f.[FDP_ID] DESC
 		`;
@@ -195,18 +195,18 @@ export async function PUT(request: NextRequest) {
 			);
 		}
 
-		// Get FamilyID (FormNumber) from the feasibility record
+		// Get FormNumber from the feasibility record
 		let formNumber = null;
 		try {
 			const formNumberRequest = pool.request();
 			formNumberRequest.input("FDP_ID", sql.Int, fdpId);
 			const formNumberQuery = `
-				SELECT TOP 1 [FamilyID]
+				SELECT TOP 1 [FormNumber]
 				FROM [SJDA_Users].[dbo].[PE_FamilyDevelopmentPlan_Feasibility]
 				WHERE [FDP_ID] = @FDP_ID
 			`;
 			const formNumberResult = await formNumberRequest.query(formNumberQuery);
-			formNumber = formNumberResult.recordset?.[0]?.FamilyID || null;
+			formNumber = formNumberResult.recordset?.[0]?.FormNumber || null;
 		} catch (formNumberError) {
 			console.error("Error fetching FormNumber:", formNumberError);
 		}

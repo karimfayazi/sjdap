@@ -52,30 +52,30 @@ export async function DELETE(request: NextRequest) {
 			);
 		}
 
-		// Get all MemberNos for this FormNumber
-		const getMemberNosRequest = pool.request();
-		getMemberNosRequest.input("formNumber", formNumber);
-		const memberNosQuery = `
-			SELECT [MemberNo] 
+		// Get all BeneficiaryIDs for this FormNumber
+		const getBeneficiaryIDsRequest = pool.request();
+		getBeneficiaryIDsRequest.input("formNumber", formNumber);
+		const beneficiaryIDsQuery = `
+			SELECT [BeneficiaryID] 
 			FROM [SJDA_Users].[dbo].[PE_FamilyMember] 
 			WHERE [FormNo] = @formNumber
 		`;
-		const memberNosResult = await getMemberNosRequest.query(memberNosQuery);
-		const memberNos = memberNosResult.recordset.map((r: any) => r.MemberNo);
+		const beneficiaryIDsResult = await getBeneficiaryIDsRequest.query(beneficiaryIDsQuery);
+		const beneficiaryIDs = beneficiaryIDsResult.recordset.map((r: any) => r.BeneficiaryID);
 
 		const dbRequest = pool.request();
 		(dbRequest as any).timeout = 120000;
 		dbRequest.input("formNumber", formNumber);
 
-		// Delete PE_Livelihood records by MemberNo (if any exist)
-		if (memberNos.length > 0) {
-			for (const memberNo of memberNos) {
+		// Delete PE_Livelihood records by BeneficiaryID (if any exist)
+		if (beneficiaryIDs.length > 0) {
+			for (const beneficiaryID of beneficiaryIDs) {
 				try {
 					const deleteLivelihoodByMember = pool.request();
-					deleteLivelihoodByMember.input("memberNo", memberNo);
+					deleteLivelihoodByMember.input("beneficiaryID", beneficiaryID);
 					await deleteLivelihoodByMember.query(`
 						DELETE FROM [SJDA_Users].[dbo].[PE_Livelihood]
-						WHERE [MemberNo] = @memberNo
+						WHERE [MemberNo] = @beneficiaryID
 					`);
 				} catch (err) {
 					console.log("Error deleting livelihood record:", err);
@@ -83,15 +83,15 @@ export async function DELETE(request: NextRequest) {
 			}
 		}
 
-		// Delete PE_Education records by MemberNo (if any exist)
-		if (memberNos.length > 0) {
-			for (const memberNo of memberNos) {
+		// Delete PE_Education records by BeneficiaryID (if any exist)
+		if (beneficiaryIDs.length > 0) {
+			for (const beneficiaryID of beneficiaryIDs) {
 				try {
 					const deleteEducationByMember = pool.request();
-					deleteEducationByMember.input("memberNo", memberNo);
+					deleteEducationByMember.input("beneficiaryID", beneficiaryID);
 					await deleteEducationByMember.query(`
 						DELETE FROM [SJDA_Users].[dbo].[PE_Education]
-						WHERE [MemberNo] = @memberNo
+						WHERE [MemberNo] = @beneficiaryID
 					`);
 				} catch (err) {
 					console.log("Error deleting education record:", err);
@@ -127,7 +127,7 @@ export async function DELETE(request: NextRequest) {
 		try {
 			await dbRequest.query(`
 				DELETE FROM [SJDA_Users].[dbo].[PE_FamilyDevelopmentPlan_Feasibility]
-				WHERE [FamilyID] = @formNumber
+				WHERE [FormNumber] = @formNumber
 			`);
 		} catch (err) {
 			console.log("Error deleting feasibility records:", err);
@@ -137,7 +137,7 @@ export async function DELETE(request: NextRequest) {
 		try {
 			await dbRequest.query(`
 				DELETE FROM [SJDA_Users].[dbo].[PE_FamilyDevelopmentPlan_Economic]
-				WHERE [FamilyID] = @formNumber
+				WHERE [FormNumber] = @formNumber
 			`);
 		} catch (err) {
 			console.log("Error deleting economic records:", err);
@@ -147,7 +147,7 @@ export async function DELETE(request: NextRequest) {
 		try {
 			await dbRequest.query(`
 				DELETE FROM [SJDA_Users].[dbo].[PE_FamilyDevelopmentPlan_Social]
-				WHERE [FamilyID] = @formNumber
+				WHERE [FormNumber] = @formNumber
 			`);
 		} catch (err) {
 			console.log("Error deleting social records:", err);

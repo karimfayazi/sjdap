@@ -69,7 +69,7 @@ type FinancialAssets = {
 
 type FamilyMember = {
 	FormNo: string;
-	MemberNo: string;
+	BeneficiaryID: string;
 	FullName: string;
 	BFormOrCNIC: string;
 	RelationshipId: number;

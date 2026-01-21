@@ -178,7 +178,7 @@ export async function GET(request: NextRequest) {
 		const familyMembersQuery = `
 			SELECT 
 				[FormNo],
-				[MemberNo],
+				[BeneficiaryID],
 				[FullName],
 				[BFormOrCNIC],
 				[Relationship] as RelationshipId,
@@ -206,7 +206,7 @@ export async function GET(request: NextRequest) {
 				[ReasonNotEarning]
 			FROM [SJDA_Users].[dbo].[PE_FamilyMember]
 			WHERE [FormNo] = @formNo
-			ORDER BY [MemberNo]
+			ORDER BY [BeneficiaryID]
 		`;
 		
 		const familyMembersResult = await familyMembersRequest.query(familyMembersQuery);
@@ -215,7 +215,7 @@ export async function GET(request: NextRequest) {
 		const enrichedFamilyMembers = (familyMembersResult.recordset || []).map((member: any) => ({
 			ApplicationId: null,
 			FormNo: member.FormNo,
-			MemberNo: member.MemberNo,
+			BeneficiaryID: member.BeneficiaryID,
 			FullName: member.FullName,
 			BFormOrCNIC: member.BFormOrCNIC,
 			RelationshipId: member.RelationshipId || member.Relationship,

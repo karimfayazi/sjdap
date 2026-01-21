@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
 		const sqlRequest = pool.request();
 
 		// Input parameters
-		sqlRequest.input("FamilyID", sql.VarChar, body.FamilyID);
+		sqlRequest.input("FormNumber", sql.VarChar, body.FormNumber);
 		sqlRequest.input("HeadName", sql.NVarChar, body.HeadName || null);
 		sqlRequest.input("BaselineFamilyIncome", sql.Decimal(18, 2), body.BaselineFamilyIncome || null);
 		sqlRequest.input("FamilyMembersCount", sql.Int, body.FamilyMembersCount || null);
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
 		const insertQuery = `
 			INSERT INTO [SJDA_Users].[dbo].[PE_FDP_FoodSupport]
 			(
-				[FamilyID], [HeadName], [BaselineFamilyIncome], [FamilyMembersCount],
+				[FormNumber], [HeadName], [BaselineFamilyIncome], [FamilyMembersCount],
 				[SelfSufficiencyIncomePerCapita], [BaselinePovertyLevel], [MaxSocialSupportAmount],
 				[FoodSupportMonthlyTotalCost], [FoodSupportMonthlyFamilyContribution],
 				[FoodSupportMonthlyPEContribution], [FoodSupportNumberOfMonths],
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
 			)
 			VALUES
 			(
-				@FamilyID, @HeadName, @BaselineFamilyIncome, @FamilyMembersCount,
+				@FormNumber, @HeadName, @BaselineFamilyIncome, @FamilyMembersCount,
 				@SelfSufficiencyIncomePerCapita, @BaselinePovertyLevel, @MaxSocialSupportAmount,
 				@FoodSupportMonthlyTotalCost, @FoodSupportMonthlyFamilyContribution,
 				@FoodSupportMonthlyPEContribution, @FoodSupportNumberOfMonths,
@@ -90,8 +90,8 @@ export async function GET(request: NextRequest) {
 			sqlRequest.input("FDP_FoodSupportID", sql.Int, parseInt(fdpFoodSupportId));
 			query += ` AND [FDP_FoodSupportID] = @FDP_FoodSupportID`;
 		} else if (familyID) {
-			sqlRequest.input("FamilyID", sql.VarChar, familyID);
-			query += ` AND [FamilyID] = @FamilyID`;
+			sqlRequest.input("FormNumber", sql.VarChar, familyID);
+			query += ` AND [FormNumber] = @FormNumber`;
 			query += ` ORDER BY [FDP_FoodSupportID] DESC`;
 		}
 

@@ -646,9 +646,9 @@ export async function POST(request: NextRequest) {
 				for (const member of familyMembers) {
 					const memberRequest = new sql.Request(transaction);
 					
-					// MemberNo is already formatted as PE-{FormNo}-{MemberNumber} from frontend
+					// BeneficiaryID is already formatted as PE-{FormNo}-{MemberNumber} from frontend
 					memberRequest.input("ApplicationId", applicationId);
-					memberRequest.input("MemberNo", member.MemberNo || null);
+					memberRequest.input("BeneficiaryID", member.BeneficiaryID || null);
 					memberRequest.input("FullName", member.FullName || null);
 					memberRequest.input("BFormOrCNIC", member.BFormOrCNIC || null);
 					memberRequest.input("RelationshipId", member.RelationshipId || null);
@@ -659,15 +659,15 @@ export async function POST(request: NextRequest) {
 
 					await memberRequest.query(`
 						INSERT INTO [SJDA_Users].[dbo].[PE_FamilyMember]
-						([ApplicationId], [MemberNo], [FullName], [BFormOrCNIC], [RelationshipId],
+						([ApplicationId], [BeneficiaryID], [FullName], [BFormOrCNIC], [RelationshipId],
 						 [GenderId], [MaritalStatusId], [DOBMonth], [DOBYear])
 						VALUES 
-						(@ApplicationId, @MemberNo, @FullName, @BFormOrCNIC, @RelationshipId,
+						(@ApplicationId, @BeneficiaryID, @FullName, @BFormOrCNIC, @RelationshipId,
 						 @GenderId, @MaritalStatusId, @DOBMonth, @DOBYear)
 					`);
 
 					// Insert education data if family member was created and education data exists
-					if (member.MemberNo && member.education) {
+					if (member.BeneficiaryID && member.education) {
 						const educationRequest = new sql.Request(transaction);
 						
 						educationRequest.input("FamilyID", applicationId);
@@ -694,11 +694,11 @@ export async function POST(request: NextRequest) {
 					}
 
 					// Insert livelihood data if family member was created and livelihood data exists
-					if (member.MemberNo && member.livelihood) {
+					if (member.BeneficiaryID && member.livelihood) {
 						const livelihoodRequest = new sql.Request(transaction);
 						
 						livelihoodRequest.input("FamilyID", applicationId);
-						livelihoodRequest.input("MemberNo", member.MemberNo);
+						livelihoodRequest.input("MemberNo", member.BeneficiaryID);
 						livelihoodRequest.input("IsCurrentlyEarning", member.livelihood.IsCurrentlyEarning || null);
 						livelihoodRequest.input("EarningSource", member.livelihood.EarningSource || null);
 						livelihoodRequest.input("EarningSourceOther", member.livelihood.EarningSourceOther || null);
@@ -786,25 +786,25 @@ export async function PUT(request: NextRequest) {
 				);
 			}
 
-			// Get all MemberNos for this FormNo to clean up related data
-			const getMemberNosRequest = new sql.Request(transaction);
-			getMemberNosRequest.input("FormNo", formNoValue);
-			const memberNosQuery = `SELECT [MemberNo] FROM [SJDA_Users].[dbo].[PE_FamilyMember] WHERE [FormNo] = @FormNo`;
-			const memberNosResult = await getMemberNosRequest.query(memberNosQuery);
-			const memberNos = memberNosResult.recordset.map((r: any) => r.MemberNo);
+			// Get all BeneficiaryIDs for this FormNo to clean up related data
+			const getBeneficiaryIDsRequest = new sql.Request(transaction);
+			getBeneficiaryIDsRequest.input("FormNo", formNoValue);
+			const beneficiaryIDsQuery = `SELECT [BeneficiaryID] FROM [SJDA_Users].[dbo].[PE_FamilyMember] WHERE [FormNo] = @FormNo`;
+			const beneficiaryIDsResult = await getBeneficiaryIDsRequest.query(beneficiaryIDsQuery);
+			const beneficiaryIDs = beneficiaryIDsResult.recordset.map((r: any) => r.BeneficiaryID);
 
-			// Delete related records by MemberNo
-			if (memberNos.length > 0) {
-				for (const memberNo of memberNos) {
+			// Delete related records by BeneficiaryID (used as MemberNo in PE_Livelihood and PE_Education)
+			if (beneficiaryIDs.length > 0) {
+				for (const beneficiaryID of beneficiaryIDs) {
 					const deleteLivelihoodRequest = new sql.Request(transaction);
-					deleteLivelihoodRequest.input("MemberNo", memberNo);
+					deleteLivelihoodRequest.input("MemberNo", beneficiaryID);
 					await deleteLivelihoodRequest.query(`
 						DELETE FROM [SJDA_Users].[dbo].[PE_Livelihood]
 						WHERE [MemberNo] = @MemberNo
 					`);
 
 					const deleteEducationRequest = new sql.Request(transaction);
-					deleteEducationRequest.input("MemberNo", memberNo);
+					deleteEducationRequest.input("MemberNo", beneficiaryID);
 					await deleteEducationRequest.query(`
 						DELETE FROM [SJDA_Users].[dbo].[PE_Education]
 						WHERE [MemberNo] = @MemberNo
@@ -874,7 +874,7 @@ export async function PUT(request: NextRequest) {
 				for (const member of familyMembers) {
 					const memberRequest = new sql.Request(transaction);
 					memberRequest.input("FormNo", formNoValue);
-					memberRequest.input("MemberNo", member.MemberNo || null);
+					memberRequest.input("BeneficiaryID", member.BeneficiaryID || null);
 					memberRequest.input("FullName", member.FullName || null);
 					memberRequest.input("BFormOrCNIC", member.BFormOrCNIC || null);
 					memberRequest.input("RelationshipId", member.RelationshipId || null);
@@ -885,16 +885,16 @@ export async function PUT(request: NextRequest) {
 
 					await memberRequest.query(`
 						INSERT INTO [SJDA_Users].[dbo].[PE_FamilyMember]
-						([FormNo], [MemberNo], [FullName], [BFormOrCNIC], [RelationshipId],
+						([FormNo], [BeneficiaryID], [FullName], [BFormOrCNIC], [RelationshipId],
 						 [GenderId], [MaritalStatusId], [DOBMonth], [DOBYear])
 						VALUES 
-						(@FormNo, @MemberNo, @FullName, @BFormOrCNIC, @RelationshipId,
+						(@FormNo, @BeneficiaryID, @FullName, @BFormOrCNIC, @RelationshipId,
 						 @GenderId, @MaritalStatusId, @DOBMonth, @DOBYear)
 					`);
 
-					if (member.MemberNo && member.education) {
+					if (member.BeneficiaryID && member.education) {
 						const eduRequest = new sql.Request(transaction);
-						eduRequest.input("MemberNo", member.MemberNo);
+						eduRequest.input("MemberNo", member.BeneficiaryID);
 						eduRequest.input("IsCurrentlyStudying", member.education.IsCurrentlyStudying || null);
 						eduRequest.input("InstitutionType", member.education.InstitutionType || null);
 						eduRequest.input("InstitutionTypeOther", member.education.InstitutionTypeOther || null);
@@ -915,9 +915,9 @@ export async function PUT(request: NextRequest) {
 						`);
 					}
 
-					if (member.MemberNo && member.livelihood) {
+					if (member.BeneficiaryID && member.livelihood) {
 						const livelihoodRequest = new sql.Request(transaction);
-						livelihoodRequest.input("MemberNo", member.MemberNo);
+						livelihoodRequest.input("MemberNo", member.BeneficiaryID);
 						livelihoodRequest.input("IsCurrentlyEarning", member.livelihood.IsCurrentlyEarning || null);
 						livelihoodRequest.input("EarningSource", member.livelihood.EarningSource || null);
 						livelihoodRequest.input("EarningSourceOther", member.livelihood.EarningSourceOther || null);
@@ -1022,14 +1022,14 @@ export async function DELETE(request: NextRequest) {
 
 		const tableName = await findTableName(pool);
 		
-		// Get all MemberNos for this FormNo to ensure complete deletion (if family members table exists)
-		let memberNos: string[] = [];
+		// Get all BeneficiaryIDs for this FormNo to ensure complete deletion (if family members table exists)
+		let beneficiaryIDs: string[] = [];
 		try {
-			const getMemberNosRequest = pool.request();
-			getMemberNosRequest.input("formNo", formNo);
-			const memberNosQuery = `SELECT [MemberNo] FROM [SJDA_Users].[dbo].[PE_FamilyMember] WHERE [FormNo] = @formNo`;
-			const memberNosResult = await getMemberNosRequest.query(memberNosQuery);
-			memberNos = memberNosResult.recordset.map((r: any) => r.MemberNo);
+			const getBeneficiaryIDsRequest = pool.request();
+			getBeneficiaryIDsRequest.input("formNo", formNo);
+			const beneficiaryIDsQuery = `SELECT [BeneficiaryID] FROM [SJDA_Users].[dbo].[PE_FamilyMember] WHERE [FormNo] = @formNo`;
+			const beneficiaryIDsResult = await getBeneficiaryIDsRequest.query(beneficiaryIDsQuery);
+			beneficiaryIDs = beneficiaryIDsResult.recordset.map((r: any) => r.BeneficiaryID);
 		} catch (err) {
 			// Family members table might not exist or have data, continue with deletion
 			console.log("No family members found or table doesn't exist");
@@ -1040,12 +1040,12 @@ export async function DELETE(request: NextRequest) {
 		dbRequest.input("formNo", formNo);
 		dbRequest.input("formNumber", formNo); // For PE_Application_BasicInfo table
 
-		// Delete PE_Livelihood records by MemberNo (if any exist)
-		if (memberNos.length > 0) {
-			for (const memberNo of memberNos) {
+		// Delete PE_Livelihood records by BeneficiaryID (used as MemberNo in PE_Livelihood) (if any exist)
+		if (beneficiaryIDs.length > 0) {
+			for (const beneficiaryID of beneficiaryIDs) {
 				try {
 					const deleteLivelihoodByMember = pool.request();
-					deleteLivelihoodByMember.input("memberNo", memberNo);
+					deleteLivelihoodByMember.input("memberNo", beneficiaryID);
 					await deleteLivelihoodByMember.query(`
 						DELETE FROM [SJDA_Users].[dbo].[PE_Livelihood]
 						WHERE [MemberNo] = @memberNo
@@ -1056,12 +1056,12 @@ export async function DELETE(request: NextRequest) {
 			}
 		}
 
-		// Delete PE_Education records by MemberNo (if any exist)
-		if (memberNos.length > 0) {
-			for (const memberNo of memberNos) {
+		// Delete PE_Education records by BeneficiaryID (used as MemberNo in PE_Education) (if any exist)
+		if (beneficiaryIDs.length > 0) {
+			for (const beneficiaryID of beneficiaryIDs) {
 				try {
 					const deleteEducationByMember = pool.request();
-					deleteEducationByMember.input("memberNo", memberNo);
+					deleteEducationByMember.input("memberNo", beneficiaryID);
 					await deleteEducationByMember.query(`
 						DELETE FROM [SJDA_Users].[dbo].[PE_Education]
 						WHERE [MemberNo] = @memberNo

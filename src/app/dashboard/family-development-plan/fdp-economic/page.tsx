@@ -90,7 +90,7 @@ const BUSINESS_TRADES: BusinessTrade[] = [
 
 type FDPEconomicFormData = {
 	// Family-Level Information (read-only)
-	FamilyID: string;
+	FormNumber: string;
 	BaselineFamilyIncome: number;
 	FamilyMembersCount: number;
 	FamilyPerCapitaIncome: number;
@@ -130,7 +130,7 @@ type FDPEconomicFormData = {
 };
 
 type FamilyMember = {
-	MemberNo: string;
+	BeneficiaryID: string;
 	FullName: string;
 	Gender: string;
 	DOBMonth: string | null;
@@ -183,7 +183,7 @@ function FDPEconomicContent() {
 
 	const { userProfile } = useAuth();
 	const [formData, setFormData] = useState<FDPEconomicFormData>({
-		FamilyID: formNumber || "",
+		FormNumber: formNumber || "",
 		BaselineFamilyIncome: 0,
 		FamilyMembersCount: 0,
 		FamilyPerCapitaIncome: 0,
@@ -339,12 +339,12 @@ function FDPEconomicContent() {
 					
 					// Auto-select the member if memberNo is provided
 					if (memberNo) {
-						const selectedMember = membersData.data.find((m: FamilyMember) => m.MemberNo === memberNo);
+						const selectedMember = membersData.data.find((m: FamilyMember) => m.BeneficiaryID === memberNo);
 						if (selectedMember) {
 							const age = calculateAge(selectedMember.DOBMonth, selectedMember.DOBYear);
 							setFormData(prev => ({
 								...prev,
-								BeneficiaryID: selectedMember.MemberNo,
+								BeneficiaryID: selectedMember.BeneficiaryID,
 								BeneficiaryName: selectedMember.FullName,
 								BeneficiaryAge: age,
 								BeneficiaryGender: selectedMember.Gender || "",
@@ -636,12 +636,12 @@ function FDPEconomicContent() {
 	};
 
 	const handleBeneficiaryChange = (memberNo: string) => {
-		const selectedMember = familyMembers.find(m => m.MemberNo === memberNo);
+		const selectedMember = familyMembers.find(m => m.BeneficiaryID === memberNo);
 		if (selectedMember) {
 			const age = calculateAge(selectedMember.DOBMonth, selectedMember.DOBYear);
 			setFormData(prev => ({
 				...prev,
-				BeneficiaryID: selectedMember.MemberNo,
+				BeneficiaryID: selectedMember.BeneficiaryID,
 				BeneficiaryName: selectedMember.FullName,
 				BeneficiaryAge: age,
 				BeneficiaryGender: selectedMember.Gender || "",
@@ -1103,7 +1103,7 @@ function FDPEconomicContent() {
 							<label className="block text-sm font-medium text-gray-700 mb-2">Family ID</label>
 							<input
 								type="text"
-								value={formData.FamilyID}
+								value={formData.FormNumber}
 								readOnly
 								className="w-full rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-gray-600 cursor-not-allowed"
 							/>
@@ -1211,8 +1211,8 @@ function FDPEconomicContent() {
 							>
 								<option value="">Select Member</option>
 								{familyMembers.map((member) => (
-									<option key={member.MemberNo} value={member.MemberNo}>
-										{member.MemberNo} - {member.FullName}
+									<option key={member.BeneficiaryID} value={member.BeneficiaryID}>
+										{member.BeneficiaryID} - {member.FullName}
 									</option>
 								))}
 							</select>

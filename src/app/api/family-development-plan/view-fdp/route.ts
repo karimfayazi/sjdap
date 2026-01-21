@@ -142,7 +142,7 @@ export async function GET(request: NextRequest) {
 
 		// Prepare family-level information
 		const familyInfo = {
-			FamilyID: formNumber,
+			FormNumber: formNumber,
 			HeadName: basicInfo.Full_Name || "",
 			BaselineFamilyIncome: baselineFamilyIncome,
 			FamilyMembersCount: familyMembersCount,
@@ -158,7 +158,7 @@ export async function GET(request: NextRequest) {
 		const feasibilityQuery = `
 			SELECT *
 			FROM [SJDA_Users].[dbo].[PE_FamilyDevelopmentPlan_Feasibility]
-			WHERE [FamilyID] = @formNumber
+			WHERE [FormNumber] = @formNumber
 			ORDER BY [FDP_ID] ASC
 		`;
 		const feasibilityResult = await sqlRequest.query(feasibilityQuery);
@@ -168,7 +168,7 @@ export async function GET(request: NextRequest) {
 		const economicQuery = `
 			SELECT *
 			FROM [SJDA_Users].[dbo].[PE_FDP_EconomicDevelopment]
-			WHERE [FamilyID] = @formNumber
+			WHERE [FormNumber] = @formNumber
 				AND [IsActive] = 1
 			ORDER BY [FDP_EconomicID] ASC
 		`;
@@ -179,7 +179,7 @@ export async function GET(request: NextRequest) {
 		const educationQuery = `
 			SELECT *
 			FROM [SJDA_Users].[dbo].[PE_FDP_SocialEducation]
-			WHERE [FamilyID] = @formNumber
+			WHERE [FormNumber] = @formNumber
 				AND [IsActive] = 1
 			ORDER BY [FDP_SocialEduID] ASC
 		`;
@@ -192,7 +192,7 @@ export async function GET(request: NextRequest) {
 			const healthQuery = `
 				SELECT *
 				FROM [SJDA_Users].[dbo].[PE_FDP_HealthSupport]
-				WHERE [FamilyID] = @formNumber
+				WHERE [FormNumber] = @formNumber
 					AND [IsActive] = 1
 				ORDER BY [FDP_HealthSupportID] ASC
 			`;
@@ -207,7 +207,7 @@ export async function GET(request: NextRequest) {
 		const housingQuery = `
 			SELECT *
 			FROM [SJDA_Users].[dbo].[PE_FDP_HabitatSupport]
-			WHERE [FamilyID] = @formNumber
+			WHERE [FormNumber] = @formNumber
 				AND [IsActive] = 1
 			ORDER BY [FDP_HabitatSupportID] ASC
 		`;
@@ -218,7 +218,7 @@ export async function GET(request: NextRequest) {
 		const foodQuery = `
 			SELECT *
 			FROM [SJDA_Users].[dbo].[PE_FDP_FoodSupport]
-			WHERE [FamilyID] = @formNumber
+			WHERE [FormNumber] = @formNumber
 				AND [IsActive] = 1
 			ORDER BY [FDP_FoodSupportID] ASC
 		`;

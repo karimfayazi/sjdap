@@ -44,19 +44,19 @@ export async function POST(request: NextRequest) {
 
 		// Check if record already exists
 		const checkRequest = pool.request();
-		checkRequest.input("FamilyID", sql.NVarChar, body.FamilyID);
+		checkRequest.input("FormNumber", sql.NVarChar, body.FormNumber);
 		checkRequest.input("MemberID", sql.NVarChar, body.MemberID);
 		const checkQuery = `
 			SELECT TOP 1 [FDP_ID]
 			FROM [SJDA_Users].[dbo].[PE_FamilyDevelopmentPlan_Feasibility]
-			WHERE [FamilyID] = @FamilyID AND [MemberID] = @MemberID
+			WHERE [FormNumber] = @FormNumber AND [MemberID] = @MemberID
 			ORDER BY [FDP_ID] DESC
 		`;
 		const checkResult = await checkRequest.query(checkQuery);
 		const existingRecord = checkResult.recordset[0];
 
 		// Set all input parameters
-		sqlRequest.input("FamilyID", sql.NVarChar, body.FamilyID);
+		sqlRequest.input("FormNumber", sql.NVarChar, body.FormNumber);
 		sqlRequest.input("MemberID", sql.NVarChar, body.MemberID);
 		sqlRequest.input("MemberName", sql.NVarChar, body.MemberName || null);
 		sqlRequest.input("PlanCategory", sql.VarChar, body.PlanCategory);
@@ -177,7 +177,7 @@ export async function POST(request: NextRequest) {
 			const insertQuery = `
 				INSERT INTO [SJDA_Users].[dbo].[PE_FamilyDevelopmentPlan_Feasibility]
 				(
-					[FamilyID], [MemberID], [MemberName], [PlanCategory],
+					[FormNumber], [MemberID], [MemberName], [PlanCategory],
 					[FeasibilityType], [InvestmentRationale], [MarketBusinessAnalysis],
 					[TotalSalesRevenue], [TotalDirectCosts], [TotalIndirectCosts], [NetProfitLoss],
 					[TotalInvestmentRequired], [InvestmentFromPEProgram],
@@ -189,7 +189,7 @@ export async function POST(request: NextRequest) {
 				)
 				VALUES
 				(
-					@FamilyID, @MemberID, @MemberName, @PlanCategory,
+					@FormNumber, @MemberID, @MemberName, @PlanCategory,
 					@FeasibilityType, @InvestmentRationale, @MarketBusinessAnalysis,
 					@TotalSalesRevenue, @TotalDirectCosts, @TotalIndirectCosts, @NetProfitLoss,
 					@TotalInvestmentRequired, @InvestmentFromPEProgram,
@@ -234,13 +234,13 @@ export async function GET(request: NextRequest) {
 
 		const pool = await getPeDb();
 		const sqlRequest = pool.request();
-		sqlRequest.input("FamilyID", sql.NVarChar, familyID);
+		sqlRequest.input("FormNumber", sql.NVarChar, familyID);
 		sqlRequest.input("MemberID", sql.NVarChar, memberID);
 
 		const query = `
 			SELECT *
 			FROM [SJDA_Users].[dbo].[PE_FamilyDevelopmentPlan_Feasibility]
-			WHERE [FamilyID] = @FamilyID AND [MemberID] = @MemberID
+			WHERE [FormNumber] = @FormNumber AND [MemberID] = @MemberID
 			ORDER BY [FDP_ID] DESC
 		`;
 

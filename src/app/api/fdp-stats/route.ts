@@ -85,21 +85,21 @@ export async function GET(request: NextRequest) {
 				UNION ALL
 				
 				-- Food Support
-				SELECT [FamilyID] as FormNumber, [ApprovalStatus]
+				SELECT [FormNumber] as FormNumber, [ApprovalStatus]
 				FROM [SJDA_Users].[dbo].[PE_FDP_FoodSupport]
 				WHERE [IsActive] = 1
 				
 				UNION ALL
 				
 				-- Education Support
-				SELECT [FamilyID] as FormNumber, [ApprovalStatus]
+				SELECT [FormNumber] as FormNumber, [ApprovalStatus]
 				FROM [SJDA_Users].[dbo].[PE_FDP_SocialEducation]
 				WHERE [IsActive] = 1
 				
 				UNION ALL
 				
 				-- Housing Support
-				SELECT [FamilyID] as FormNumber, [ApprovalStatus]
+				SELECT [FormNumber] as FormNumber, [ApprovalStatus]
 				FROM [SJDA_Users].[dbo].[PE_FDP_HabitatSupport]
 				WHERE [IsActive] = 1
 				

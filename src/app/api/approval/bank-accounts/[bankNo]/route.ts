@@ -4,6 +4,22 @@ import sql from "mssql";
 
 export const maxDuration = 120;
 
+export type BankInfo = {
+	BankNo: number;
+	FormNumber: string;
+	BeneficiaryID: string | null;
+	BankName: string | null;
+	AccountTitle: string | null;
+	AccountNo: string | null;
+	CNIC: string | null;
+	BankCode: string | null;
+	SubmittedAt: Date | null;
+	SubmittedBy: string | null;
+	ApprovalStatus: string | null;
+	Remarks: string | null;
+	BankChequeImagePath: string | null;
+};
+
 // GET /api/approval/bank-accounts/[bankNo] - Get bank account details
 export async function GET(
 	request: NextRequest,
@@ -70,7 +86,7 @@ export async function GET(
 			);
 		}
 
-		const bankInfo = bankResult.recordset[0];
+		const bankInfo: BankInfo = bankResult.recordset[0];
 
 		// Fetch basic info
 		const basicInfoRequest = pool.request();
@@ -173,12 +189,27 @@ export async function PUT(
 		}
 
 		const body = await request.json();
-		const { approvalStatus, remarks } = body;
+		const { approvalStatus, remarks } = body as { approvalStatus?: string; remarks?: string };
 
-		// Validation
-		if (!approvalStatus || (approvalStatus !== "APPROVED" && approvalStatus !== "REJECTED")) {
+		// Normalize and validate ApprovalStatus - only allow "Approval" or "Rejection" (case-insensitive)
+		let normalizedStatus: "Approval" | "Rejection";
+		const statusValue = (approvalStatus || "").trim();
+
+		if (!statusValue) {
 			return NextResponse.json(
-				{ success: false, message: "ApprovalStatus must be 'APPROVED' or 'REJECTED'" },
+				{ success: false, message: "ApprovalStatus is required and must be 'Approval' or 'Rejection'" },
+				{ status: 400 }
+			);
+		}
+
+		const upper = statusValue.toUpperCase();
+		if (upper === "APPROVAL" || upper === "APPROVED") {
+			normalizedStatus = "Approval";
+		} else if (upper === "REJECTION" || upper === "REJECTED") {
+			normalizedStatus = "Rejection";
+		} else {
+			return NextResponse.json(
+				{ success: false, message: "ApprovalStatus must be 'Approval' or 'Rejection'" },
 				{ status: 400 }
 			);
 		}
@@ -207,21 +238,35 @@ export async function PUT(
 				);
 			}
 
-			const formNumber = formResult.recordset[0].FormNumber;
+			const formNumber = formResult.recordset[0].FormNumber as string;
 
-			// Update PE_BankInformation
+			// Update PE_BankInformation only if not already approved (locked)
 			const updateRequest = new sql.Request(transaction);
 			updateRequest.input("bankNo", sql.Int, parseInt(bankNo));
-			updateRequest.input("approvalStatus", approvalStatus);
-			updateRequest.input("remarks", remarks || null);
+			updateRequest.input("approvalStatus", sql.VarChar, normalizedStatus);
+			updateRequest.input("remarks", sql.NVarChar, remarks?.trim() || null);
 
-			await updateRequest.query(`
+			const updateResult = await updateRequest.query(`
 				UPDATE [SJDA_Users].[dbo].[PE_BankInformation]
 				SET 
 					[ApprovalStatus] = @approvalStatus,
 					[Remarks] = @remarks
 				WHERE [BankNo] = @bankNo
+					AND ([ApprovalStatus] IS NULL OR [ApprovalStatus] <> 'Approval');
+
+				SELECT @@ROWCOUNT AS affected;
 			`);
+
+			const affected = updateResult.recordset?.[0]?.affected as number | undefined;
+
+			// If no rows were affected, the record is already approved and locked
+			if (!affected) {
+				await transaction.rollback();
+				return NextResponse.json(
+					{ success: false, message: "Record already approved and locked." },
+					{ status: 409 }
+				);
+			}
 
 			// Insert into Approval_Log
 			const logRequest = new sql.Request(transaction);
@@ -229,8 +274,8 @@ export async function PUT(
 			logRequest.input("RecordID", sql.Int, parseInt(bankNo));
 			logRequest.input("ActionLevel", sql.VarChar, "Finance"); // Using Finance as ActionLevel for bank approvals
 			logRequest.input("ActionBy", sql.NVarChar, userFullName);
-			logRequest.input("ActionType", sql.VarChar, approvalStatus);
-			logRequest.input("Remarks", sql.NVarChar, remarks || null);
+			logRequest.input("ActionType", sql.VarChar, normalizedStatus);
+			logRequest.input("Remarks", sql.NVarChar, remarks?.trim() || null);
 			logRequest.input("FormNumber", sql.VarChar, formNumber);
 
 			await logRequest.query(`

@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
 					[ApprovalStatus] = @approvalStatus,
 					[ApprovalDate] = GETDATE(),
 					[ApprovalRemarks] = @approvalRemarks
-				WHERE [FamilyID] = @formNumber
+				WHERE [FormNumber] = @formNumber
 					AND [IsActive] = 1
 			`;
 			await economicRequest.query(economicUpdateQuery);
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
 				UPDATE [SJDA_Users].[dbo].[PE_FDP_FoodSupport]
 				SET 
 					[ApprovalStatus] = @approvalStatus
-				WHERE [FamilyID] = @formNumber
+				WHERE [FormNumber] = @formNumber
 					AND [IsActive] = 1
 			`;
 			await foodRequest.query(foodUpdateQuery);
@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
 				UPDATE [SJDA_Users].[dbo].[PE_FDP_HabitatSupport]
 				SET 
 					[ApprovalStatus] = @approvalStatus
-				WHERE [FamilyID] = @formNumber
+				WHERE [FormNumber] = @formNumber
 					AND [IsActive] = 1
 			`;
 			await habitatRequest.query(habitatUpdateQuery);
@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
 				UPDATE [SJDA_Users].[dbo].[PE_FDP_SocialEducation]
 				SET 
 					[ApprovalStatus] = @approvalStatus
-				WHERE [FamilyID] = @formNumber
+				WHERE [FormNumber] = @formNumber
 					AND [IsActive] = 1
 			`;
 			await educationRequest.query(educationUpdateQuery);
@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
 			const recordIdQuery = `
 				SELECT TOP 1 [FDP_EconomicID] as RecordID
 				FROM [SJDA_Users].[dbo].[PE_FDP_EconomicDevelopment]
-				WHERE [FamilyID] = @formNumber
+				WHERE [FormNumber] = @formNumber
 					AND [IsActive] = 1
 				ORDER BY [FDP_EconomicID] ASC
 			`;

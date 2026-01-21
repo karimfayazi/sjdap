@@ -6,7 +6,7 @@ import { ArrowLeft, Save, AlertCircle, Upload, FileText, Edit, Eye, Briefcase, E
 import { useAuth } from "@/hooks/useAuth";
 
 type FeasibilityFormData = {
-	FamilyID: string;
+	FormNumber: string;
 	MemberID: string;
 	MemberName: string;
 	PlanCategory: string; // "ECONOMIC" or "SKILLS"
@@ -48,7 +48,7 @@ type FeasibilityFormData = {
 };
 
 type FamilyMember = {
-	MemberNo: string;
+	BeneficiaryID: string;
 	FullName: string;
 	Gender: string;
 	DOBMonth: string | null;
@@ -161,7 +161,7 @@ function FeasibilityStudyContent() {
 
 	const { userProfile } = useAuth();
 	const [formData, setFormData] = useState<FeasibilityFormData>({
-		FamilyID: formNumber || "",
+		FormNumber: formNumber || "",
 		MemberID: memberNo || "",
 		MemberName: memberName || "",
 		PlanCategory: "",
@@ -337,11 +337,11 @@ function FeasibilityStudyContent() {
 					setFamilyMembers(membersData.data);
 					
 					// Auto-select the member if memberNo is provided
-					const selectedMember = membersData.data.find((m: FamilyMember) => m.MemberNo === memberNo);
+					const selectedMember = membersData.data.find((m: FamilyMember) => m.BeneficiaryID === memberNo);
 					if (selectedMember) {
 						setFormData(prev => ({
 							...prev,
-							MemberID: selectedMember.MemberNo,
+							MemberID: selectedMember.BeneficiaryID,
 							MemberName: selectedMember.FullName,
 							CurrentBaselineIncome: selectedMember.MonthlyIncome || 0,
 						}));
@@ -363,7 +363,7 @@ function FeasibilityStudyContent() {
 							// Get the member's baseline income from baseline member data
 							let memberBaselineIncome = 0;
 							if (membersData.success && membersData.data) {
-								const selectedMember = membersData.data.find((m: FamilyMember) => m.MemberNo === (record.MemberID || memberNo));
+								const selectedMember = membersData.data.find((m: FamilyMember) => m.BeneficiaryID === (record.MemberID || memberNo));
 								memberBaselineIncome = selectedMember?.MonthlyIncome || 0;
 							}
 							
@@ -382,7 +382,7 @@ function FeasibilityStudyContent() {
 							}
 							
 							setFormData({
-								FamilyID: record.FamilyID || formNumber || "",
+								FormNumber: record.FormNumber || formNumber || "",
 								MemberID: record.MemberID || memberNo || "",
 								MemberName: record.MemberName || memberName || "",
 								PlanCategory: record.PlanCategory || "",
@@ -749,7 +749,7 @@ function FeasibilityStudyContent() {
 							<label className="block text-sm font-medium text-gray-700 mb-2">Family ID</label>
 							<input
 								type="text"
-								value={formData.FamilyID}
+								value={formData.FormNumber}
 								readOnly
 								className="w-full rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-gray-600 cursor-not-allowed"
 							/>

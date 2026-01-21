@@ -20,7 +20,7 @@ type FamilyDevelopmentPlan = {
 };
 
 type FamilyMember = {
-	MemberNo: string | null;
+	BeneficiaryID: string | null;
 	FormNo: string | null;
 	FullName: string | null;
 	BFormOrCNIC: string | null;

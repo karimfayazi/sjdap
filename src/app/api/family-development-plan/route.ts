@@ -144,7 +144,7 @@ export async function GET(request: NextRequest) {
 				GROUP BY [FormNo]
 			) fm ON app.[FormNumber] = fm.[FormNo]
 			LEFT JOIN [SJDA_Users].[dbo].[PE_FDP_EconomicDevelopment] ed 
-				ON app.[FormNumber] = ed.[FamilyID] 
+				ON app.[FormNumber] = ed.[FormNumber] 
 				AND ed.[IsActive] = 1
 			${whereClause}
 			GROUP BY 

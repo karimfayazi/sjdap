@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
 		const sqlRequest = pool.request();
 
 		// Input parameters
-		sqlRequest.input("FamilyID", sql.VarChar, body.FamilyID);
+		sqlRequest.input("FormNumber", sql.VarChar, body.FormNumber);
 		sqlRequest.input("HeadName", sql.NVarChar, body.HeadName || null);
 		sqlRequest.input("AreaType", sql.VarChar, body.AreaType || null);
 		sqlRequest.input("HabitatMonthlyTotalCost", sql.Decimal(18, 2), body.HabitatMonthlyTotalCost || 0);
@@ -23,14 +23,14 @@ export async function POST(request: NextRequest) {
 		const insertQuery = `
 			INSERT INTO [SJDA_Users].[dbo].[PE_FDP_HabitatSupport]
 			(
-				[FamilyID], [HeadName], [AreaType],
+				[FormNumber], [HeadName], [AreaType],
 				[HabitatMonthlyTotalCost], [HabitatMonthlyFamilyContribution],
 				[HabitatMonthlyPEContribution], [HabitatNumberOfMonths],
 				[CreatedBy], [CreatedAt], [IsActive]
 			)
 			VALUES
 			(
-				@FamilyID, @HeadName, @AreaType,
+				@FormNumber, @HeadName, @AreaType,
 				@HabitatMonthlyTotalCost, @HabitatMonthlyFamilyContribution,
 				@HabitatMonthlyPEContribution, @HabitatNumberOfMonths,
 				@CreatedBy, GETDATE(), 1
@@ -84,8 +84,8 @@ export async function GET(request: NextRequest) {
 			sqlRequest.input("FDP_HabitatSupportID", sql.Int, parseInt(fdpHabitatSupportId));
 			query += ` AND [FDP_HabitatSupportID] = @FDP_HabitatSupportID`;
 		} else if (familyID) {
-			sqlRequest.input("FamilyID", sql.VarChar, familyID);
-			query += ` AND [FamilyID] = @FamilyID`;
+			sqlRequest.input("FormNumber", sql.VarChar, familyID);
+			query += ` AND [FormNumber] = @FormNumber`;
 			query += ` ORDER BY [FDP_HabitatSupportID] DESC`;
 		}
 

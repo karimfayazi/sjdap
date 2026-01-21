@@ -99,10 +99,10 @@ function ViewBankAccountContent() {
 	const getStatusBadge = (status: string | null) => {
 		if (!status) return <span className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-800">Pending</span>;
 		const statusUpper = status.toUpperCase();
-		if (statusUpper === "APPROVED") {
-			return <span className="px-2 py-1 text-xs rounded bg-green-100 text-green-800">Approved</span>;
-		} else if (statusUpper === "REJECTED") {
-			return <span className="px-2 py-1 text-xs rounded bg-red-100 text-red-800">Rejected</span>;
+		if (statusUpper === "APPROVAL" || statusUpper === "APPROVED") {
+			return <span className="px-2 py-1 text-xs rounded bg-green-100 text-green-800">Approval</span>;
+		} else if (statusUpper === "REJECTION" || statusUpper === "REJECTED") {
+			return <span className="px-2 py-1 text-xs rounded bg-red-100 text-red-800">Rejection</span>;
 		}
 		return <span className="px-2 py-1 text-xs rounded bg-yellow-100 text-yellow-800">{status}</span>;
 	};
@@ -260,10 +260,11 @@ function ViewBankAccountContent() {
 										alt="Bank Cheque"
 										className="max-w-full h-auto rounded-lg shadow-sm"
 										onError={(e) => {
-											(e.target as HTMLImageElement).style.display = 'none';
+											(e.target as HTMLImageElement).style.display = "none";
 											const parent = (e.target as HTMLImageElement).parentElement;
 											if (parent) {
-												parent.innerHTML = '<p class="text-sm text-gray-500">Image not available</p>';
+												parent.innerHTML =
+													'<p class="text-sm text-gray-500">Image not available</p>';
 											}
 										}}
 									/>

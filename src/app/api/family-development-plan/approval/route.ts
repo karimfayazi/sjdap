@@ -130,15 +130,13 @@ export async function PUT(request: NextRequest) {
 			);
 		}
 
-		// Get FormNumber (FamilyID) from the record
-		// Health Support uses FormNumber, others use FamilyID
+		// Get FormNumber from the record
 		let formNumber = null;
 		try {
 			const formNumberRequest = pool.request();
 			formNumberRequest.input("RecordID", sql.Int, parseInt(recordId));
-			const formNumberColumn = section.toLowerCase() === "health" ? "FormNumber" : "FamilyID";
 			const formNumberQuery = `
-				SELECT TOP 1 [${formNumberColumn}] AS FormNumber
+				SELECT TOP 1 [FormNumber] AS FormNumber
 				FROM [SJDA_Users].[dbo].[${sectionInfo.tableName}]
 				WHERE [${sectionInfo.idColumn}] = @RecordID
 			`;

@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
 			const foodQuery = `
 				SELECT 
 					[FDP_FoodSupportID],
-					[FamilyID],
+					[FormNumber],
 					[HeadName],
 					[BaselineFamilyIncome],
 					[FamilyMembersCount],
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
 					[IsActive],
 					[ApprovalStatus]
 				FROM [SJDA_Users].[dbo].[PE_FDP_FoodSupport]
-				WHERE [FamilyID] = @FormNumber
+				WHERE [FormNumber] = @FormNumber
 					AND [IsActive] = 1
 				ORDER BY [FDP_FoodSupportID] DESC
 			`;
@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
 			const educationQuery = `
 				SELECT 
 					[FDP_SocialEduID],
-					[FamilyID],
+					[FormNumber],
 					[MaxSocialSupportAmount],
 					[EduOneTimeAdmissionTotalCost],
 					[EduOneTimeAdmissionFamilyContribution],
@@ -133,7 +133,7 @@ export async function GET(request: NextRequest) {
 					[IsActive],
 					[ApprovalStatus]
 				FROM [SJDA_Users].[dbo].[PE_FDP_SocialEducation]
-				WHERE [FamilyID] = @FormNumber
+				WHERE [FormNumber] = @FormNumber
 					AND [IsActive] = 1
 				ORDER BY [FDP_SocialEduID] DESC
 			`;
@@ -149,7 +149,7 @@ export async function GET(request: NextRequest) {
 			const housingQuery = `
 				SELECT 
 					[FDP_HabitatSupportID],
-					[FamilyID],
+					[FormNumber],
 					[HeadName],
 					[AreaType],
 					[HabitatMonthlyTotalCost],
@@ -166,7 +166,7 @@ export async function GET(request: NextRequest) {
 					[IsActive],
 					[ApprovalStatus]
 				FROM [SJDA_Users].[dbo].[PE_FDP_HabitatSupport]
-				WHERE [FamilyID] = @FormNumber
+				WHERE [FormNumber] = @FormNumber
 					AND [IsActive] = 1
 				ORDER BY [FDP_HabitatSupportID] DESC
 			`;
@@ -182,7 +182,7 @@ export async function GET(request: NextRequest) {
 			const economicQuery = `
 				SELECT 
 					[FDP_EconomicID],
-					[FamilyID],
+					[FormNumber],
 					[BaselineFamilyIncome],
 					[FamilyMembersCount],
 					[SelfSufficiencyIncomePerCapita],
@@ -217,7 +217,7 @@ export async function GET(request: NextRequest) {
 					[IsActive],
 					[IncrementalMonthlyIncome]
 				FROM [SJDA_Users].[dbo].[PE_FDP_EconomicDevelopment]
-				WHERE [FamilyID] = @FormNumber
+				WHERE [FormNumber] = @FormNumber
 					AND [IsActive] = 1
 				ORDER BY [FDP_EconomicID] DESC
 			`;

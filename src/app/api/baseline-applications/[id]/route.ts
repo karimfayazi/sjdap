@@ -184,7 +184,7 @@ export async function GET(
 				SELECT 
 					fm.[ApplicationId],
 					fm.[FormNo],
-					fm.[MemberNo],
+					fm.[BeneficiaryID],
 					fm.[FullName],
 					fm.[BFormOrCNIC],
 					fm.[RelationshipId],
@@ -207,7 +207,7 @@ export async function GET(
 				LEFT JOIN [SJDA_Users].[dbo].[PE_LU_MaritalStatus] ms ON fm.[MaritalStatusId] = ms.[MaritalStatusId]
 				LEFT JOIN [SJDA_Users].[dbo].[PE_LU_PrimaryOccupation] occ ON fm.[OccupationId] = occ.[OccupationId]
 				WHERE fm.[FormNo] = @formNo
-				ORDER BY fm.[MemberNo]
+				ORDER BY fm.[BeneficiaryID]
 			`;
 			const familyMembersResult = await familyMembersRequest.query(familyMembersQuery);
 			familyMembers = familyMembersResult.recordset || [];

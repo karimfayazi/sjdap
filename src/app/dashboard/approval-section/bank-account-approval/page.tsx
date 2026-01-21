@@ -103,10 +103,10 @@ export default function BankAccountApprovalPage() {
 	const getStatusBadge = (status: string | null) => {
 		if (!status) return <span className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-800">Pending</span>;
 		const statusUpper = status.toUpperCase();
-		if (statusUpper === "APPROVED") {
-			return <span className="px-2 py-1 text-xs rounded bg-green-100 text-green-800">Approved</span>;
-		} else if (statusUpper === "REJECTED") {
-			return <span className="px-2 py-1 text-xs rounded bg-red-100 text-red-800">Rejected</span>;
+		if (statusUpper === "APPROVAL" || statusUpper === "APPROVED") {
+			return <span className="px-2 py-1 text-xs rounded bg-green-100 text-green-800">Approval</span>;
+		} else if (statusUpper === "REJECTION" || statusUpper === "REJECTED") {
+			return <span className="px-2 py-1 text-xs rounded bg-red-100 text-red-800">Rejection</span>;
 		}
 		return <span className="px-2 py-1 text-xs rounded bg-yellow-100 text-yellow-800">{status}</span>;
 	};
@@ -212,7 +212,7 @@ export default function BankAccountApprovalPage() {
 						<div className="overflow-x-auto">
 							<table className="min-w-full divide-y divide-gray-200">
 								<thead className="bg-gray-50">
-									<tr>
+								<tr>
 										<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
 										<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bank No</th>
 										<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Form Number</th>
@@ -224,13 +224,14 @@ export default function BankAccountApprovalPage() {
 										<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bank Code</th>
 										<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Submitted At</th>
 										<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Submitted By</th>
-										<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+										<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Approval Status</th>
+										<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remarks</th>
 									</tr>
 								</thead>
 								<tbody className="bg-white divide-y divide-gray-200">
 									{bankAccounts.length === 0 ? (
 										<tr>
-											<td colSpan={12} className="px-4 py-8 text-center text-gray-500">
+											<td colSpan={13} className="px-4 py-8 text-center text-gray-500">
 												No bank accounts found
 											</td>
 										</tr>
@@ -266,6 +267,12 @@ export default function BankAccountApprovalPage() {
 												<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{formatDate(account.SubmittedAt)}</td>
 												<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{account.SubmittedBy || "N/A"}</td>
 												<td className="px-4 py-3 whitespace-nowrap text-sm">{getStatusBadge(account.ApprovalStatus)}</td>
+												<td
+													className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 max-w-xs truncate"
+													title={account.Remarks || undefined}
+												>
+													{account.Remarks || "N/A"}
+												</td>
 											</tr>
 										))
 									)}

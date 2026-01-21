@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
 		// Fetch family members
 		const membersQuery = `
 			SELECT 
-				[MemberNo],
+				[BeneficiaryID],
 				[FullName],
 				[BFormOrCNIC],
 				[Relationship],
@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
 				[MonthlyIncome]
 			FROM [SJDA_Users].[dbo].[PE_FamilyMember]
 			WHERE [FormNo] = @FormNo
-			ORDER BY [MemberNo]
+			ORDER BY [BeneficiaryID]
 		`;
 
 		const membersResult = await sqlRequest.query(membersQuery);
@@ -66,8 +66,8 @@ export async function GET(request: NextRequest) {
 			habitat: boolean;
 		}> = {};
 
-		// Get member numbers for checking interventions
-		const memberNos = members.map((m: any) => m.MemberNo).filter(Boolean);
+		// Get beneficiary IDs for checking interventions
+		const memberNos = members.map((m: any) => m.BeneficiaryID).filter(Boolean);
 		
 		// Check Economic Development (by BeneficiaryID)
 		let economicMemberNos = new Set<string>();
@@ -115,10 +115,10 @@ export async function GET(request: NextRequest) {
 			const foodRequest = pool.request();
 			foodRequest.input("FormNo", sql.VarChar, formNumber);
 			const foodQuery = `
-				SELECT DISTINCT [FamilyID]
+				SELECT DISTINCT [FormNumber]
 				FROM [SJDA_Users].[dbo].[PE_FDP_FoodSupport]
 				WHERE [IsActive] = 1
-					AND [FamilyID] = @FormNo
+					AND [FormNumber] = @FormNo
 			`;
 			const foodResult = await foodRequest.query(foodQuery);
 			const hasFoodSupport = (foodResult.recordset || []).length > 0;
@@ -135,10 +135,10 @@ export async function GET(request: NextRequest) {
 			const habitatRequest = pool.request();
 			habitatRequest.input("FormNo", sql.VarChar, formNumber);
 			const habitatQuery = `
-				SELECT DISTINCT [FamilyID]
+				SELECT DISTINCT [FormNumber]
 				FROM [SJDA_Users].[dbo].[PE_FDP_HabitatSupport]
 				WHERE [IsActive] = 1
-					AND [FamilyID] = @FormNo
+					AND [FormNumber] = @FormNo
 			`;
 			const habitatResult = await habitatRequest.query(habitatQuery);
 			const hasHabitatSupport = (habitatResult.recordset || []).length > 0;
@@ -151,7 +151,7 @@ export async function GET(request: NextRequest) {
 
 		// Build interventions object for each member
 		members.forEach((member: any) => {
-			const memberNo = member.MemberNo;
+			const memberNo = member.BeneficiaryID;
 
 			interventions[memberNo] = {
 				economic: economicMemberNos.has(memberNo),

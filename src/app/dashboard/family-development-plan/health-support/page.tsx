@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 
 type HealthSupportFormData = {
 	// Family-Level Information
-	FamilyID: string;
+	FormNumber: string;
 	HeadName: string;
 	AreaType: string;
 	BaselineFamilyIncome: number;
@@ -41,7 +41,7 @@ type HealthSupportFormData = {
 };
 
 type FamilyMember = {
-	MemberNo: string;
+	BeneficiaryID: string;
 	FullName: string;
 	Gender: string;
 	DOBMonth: number;
@@ -60,7 +60,7 @@ function HealthSupportContent() {
 
 	const { userProfile } = useAuth();
 	const [formData, setFormData] = useState<HealthSupportFormData>({
-		FamilyID: formNumber || "",
+		FormNumber: formNumber || "",
 		HeadName: "",
 		AreaType: "",
 		BaselineFamilyIncome: 0,
@@ -252,7 +252,7 @@ function HealthSupportContent() {
 					
 					// If memberNo is provided, find and set beneficiary info
 					if (memberNo) {
-						const selectedMember = members.find((m: FamilyMember) => m.MemberNo === memberNo);
+						const selectedMember = members.find((m: FamilyMember) => m.BeneficiaryID === memberNo);
 						if (selectedMember) {
 							// Try to fetch age from baseline database first
 							let age = 0;
@@ -273,7 +273,7 @@ function HealthSupportContent() {
 							
 							setFormData(prev => ({
 								...prev,
-								BeneficiaryID: selectedMember.MemberNo,
+								BeneficiaryID: selectedMember.BeneficiaryID,
 								BeneficiaryName: selectedMember.FullName,
 								BeneficiaryAge: age > 0 ? age : 0,
 								BeneficiaryGender: selectedMember.Gender || "",
@@ -302,7 +302,7 @@ function HealthSupportContent() {
 									age = parsedAge > 0 ? parsedAge : 0;
 								} else if (record.BeneficiaryID) {
 									// Try to find member and calculate age from DOB
-									const member = familyMembers.find((m: FamilyMember) => m.MemberNo === record.BeneficiaryID);
+									const member = familyMembers.find((m: FamilyMember) => m.BeneficiaryID === record.BeneficiaryID);
 									if (member && member.DOBMonth && member.DOBYear) {
 										age = calculateAge(member.DOBMonth, member.DOBYear);
 									}
@@ -372,7 +372,7 @@ function HealthSupportContent() {
 	};
 
 	const handleBeneficiaryChange = async (memberNo: string) => {
-		const selectedMember = familyMembers.find(m => m.MemberNo === memberNo);
+		const selectedMember = familyMembers.find(m => m.BeneficiaryID === memberNo);
 		if (selectedMember) {
 			// Try to fetch age from baseline database first
 			let age = 0;
@@ -393,7 +393,7 @@ function HealthSupportContent() {
 			
 			setFormData(prev => ({
 				...prev,
-				BeneficiaryID: selectedMember.MemberNo,
+				BeneficiaryID: selectedMember.BeneficiaryID,
 				BeneficiaryName: selectedMember.FullName,
 				BeneficiaryAge: age > 0 ? age : 0,
 				BeneficiaryGender: selectedMember.Gender || "",
@@ -425,7 +425,7 @@ function HealthSupportContent() {
 				method,
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
-					FormNumber: formData.FamilyID,
+					FormNumber: formData.FormNumber,
 					HeadName: formData.HeadName,
 					AreaType: formData.AreaType,
 					HealthMonthlyTotalCost: formData.HealthMonthlyTotalCost,
@@ -554,7 +554,7 @@ function HealthSupportContent() {
 						<label className="block text-sm font-medium text-gray-700 mb-2">Family ID</label>
 						<input
 							type="text"
-							value={formData.FamilyID}
+							value={formData.FormNumber}
 							readOnly
 							className="w-full rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-gray-600 cursor-not-allowed"
 						/>

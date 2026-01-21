@@ -143,7 +143,7 @@ export async function GET(request: NextRequest) {
 				[InterventionType],
 				[ApprovalStatus]
 			FROM [SJDA_Users].[dbo].[PE_FDP_EconomicDevelopment]
-			WHERE [FamilyID] = @FormNumber
+			WHERE [FormNumber] = @FormNumber
 				AND [IsActive] = 1
 				AND [ApprovalStatus] = 'Approved'
 			ORDER BY [FDP_EconomicID] ASC

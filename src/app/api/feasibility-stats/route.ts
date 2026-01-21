@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
 		// Add join and filter for non-Super Users
 		if (!isSuperUser && userFullName) {
 			query += `
-			INNER JOIN [SJDA_Users].[dbo].[PE_Application_BasicInfo] app ON f.[FamilyID] = app.[FormNumber]
+			INNER JOIN [SJDA_Users].[dbo].[PE_Application_BasicInfo] app ON f.[FormNumber] = app.[FormNumber]
 			WHERE app.[SubmittedBy] = @userFullName
 			`;
 			sqlRequest.input("userFullName", userFullName);

@@ -1448,60 +1448,6 @@ function ApplicationDetailsContent() {
 								</div>
 			)}
 
-			{/* Approval Section */}
-			<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
-				<h3 className="text-lg font-semibold text-gray-900 mb-4">Approval Action</h3>
-				{isApproved() && (
-					<div className="mb-4 bg-green-50 border border-green-200 rounded-lg p-4">
-						<p className="text-green-700 text-sm font-medium">
-							This record has already been approved. Editing is disabled.
-						</p>
-					</div>
-				)}
-				<div className="space-y-4">
-					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-2">
-							Remarks
-						</label>
-						<textarea
-							value={approvalRemarks}
-							onChange={(e) => setApprovalRemarks(e.target.value)}
-							placeholder="Enter remarks for approval/rejection..."
-							rows={4}
-							disabled={isApproved()}
-							className={`w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${
-								isApproved() ? "bg-gray-100 cursor-not-allowed opacity-60" : ""
-							}`}
-						/>
-					</div>
-
-					{saveError && (
-						<div className="bg-red-50 border border-red-200 rounded-lg p-4">
-							<p className="text-red-600 text-sm font-medium">Error: {saveError}</p>
-						</div>
-					)}
-
-					<div className="flex gap-4">
-						<button
-							onClick={() => updateApprovalStatus("Approved")}
-							disabled={savingStatus || isApproved()}
-							className="inline-flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-						>
-							<CheckCircle className="h-4 w-4" />
-							Approve
-						</button>
-						<button
-							onClick={() => updateApprovalStatus("Rejected")}
-							disabled={savingStatus || isApproved()}
-							className="inline-flex items-center gap-2 px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-						>
-							<XCircle className="h-4 w-4" />
-							Reject
-						</button>
-					</div>
-				</div>
-			</div>
-
 			{/* Approval Log */}
 			<div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
 				<div className="bg-[#0b4d2b] px-6 py-4">

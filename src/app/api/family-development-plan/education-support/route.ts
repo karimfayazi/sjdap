@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
 		const sqlRequest = pool.request();
 
 		// Input parameters
-		sqlRequest.input("FamilyID", sql.VarChar, body.FamilyID);
+		sqlRequest.input("FormNumber", sql.VarChar, body.FormNumber);
 		sqlRequest.input("MaxSocialSupportAmount", sql.Decimal(18, 2), body.MaxSocialSupportAmount || null);
 		
 		// Validate and normalize EducationInterventionType
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
 		const insertQuery = `
 			INSERT INTO [SJDA_Users].[dbo].[PE_FDP_SocialEducation]
 			(
-				[FamilyID], [MaxSocialSupportAmount],
+				[FormNumber], [MaxSocialSupportAmount],
 				[EduOneTimeAdmissionTotalCost], [EduOneTimeAdmissionFamilyContribution], [EduOneTimeAdmissionPEContribution],
 				[EduMonthlyTuitionTotalCost], [EduMonthlyTuitionFamilyContribution], [EduMonthlyTuitionPEContribution], [EduTuitionNumberOfMonths],
 				[EduMonthlyHostelTotalCost], [EduMonthlyHostelFamilyContribution], [EduMonthlyHostelPEContribution], [EduHostelNumberOfMonths],
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
 			)
 			VALUES
 			(
-				@FamilyID, @MaxSocialSupportAmount,
+				@FormNumber, @MaxSocialSupportAmount,
 				@EduOneTimeAdmissionTotalCost, @EduOneTimeAdmissionFamilyContribution, @EduOneTimeAdmissionPEContribution,
 				@EduMonthlyTuitionTotalCost, @EduMonthlyTuitionFamilyContribution, @EduMonthlyTuitionPEContribution, @EduTuitionNumberOfMonths,
 				@EduMonthlyHostelTotalCost, @EduMonthlyHostelFamilyContribution, @EduMonthlyHostelPEContribution, @EduHostelNumberOfMonths,
@@ -138,8 +138,8 @@ export async function GET(request: NextRequest) {
 			sqlRequest.input("FDP_SocialEduID", sql.Int, parseInt(fdpSocialEduId));
 			query += ` AND [FDP_SocialEduID] = @FDP_SocialEduID`;
 		} else if (familyID) {
-			sqlRequest.input("FamilyID", sql.VarChar, familyID);
-			query += ` AND [FamilyID] = @FamilyID`;
+			sqlRequest.input("FormNumber", sql.VarChar, familyID);
+			query += ` AND [FormNumber] = @FormNumber`;
 			if (beneficiaryID) {
 				sqlRequest.input("BeneficiaryID", sql.VarChar, beneficiaryID);
 				query += ` AND [BeneficiaryID] = @BeneficiaryID`;
