@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Download } from "lucide-react";
 import jsPDF from "jspdf";
+import { useAuth } from "@/hooks/useAuth";
 
 type FamilyInfo = {
 	FormNumber: string;
@@ -52,10 +53,23 @@ type SocialIntervention = {
 	FoodSupportTotalPEContribution?: number;
 };
 
+// Helper function to normalize user type
+const normalizeUserType = (userType: string | null | undefined): string => {
+	if (!userType) return "";
+	return String(userType).trim().toLowerCase();
+};
+
+// Helper function to normalize approval status
+const normalizeApprovalStatus = (status: string | null | undefined): string => {
+	if (!status) return "";
+	return String(status).trim().toLowerCase();
+};
+
 function ViewFDPContent() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const formNumber = searchParams.get("formNumber");
+	const { userProfile } = useAuth();
 
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -69,9 +83,32 @@ function ViewFDPContent() {
 	const [totalSocialSupport, setTotalSocialSupport] = useState(0);
 	const [approvalStatus, setApprovalStatus] = useState<string>("");
 	const [approvalRemarks, setApprovalRemarks] = useState<string>("");
+	const [initialApprovalStatus, setInitialApprovalStatus] = useState<string>(""); // Store initial status to check if already finalized
 	const [savingApproval, setSavingApproval] = useState(false);
 	const [approvalError, setApprovalError] = useState<string | null>(null);
 	const [approvalSuccess, setApprovalSuccess] = useState(false);
+
+	// Compute user type and approval status checks
+	const userType = normalizeUserType(userProfile?.access_level || null);
+	const isEditor = userType === "editor";
+	const isRegionalAM = userType === "regional am";
+	const normalizedApprovalStatus = normalizeApprovalStatus(approvalStatus);
+	const isApproved = normalizedApprovalStatus === "approved" || normalizedApprovalStatus === "accepted";
+	const isEditorAndApproved = isEditor && isApproved;
+	
+	// Check if FDP was ALREADY finalized when page loaded (use initial status, not current selection)
+	const normalizedInitialStatus = normalizeApprovalStatus(initialApprovalStatus);
+	const wasInitiallyApproved = normalizedInitialStatus === "approved" || normalizedInitialStatus === "accepted";
+	const wasInitiallyAcceptedExact = initialApprovalStatus === "Accepted" || initialApprovalStatus === "Approved";
+	const isFinalized = wasInitiallyApproved || wasInitiallyAcceptedExact; // FDP is finalized if INITIAL status was Approved/Accepted
+	const isRegionalAMAndFinalized = isRegionalAM && isFinalized;
+	const isRegionalAMBlocked = isRegionalAM && isFinalized; // Block only if it was already finalized
+	
+	// Get display status for Editor users
+	const getDisplayStatus = (): string => {
+		if (!approvalStatus || approvalStatus.trim() === "") return "Pending";
+		return approvalStatus;
+	};
 
 	useEffect(() => {
 		if (!formNumber) {
@@ -97,7 +134,9 @@ function ViewFDPContent() {
 					setFoodInterventions(data.data.foodInterventions || []);
 					setTotalSocialSupport(data.data.totalSocialSupport || 0);
 					// Load approval status and remarks
-					setApprovalStatus(data.data.approvalStatus || "");
+					const fetchedApprovalStatus = data.data.approvalStatus || "";
+					setApprovalStatus(fetchedApprovalStatus);
+					setInitialApprovalStatus(fetchedApprovalStatus); // Store initial status
 					setApprovalRemarks(data.data.approvalRemarks || "");
 				} else {
 					setError(data.message || "Failed to load FDP overview data");
@@ -514,6 +553,19 @@ function ViewFDPContent() {
 			return;
 		}
 
+		// Block Regional AM from saving if FDP was ALREADY finalized when page loaded
+		if (isRegionalAM && isFinalized) {
+			setApprovalError("This FDP has already been approved and cannot be modified.");
+			setApprovalSuccess(false);
+			return;
+		}
+
+		// Validation: If Rejected, remarks are required
+		if (approvalStatus === "Rejected" && (!approvalRemarks || approvalRemarks.trim() === "")) {
+			setApprovalError("Approval Remarks are required when status is Rejected.");
+			return;
+		}
+
 		try {
 			setSavingApproval(true);
 			setApprovalError(null);
@@ -553,9 +605,11 @@ function ViewFDPContent() {
 		}
 	};
 
-	const isApproved = () => {
-		const status = (approvalStatus || "").toString().trim().toLowerCase();
-		// Only disable if status is Accepted/Approved, not if Rejected
+	// Legacy function for backward compatibility (used in some places)
+	// Check if FDP was ALREADY approved when page loaded (use initial status)
+	const isApprovedLegacy = () => {
+		const status = (initialApprovalStatus || "").toString().trim().toLowerCase();
+		// Only disable if INITIAL status was Accepted/Approved, not if Rejected
 		return status === "accepted" || status === "approved" || (status.includes("approve") && !status.includes("reject"));
 	};
 
@@ -970,53 +1024,116 @@ function ViewFDPContent() {
 						<label className="block text-sm font-medium text-gray-700 mb-2">
 							Approval Status <span className="text-red-500">*</span>
 						</label>
-						<div className="flex gap-6">
-							<label className="flex items-center">
-								<input
-									type="radio"
-									name="approvalStatus"
-									value="Accepted"
-									checked={approvalStatus === "Accepted"}
+						
+						{/* For Editor users: always show read-only status badge */}
+						{isEditor ? (
+							<div className="space-y-2">
+								{isApproved ? (
+									<div className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-semibold bg-green-100 text-green-800 border border-green-200">
+										<span className="mr-2">✓</span>
+										Approved
+									</div>
+								) : (
+									<div className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-semibold bg-yellow-100 text-yellow-800 border border-yellow-200">
+										<span className="mr-2">⏳</span>
+										{getDisplayStatus()}
+									</div>
+								)}
+								<p className="text-sm text-gray-500 italic">
+									{isApproved 
+										? "This FDP has been approved. Editor users cannot modify approved records."
+										: "Editor users can view but cannot modify approval status."
+									}
+								</p>
+							</div>
+						) : isRegionalAM ? (
+							/* For Regional AM users: show dropdown */
+							<>
+								<select
+									value={approvalStatus || ""}
 									onChange={(e) => setApprovalStatus(e.target.value)}
-									disabled={isApproved()}
-									className="mr-2 h-4 w-4 text-[#0b4d2b] focus:ring-[#0b4d2b] border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
-								/>
-								<span className={`text-sm ${isApproved() ? 'text-gray-400' : 'text-gray-700'}`}>Accepted</span>
-							</label>
-							<label className="flex items-center">
-								<input
-									type="radio"
-									name="approvalStatus"
-									value="Rejected"
-									checked={approvalStatus === "Rejected"}
-									onChange={(e) => setApprovalStatus(e.target.value)}
-									disabled={isApproved()}
-									className="mr-2 h-4 w-4 text-[#0b4d2b] focus:ring-[#0b4d2b] border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
-								/>
-								<span className={`text-sm ${isApproved() ? 'text-gray-400' : 'text-gray-700'}`}>Rejected</span>
-							</label>
-						</div>
-						{isApproved() && (
-							<p className="mt-2 text-sm text-gray-500 italic">This FDP has already been approved and cannot be modified.</p>
+									disabled={isRegionalAMBlocked || isRegionalAMAndFinalized || isApprovedLegacy()}
+									className="w-full md:w-64 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
+								>
+									<option value="">Select status...</option>
+									<option value="Accepted">Accepted</option>
+									<option value="Rejected">Rejected</option>
+								</select>
+								{(isRegionalAMBlocked || isRegionalAMAndFinalized || isApprovedLegacy()) && (
+									<p className="mt-2 text-sm text-gray-500 italic">This FDP has already been approved and cannot be modified.</p>
+								)}
+							</>
+						) : (
+							/* For other users: show radio buttons */
+							<>
+								<div className="flex gap-6">
+									<label className="flex items-center">
+										<input
+											type="radio"
+											name="approvalStatus"
+											value="Accepted"
+											checked={approvalStatus === "Accepted"}
+											onChange={(e) => setApprovalStatus(e.target.value)}
+											disabled={isApprovedLegacy()}
+											className="mr-2 h-4 w-4 text-[#0b4d2b] focus:ring-[#0b4d2b] border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+										/>
+										<span className={`text-sm ${isApprovedLegacy() ? 'text-gray-400' : 'text-gray-700'}`}>Accepted</span>
+									</label>
+									<label className="flex items-center">
+										<input
+											type="radio"
+											name="approvalStatus"
+											value="Rejected"
+											checked={approvalStatus === "Rejected"}
+											onChange={(e) => setApprovalStatus(e.target.value)}
+											disabled={isApprovedLegacy()}
+											className="mr-2 h-4 w-4 text-[#0b4d2b] focus:ring-[#0b4d2b] border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+										/>
+										<span className={`text-sm ${isApprovedLegacy() ? 'text-gray-400' : 'text-gray-700'}`}>Rejected</span>
+									</label>
+								</div>
+								{isApprovedLegacy() && (
+									<p className="mt-2 text-sm text-gray-500 italic">This FDP has already been approved and cannot be modified.</p>
+								)}
+							</>
 						)}
 					</div>
 
 					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-2">Approval Remarks</label>
+						<label className="block text-sm font-medium text-gray-700 mb-2">
+							Approval Remarks
+							{approvalStatus === "Rejected" && !isRegionalAMBlocked && !isRegionalAMAndFinalized && !isApprovedLegacy() && (
+								<span className="text-red-500 ml-1">*</span>
+							)}
+						</label>
 						<textarea
 							value={approvalRemarks}
 							onChange={(e) => setApprovalRemarks(e.target.value)}
-							disabled={isApproved()}
+							disabled={isEditor || isEditorAndApproved || isRegionalAMBlocked || isRegionalAMAndFinalized || isApprovedLegacy()}
 							placeholder="Enter approval remarks..."
 							rows={4}
 							className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
 						/>
+						{approvalStatus === "Rejected" && !isRegionalAMBlocked && !isRegionalAMAndFinalized && !isApprovedLegacy() && !approvalRemarks?.trim() && (
+							<p className="mt-1 text-sm text-red-600">Approval Remarks are required when status is Rejected.</p>
+						)}
 					</div>
 
 					<div className="flex justify-end">
 						<button
-							onClick={handleSaveApproval}
-							disabled={savingApproval || isApproved() || !approvalStatus}
+							onClick={(e) => {
+								// Prevent click if button should be disabled
+								if (savingApproval || isEditor || isEditorAndApproved || isRegionalAMBlocked || isRegionalAMAndFinalized || isApprovedLegacy() || !approvalStatus) {
+									e.preventDefault();
+									e.stopPropagation();
+									if (isRegionalAM && (isRegionalAMBlocked || isRegionalAMAndFinalized)) {
+										setApprovalError("This FDP has already been approved and cannot be modified.");
+									}
+									return;
+								}
+								handleSaveApproval();
+							}}
+							disabled={savingApproval || isEditor || isEditorAndApproved || isRegionalAMBlocked || isRegionalAMAndFinalized || isApprovedLegacy() || !approvalStatus}
 							className="inline-flex items-center gap-2 px-6 py-2 bg-[#0b4d2b] text-white rounded-md hover:bg-[#0a3d22] transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
 						>
 							{savingApproval ? (

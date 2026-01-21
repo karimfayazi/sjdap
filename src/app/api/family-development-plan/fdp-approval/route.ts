@@ -23,18 +23,29 @@ export async function POST(request: NextRequest) {
 			);
 		}
 
-		// Get user's full name for ActionBy
+		// Get user's full name and user type for ActionBy and permission check
 		const userPool = await getDb();
 		const userResult = await userPool
 			.request()
 			.input("user_id", userId)
 			.input("email_address", userId)
 			.query(
-				"SELECT TOP(1) [UserFullName] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
+				"SELECT TOP(1) [UserFullName], [UserType] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
 			);
 
 		const user = userResult.recordset?.[0];
 		const userFullName = user?.UserFullName || userId;
+		const userType = user?.UserType || null;
+		
+		// Normalize user type for comparison
+		const normalizeUserType = (type: string | null | undefined): string => {
+			if (!type) return "";
+			return String(type).trim().toLowerCase();
+		};
+		
+		const normalizedUserType = normalizeUserType(userType);
+		const isEditor = normalizedUserType === "editor";
+		const isRegionalAM = normalizedUserType === "regional am";
 
 		const body = await request.json().catch(() => ({}));
 		const { formNumber, approvalStatus, approvalRemarks } = body || {};
@@ -59,12 +70,83 @@ export async function POST(request: NextRequest) {
 			);
 		}
 
+		// Validation: If Rejected, remarks are required
+		if (approvalStatus === "Rejected" && (!approvalRemarks || approvalRemarks.trim() === "")) {
+			return NextResponse.json(
+				{
+					success: false,
+					message: "Approval Remarks are required when status is Rejected.",
+				},
+				{ status: 400 }
+			);
+		}
+
 		// Normalize approval status to consistent format
 		// Use "Accepted" and "Rejected" as the standard values
 		const normalizedStatus = approvalStatus === "Accepted" ? "Accepted" : "Rejected";
 		const actionType = normalizedStatus === "Accepted" ? "ACCEPTED" : "REJECTED";
 
 		const pool = await getPeDb();
+		
+		// Fetch current approval status from database (needed for both Editor and Regional AM checks)
+		const checkRequest = pool.request();
+		checkRequest.input("formNumber", sql.VarChar, formNumber);
+		
+		const checkQuery = `
+			SELECT TOP 1 [ApprovalStatus]
+			FROM [SJDA_Users].[dbo].[PE_FDP_EconomicDevelopment]
+			WHERE [FormNumber] = @formNumber
+				AND [IsActive] = 1
+			ORDER BY [FDP_EconomicID] ASC
+		`;
+		
+		const checkResult = await checkRequest.query(checkQuery);
+		const currentStatus = checkResult.recordset?.[0]?.ApprovalStatus || null;
+		
+		// Normalize approval status for comparison
+		const normalizeApprovalStatus = (status: string | null | undefined): string => {
+			if (!status) return "";
+			return String(status).trim().toLowerCase();
+		};
+		
+		const normalizedCurrentStatus = normalizeApprovalStatus(currentStatus);
+		const isCurrentlyApproved = normalizedCurrentStatus === "approved" || normalizedCurrentStatus === "accepted";
+		const isFinalized = isCurrentlyApproved; // FDP is finalized if status is Approved/Accepted
+		
+		// Server-side validation: Editor users cannot modify approval status at all
+		if (isEditor) {
+			// Reject if Editor tries to modify approval status (regardless of current status)
+			// If approved, show specific message; otherwise show general restriction
+			if (isCurrentlyApproved) {
+				return NextResponse.json(
+					{
+						success: false,
+						message: "Approved record cannot be modified by Editor",
+					},
+					{ status: 403 }
+				);
+			} else {
+				// Editor cannot modify any approval status (including Pending)
+				return NextResponse.json(
+					{
+						success: false,
+						message: "Editor users cannot modify approval status",
+					},
+					{ status: 403 }
+				);
+			}
+		}
+		
+		// Server-side validation: Regional AM cannot modify finalized (approved) records
+		if (isRegionalAM && isFinalized) {
+			return NextResponse.json(
+				{
+					success: false,
+					message: "This FDP has already been approved and cannot be modified.",
+				},
+				{ status: 403 }
+			);
+		}
 		
 		// Start transaction
 		const transaction = new sql.Transaction(pool);
