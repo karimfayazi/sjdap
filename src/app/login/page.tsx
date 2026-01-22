@@ -63,7 +63,6 @@ export default function LoginPage() {
 				localStorage.setItem('dashboard', String(data.user.dashboard || ''));
 				localStorage.setItem('power_bi', String(data.user.power_bi || ''));
 				localStorage.setItem('family_development_plan', String(data.user.family_development_plan || ''));
-				localStorage.setItem('family_approval_crc', String(data.user.family_approval_crc || ''));
 				localStorage.setItem('family_income', String(data.user.family_income || ''));
 				localStorage.setItem('rop', String(data.user.rop || ''));
 				localStorage.setItem('setting', String(data.user.setting || ''));

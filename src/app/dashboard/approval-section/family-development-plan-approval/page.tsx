@@ -3,6 +3,12 @@
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Download, Search, RefreshCw, Eye, X, FileText } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+
+// Helper function to normalize user type
+const normalizeUserType = (v?: string | null): string => {
+	return (v || "").toString().trim().toUpperCase();
+};
 
 type FamilyDevelopmentPlan = {
 	FormNumber: string | null;
@@ -19,6 +25,7 @@ type FamilyDevelopmentPlan = {
 function FamilyDevelopmentPlanApprovalContent() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
+	const { userProfile, loading: authLoading } = useAuth();
 	
 	const [applications, setApplications] = useState<FamilyDevelopmentPlan[]>([]);
 	const [loading, setLoading] = useState(true);
@@ -175,7 +182,18 @@ function FamilyDevelopmentPlanApprovalContent() {
 
 	const totalPages = Math.ceil(totalRecords / itemsPerPage);
 
-	if (loading) {
+	// Check if user is EDO and block access
+	useEffect(() => {
+		if (!authLoading && userProfile) {
+			const userType = normalizeUserType(userProfile.access_level);
+			if (userType === "EDO") {
+				router.push("/dashboard/feasibility-approval");
+			}
+		}
+	}, [authLoading, userProfile, router]);
+
+	// Show loading while checking auth
+	if (authLoading || loading) {
 		return (
 			<div className="space-y-6">
 				<div className="flex justify-between items-center">

@@ -82,6 +82,8 @@ export async function GET(request: NextRequest) {
 				f.[ApprovalRemarks],
 				f.[SystemDate],
 				f.[CreatedBy],
+				-- Current Baseline Income from member's MonthlyIncome
+				ISNULL(m.[MonthlyIncome], 0) AS [CurrentBaselineIncome],
 				-- Family Member Info
 				m.[BeneficiaryID],
 				m.[FormNo] AS MemberFormNo,
@@ -106,9 +108,77 @@ export async function GET(request: NextRequest) {
 		const result = await sqlRequest.query(query);
 		const records = result.recordset || [];
 
+		// Group records by FormNumber (family grouping)
+		const groupedByFormNumber: Record<string, {
+			family: {
+				formNumber: string;
+				fullName: string;
+				cnicNumber: string;
+				regionalCommunity: string;
+				localCommunity: string;
+			};
+			feasibilityRecords: any[];
+		}> = {};
+
+		records.forEach((record: any) => {
+			const formNumber = (record.FormNumber || record.ApplicationFormNumber || "").trim();
+			if (!formNumber) return; // Skip records without FormNumber
+
+			if (!groupedByFormNumber[formNumber]) {
+				groupedByFormNumber[formNumber] = {
+					family: {
+						formNumber: formNumber,
+						fullName: record.ApplicationFullName || "N/A",
+						cnicNumber: record.CNICNumber || "N/A",
+						regionalCommunity: record.RegionalCommunity || "N/A",
+						localCommunity: record.LocalCommunity || "N/A",
+					},
+					feasibilityRecords: [],
+				};
+			}
+
+			// Calculate FamilyContribution = TotalInvestmentRequired - InvestmentFromPEProgram
+			const totalCost = record.TotalInvestmentRequired != null ? Number(record.TotalInvestmentRequired) : 0;
+			const peContribution = record.InvestmentFromPEProgram != null ? Number(record.InvestmentFromPEProgram) : 0;
+			const familyContribution = totalCost - peContribution;
+
+			// Calculate PE-Support based on PlanCategory
+			const planCategory = (record.PlanCategory || "").trim().toUpperCase();
+			let peSupport = 0;
+			if (planCategory === "ECONOMIC") {
+				peSupport = peContribution;
+			} else if (planCategory === "SKILLS") {
+				peSupport = record.CostPerParticipant != null ? Number(record.CostPerParticipant) : 0;
+			}
+
+			groupedByFormNumber[formNumber].feasibilityRecords.push({
+				fdpId: record.FDP_ID,
+				formNumber: record.FormNumber || null,
+				memberId: record.MemberID || null,
+				memberName: record.MemberName || null,
+				planCategory: record.PlanCategory || null,
+				feasibilityType: record.FeasibilityType || null,
+				peSupport: peSupport,
+				approvalStatus: record.ApprovalStatus || null,
+				createdBy: record.CreatedBy || "N/A",
+				submittedAt: record.SystemDate || null,
+				submittedBy: record.CreatedBy || "N/A",
+				totalCost: totalCost,
+				familyContribution: familyContribution,
+				peContribution: peContribution,
+				remarks: record.ApprovalRemarks || null,
+				// Keep all original fields for detail view
+				...record,
+			});
+		});
+
+		// Convert to array format
+		const groupedFamilies = Object.values(groupedByFormNumber);
+
 		return NextResponse.json({
 			success: true,
-			records,
+			records, // Keep for backward compatibility
+			groupedFamilies, // New grouped format
 		});
 	} catch (error) {
 		console.error("Error fetching feasibility approval data:", error);

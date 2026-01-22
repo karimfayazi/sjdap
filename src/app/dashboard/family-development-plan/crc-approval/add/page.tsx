@@ -41,7 +41,7 @@ function CRCFamilyStatusFormContent() {
 
 	const [formData, setFormData] = useState<CRCFamilyStatusFormData>({
 		Form_Number: formNumber || "",
-		Family_Status_Level: "",
+		Family_Status_Level: "Approved",
 		Mentor: "",
 		Family_Mentor: "",
 		Application_Date: "",
@@ -68,10 +68,10 @@ function CRCFamilyStatusFormContent() {
 	const [error, setError] = useState<string | null>(null);
 	const [success, setSuccess] = useState(false);
 
-	// Fetch Mentor from PE_Application_BasicInfo when formNumber is available and set CRC Approval Date to today
+	// Fetch Mentor and dates from API when formNumber is available
 	useEffect(() => {
 		if (formNumber && !isEditMode) {
-			const fetchMentor = async () => {
+			const fetchData = async () => {
 				try {
 					const response = await fetch(
 						`/api/family-development-plan/crc-family-status?formNumber=${encodeURIComponent(formNumber)}`
@@ -85,6 +85,14 @@ function CRCFamilyStatusFormContent() {
 						const applicationDate = result.submittedAt 
 							? new Date(result.submittedAt).toISOString().split('T')[0] 
 							: "";
+						// Format FDP Approved Date if available
+						const fdpApprovedDate = result.fdpApprovedDate 
+							? new Date(result.fdpApprovedDate).toISOString().split('T')[0] 
+							: "";
+						// Format FDP Development Date if available
+						const fdpDevelopmentDate = result.fdpDevelopmentDate 
+							? new Date(result.fdpDevelopmentDate).toISOString().split('T')[0] 
+							: "";
 						
 						setFormData((prev) => ({
 							...prev,
@@ -92,6 +100,8 @@ function CRCFamilyStatusFormContent() {
 							Family_Mentor: result.mentor || "",
 							CRC_Approval_Date: today,
 							Application_Date: applicationDate,
+							FDP_Approved_Date: fdpApprovedDate,
+							FDP_Development_Date: fdpDevelopmentDate,
 						}));
 					} else {
 						// Still set today's date even if fetch fails
@@ -102,7 +112,7 @@ function CRCFamilyStatusFormContent() {
 						}));
 					}
 				} catch (err: any) {
-					console.error("Error fetching mentor:", err);
+					console.error("Error fetching data:", err);
 					// Set today's date even if there's an error
 					const today = new Date().toISOString().split('T')[0];
 					setFormData((prev) => ({
@@ -112,7 +122,7 @@ function CRCFamilyStatusFormContent() {
 				}
 			};
 
-			fetchMentor();
+			fetchData();
 		} else if (!isEditMode) {
 			// Set today's date for CRC Approval Date even if formNumber is not available yet
 			const today = new Date().toISOString().split('T')[0];
@@ -142,14 +152,22 @@ function CRCFamilyStatusFormContent() {
 						const applicationDate = result.submittedAt 
 							? new Date(result.submittedAt).toISOString().split('T')[0]
 							: (data.Application_Date ? new Date(data.Application_Date).toISOString().split('T')[0] : "");
+						// Use FDP Approved Date from API if available, otherwise use existing value
+						const fdpApprovedDate = result.fdpApprovedDate 
+							? new Date(result.fdpApprovedDate).toISOString().split('T')[0]
+							: (data.FDP_Approved_Date ? new Date(data.FDP_Approved_Date).toISOString().split('T')[0] : "");
+						// Use FDP Development Date from API if available, otherwise use existing value
+						const fdpDevelopmentDate = result.fdpDevelopmentDate 
+							? new Date(result.fdpDevelopmentDate).toISOString().split('T')[0]
+							: (data.FDP_Development_Date ? new Date(data.FDP_Development_Date).toISOString().split('T')[0] : "");
 						setFormData({
 							Family_Status_Id: data.Family_Status_Id,
 							Form_Number: data.Form_Number || "",
-							Family_Status_Level: data.Family_Status_Level || "",
+							Family_Status_Level: "Approved",
 							Mentor: mentorValue,
 							Family_Mentor: mentorValue,
 							Application_Date: applicationDate,
-							FDP_Approved_Date: data.FDP_Approved_Date ? new Date(data.FDP_Approved_Date).toISOString().split('T')[0] : "",
+							FDP_Approved_Date: fdpApprovedDate,
 							Self_Sufficient_Date: data.Self_Sufficient_Date ? new Date(data.Self_Sufficient_Date).toISOString().split('T')[0] : "",
 							Graduated_Date: data.Graduated_Date ? new Date(data.Graduated_Date).toISOString().split('T')[0] : "",
 							Dropout_Date: data.Dropout_Date ? new Date(data.Dropout_Date).toISOString().split('T')[0] : "",
@@ -159,7 +177,7 @@ function CRCFamilyStatusFormContent() {
 							Community_Affiliation: data.Community_Affiliation || "",
 							Application_Status: data.Application_Status || "",
 							FDP_Development_Status: data.FDP_Development_Status || "",
-							FDP_Development_Date: data.FDP_Development_Date ? new Date(data.FDP_Development_Date).toISOString().split('T')[0] : "",
+							FDP_Development_Date: fdpDevelopmentDate,
 							CRC_Approval_Status: data.CRC_Approval_Status || "",
 							CRC_Approval_Date: data.CRC_Approval_Date ? new Date(data.CRC_Approval_Date).toISOString().split('T')[0] : "",
 							Intervention_Status: data.Intervention_Status || "",
@@ -370,17 +388,12 @@ function CRCFamilyStatusFormContent() {
 								<label className="block text-sm font-medium text-gray-700 mb-2">
 									Family Current Status
 								</label>
-								<select
-									value={formData.Family_Status_Level}
-									onChange={(e) => handleInputChange("Family_Status_Level", e.target.value)}
-									className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-1 focus:ring-[#0b4d2b]"
-								>
-									<option value="">Select Family Current Status</option>
-									<option value="Approved">Approved</option>
-									<option value="Dropout">Dropout</option>
-									<option value="Self Sufficient">Self Sufficient</option>
-									<option value="Graduated">Graduated</option>
-								</select>
+								<input
+									type="text"
+									value="Approved"
+									readOnly
+									className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm bg-gray-100 cursor-not-allowed"
+								/>
 							</div>
 
 						</div>
@@ -408,8 +421,8 @@ function CRCFamilyStatusFormContent() {
 								<input
 									type="date"
 									value={formData.FDP_Approved_Date}
-									onChange={(e) => handleInputChange("FDP_Approved_Date", e.target.value)}
-									className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-1 focus:ring-[#0b4d2b]"
+									readOnly
+									className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm bg-gray-100 cursor-not-allowed"
 								/>
 							</div>
 
@@ -420,93 +433,23 @@ function CRCFamilyStatusFormContent() {
 								<input
 									type="date"
 									value={formData.FDP_Development_Date}
-									onChange={(e) => handleInputChange("FDP_Development_Date", e.target.value)}
-									className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-1 focus:ring-[#0b4d2b]"
+									readOnly
+									className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm bg-gray-100 cursor-not-allowed"
 								/>
 							</div>
 
-							{/* Show CRC Approval Date only when status is "Approved" */}
-							{formData.Family_Status_Level === "Approved" && (
-								<div>
-									<label className="block text-sm font-medium text-gray-700 mb-2">
-										CRC Approval Date
-									</label>
-									<input
-										type="date"
-										value={formData.CRC_Approval_Date}
-										readOnly
-										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm bg-gray-100 cursor-not-allowed"
-									/>
-								</div>
-							)}
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-2">
+									CRC Approval Date
+								</label>
+								<input
+									type="date"
+									value={formData.CRC_Approval_Date}
+									readOnly
+									className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm bg-gray-100 cursor-not-allowed"
+								/>
+							</div>
 
-							{/* Show Dropout Date and Reasons only when status is "Dropout" */}
-							{formData.Family_Status_Level === "Dropout" && (
-								<>
-									<div>
-										<label className="block text-sm font-medium text-gray-700 mb-2">
-											Dropout Date
-										</label>
-										<input
-											type="date"
-											value={formData.Dropout_Date}
-											onChange={(e) => handleInputChange("Dropout_Date", e.target.value)}
-											className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-1 focus:ring-[#0b4d2b]"
-										/>
-									</div>
-									<div>
-										<label className="block text-sm font-medium text-gray-700 mb-2">
-											Reasons of Dropout
-										</label>
-										<select
-											value={formData.Dropout_Category}
-											onChange={(e) => handleInputChange("Dropout_Category", e.target.value)}
-											className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-1 focus:ring-[#0b4d2b]"
-										>
-											<option value="">Select Reason</option>
-											<option value="Not Willing to Continue">Not Willing to Continue</option>
-											<option value="Shifted / Relocated">Shifted / Relocated</option>
-											<option value="Non-Responsive / Not Traceable">Non-Responsive / Not Traceable</option>
-											<option value="Income Improved / Not Eligible">Income Improved / Not Eligible</option>
-											<option value="Internal Family Issues">Internal Family Issues</option>
-											<option value="Declined Interventions">Declined Interventions</option>
-											<option value="bank defaulter / Missing Documentation">bank defaulter / Missing Documentation</option>
-											<option value="Mentor Recommended Dropout">Mentor Recommended Dropout</option>
-											<option value="Family Requested Exit">Family Requested Exit</option>
-										</select>
-									</div>
-								</>
-							)}
-
-							{/* Show Self Sufficient Date only when status is "Self Sufficient" */}
-							{formData.Family_Status_Level === "Self Sufficient" && (
-								<div>
-									<label className="block text-sm font-medium text-gray-700 mb-2">
-										Self Sufficient Date
-									</label>
-									<input
-										type="date"
-										value={formData.Self_Sufficient_Date}
-										onChange={(e) => handleInputChange("Self_Sufficient_Date", e.target.value)}
-										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-1 focus:ring-[#0b4d2b]"
-									/>
-								</div>
-							)}
-
-							{/* Show Graduated Date only when status is "Graduated" */}
-							{formData.Family_Status_Level === "Graduated" && (
-								<div>
-									<label className="block text-sm font-medium text-gray-700 mb-2">
-										Graduated Date
-									</label>
-									<input
-										type="date"
-										value={formData.Graduated_Date}
-										onChange={(e) => handleInputChange("Graduated_Date", e.target.value)}
-										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-1 focus:ring-[#0b4d2b]"
-									/>
-								</div>
-							)}
 
 						</div>
 					</div>

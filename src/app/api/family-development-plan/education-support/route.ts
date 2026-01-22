@@ -1,22 +1,75 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPeDb } from "@/lib/db";
+import { getPeDb, getDb } from "@/lib/db";
 import sql from "mssql";
+import { getUserIdFromNextRequest } from "@/lib/auth";
 
 export const maxDuration = 120;
 
+/**
+ * NOTE: The CHECK constraint on EducationInterventionType column in PE_FDP_SocialEducation table
+ * currently only allows "Admitted" and "Transferred". To support "Regular Support", the constraint
+ * needs to be updated in the database:
+ * 
+ * ALTER TABLE [SJDA_Users].[dbo].[PE_FDP_SocialEducation]
+ * DROP CONSTRAINT CK__PE_FDP_So__Educa__226010D3;
+ * 
+ * ALTER TABLE [SJDA_Users].[dbo].[PE_FDP_SocialEducation]
+ * ADD CONSTRAINT CK__PE_FDP_So__Educa__226010D3 
+ * CHECK ([EducationInterventionType] IN ('Admitted', 'Transferred', 'Regular'));
+ */
+
 export async function POST(request: NextRequest) {
 	try {
+		// Get userId from auth cookie
+		const userId = getUserIdFromNextRequest(request);
+		
+		if (!userId) {
+			return NextResponse.json(
+				{
+					success: false,
+					message: "Not authenticated",
+				},
+				{ status: 401 }
+			);
+		}
+
+		// Get user's full name (username) for CreatedBy
+		const userPool = await getDb();
+		const userResult = await userPool
+			.request()
+			.input("user_id", userId)
+			.input("email_address", userId)
+			.query(
+				"SELECT TOP(1) [UserFullName] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
+			);
+
+		const user = userResult.recordset?.[0];
+		const userFullName = user?.UserFullName || userId;
+
 		const body = await request.json();
+		
+		// Validate FormNumber
+		const formNumber = body.FormNumber || body.FamilyID || "";
+		if (!formNumber || formNumber.trim() === "") {
+			return NextResponse.json(
+				{
+					success: false,
+					message: "FormNumber is required",
+				},
+				{ status: 400 }
+			);
+		}
+
 		const pool = await getPeDb();
 		const sqlRequest = pool.request();
 
 		// Input parameters
-		sqlRequest.input("FormNumber", sql.VarChar, body.FormNumber);
+		sqlRequest.input("FormNumber", sql.VarChar, formNumber);
 		sqlRequest.input("MaxSocialSupportAmount", sql.Decimal(18, 2), body.MaxSocialSupportAmount || null);
 		
 		// Validate and normalize EducationInterventionType
 		const allowedValues = ["Admitted", "Transferred", "Regular Support"];
-		const interventionType = body.EducationInterventionType ? String(body.EducationInterventionType).trim() : "";
+		let interventionType = body.EducationInterventionType ? String(body.EducationInterventionType).trim() : "";
 		
 		if (!interventionType || !allowedValues.includes(interventionType)) {
 			return NextResponse.json(
@@ -28,8 +81,50 @@ export async function POST(request: NextRequest) {
 			);
 		}
 		
-		// Check if Regular Support is selected
+		// Query the CHECK constraint to see what values are allowed
+		let constraintCheckQuery = `
+			SELECT 
+				cc.name AS ConstraintName,
+				cc.definition AS ConstraintDefinition
+			FROM sys.check_constraints cc
+			INNER JOIN sys.objects o ON cc.parent_object_id = o.object_id
+			INNER JOIN sys.columns col ON cc.parent_column_id = col.column_id AND cc.parent_object_id = col.object_id
+			WHERE o.name = 'PE_FDP_SocialEducation' 
+			AND col.name = 'EducationInterventionType'
+		`;
+		
+		try {
+			const constraintResult = await pool.request().query(constraintCheckQuery);
+			if (constraintResult.recordset.length > 0) {
+				console.log("CHECK Constraint Definition:", constraintResult.recordset[0].ConstraintDefinition);
+			}
+		} catch (err) {
+			console.log("Could not query constraint definition:", err);
+		}
+		
+		// Check if Regular Support is selected (use original value for logic)
 		const isRegularSupport = interventionType === "Regular Support";
+		
+		// Map "Regular Support" to a database-compatible value
+		// The CHECK constraint might only allow "Admitted" and "Transferred"
+		// If "Regular" is not allowed, we'll try NULL or use a workaround
+		let dbInterventionType: string | null;
+		
+		if (isRegularSupport) {
+			// Try "Regular" first - if constraint fails, we'll need to handle differently
+			// The constraint might only allow "Admitted" and "Transferred"
+			dbInterventionType = "Regular";
+		} else {
+			dbInterventionType = interventionType;
+		}
+		
+		// Log the value being sent for debugging
+		console.log("EducationInterventionType mapping:", {
+			original: interventionType,
+			mapped: dbInterventionType,
+			bodyValue: body.EducationInterventionType,
+			isRegularSupport: isRegularSupport
+		});
 		
 		// Set one-time admission costs to 0 if Regular Support is selected
 		const oneTimeCost = isRegularSupport ? 0 : (body.EduOneTimeAdmissionTotalCost || 0);
@@ -54,14 +149,25 @@ export async function POST(request: NextRequest) {
 		sqlRequest.input("BeneficiaryName", sql.NVarChar, body.BeneficiaryName || null);
 		sqlRequest.input("BeneficiaryAge", sql.Int, body.BeneficiaryAge || null);
 		sqlRequest.input("BeneficiaryGender", sql.VarChar, body.BeneficiaryGender || null);
-		sqlRequest.input("EducationInterventionType", sql.VarChar, interventionType);
+		sqlRequest.input("EducationInterventionType", sql.VarChar, dbInterventionType);
 		sqlRequest.input("BaselineReasonNotStudying", sql.NVarChar, isRegularSupport ? null : (body.BaselineReasonNotStudying || null));
 		sqlRequest.input("AdmittedToSchoolType", sql.VarChar, body.AdmittedToSchoolType || null);
 		sqlRequest.input("AdmittedToClassLevel", sql.VarChar, body.AdmittedToClassLevel || null);
 		sqlRequest.input("BaselineSchoolType", sql.VarChar, body.BaselineSchoolType || null);
 		sqlRequest.input("TransferredToSchoolType", sql.VarChar, body.TransferredToSchoolType || null);
 		sqlRequest.input("TransferredToClassLevel", sql.VarChar, body.TransferredToClassLevel || null);
-		sqlRequest.input("CreatedBy", sql.VarChar, body.CreatedBy || "System");
+		sqlRequest.input("CreatedBy", sql.VarChar, userFullName);
+		sqlRequest.input("ApprovalStatus", sql.NVarChar, "Pending");
+
+		// Query existing records to see what values are actually stored
+		const checkQuery = `
+			SELECT DISTINCT [EducationInterventionType]
+			FROM [SJDA_Users].[dbo].[PE_FDP_SocialEducation]
+			WHERE [IsActive] = 1
+			ORDER BY [EducationInterventionType]
+		`;
+		const existingTypes = await pool.request().query(checkQuery);
+		console.log("Existing EducationInterventionType values in database:", existingTypes.recordset);
 
 		const insertQuery = `
 			INSERT INTO [SJDA_Users].[dbo].[PE_FDP_SocialEducation]
@@ -74,7 +180,7 @@ export async function POST(request: NextRequest) {
 				[BeneficiaryID], [BeneficiaryName], [BeneficiaryAge], [BeneficiaryGender],
 				[EducationInterventionType], [BaselineReasonNotStudying], [AdmittedToSchoolType], [AdmittedToClassLevel],
 				[BaselineSchoolType], [TransferredToSchoolType], [TransferredToClassLevel],
-				[CreatedBy], [CreatedAt], [IsActive]
+				[CreatedBy], [CreatedAt], [ApprovalStatus], [IsActive]
 			)
 			VALUES
 			(
@@ -86,11 +192,33 @@ export async function POST(request: NextRequest) {
 				@BeneficiaryID, @BeneficiaryName, @BeneficiaryAge, @BeneficiaryGender,
 				@EducationInterventionType, @BaselineReasonNotStudying, @AdmittedToSchoolType, @AdmittedToClassLevel,
 				@BaselineSchoolType, @TransferredToSchoolType, @TransferredToClassLevel,
-				@CreatedBy, GETDATE(), 1
+				@CreatedBy, GETDATE(), @ApprovalStatus, 1
 			)
 		`;
 
-		await sqlRequest.query(insertQuery);
+		console.log("Executing INSERT with EducationInterventionType:", dbInterventionType);
+		
+		try {
+			await sqlRequest.query(insertQuery);
+		} catch (insertError: any) {
+			// If the error is about the CHECK constraint and we're trying to insert "Regular"
+			if (insertError.message && insertError.message.includes("CHECK constraint") && dbInterventionType === "Regular") {
+				console.error("CHECK constraint error - 'Regular' is not allowed. Constraint likely only allows 'Admitted' and 'Transferred'.");
+				console.error("Error details:", insertError.message);
+				
+				// The constraint doesn't allow "Regular" - we need to inform the user
+				// or use an alternative approach (e.g., NULL if allowed, or update the constraint)
+				return NextResponse.json(
+					{
+						success: false,
+						message: "The database constraint does not allow 'Regular Support' as an Education Intervention Type. The database only allows 'Admitted' and 'Transferred'. Please contact the database administrator to update the constraint to allow 'Regular Support'.",
+						errorDetails: insertError.message
+					},
+					{ status: 400 }
+				);
+			}
+			throw insertError; // Re-throw if it's a different error
+		}
 
 		return NextResponse.json({
 			success: true,
@@ -149,16 +277,33 @@ export async function GET(request: NextRequest) {
 
 		const result = await sqlRequest.query(query);
 
+		// Map "Regular" back to "Regular Support" for display
+		const mapInterventionTypeForDisplay = (type: string | null | undefined): string => {
+			if (!type) return type || "";
+			return type === "Regular" ? "Regular Support" : type;
+		};
+
+		// Transform records to map database values to display values
+		const transformRecord = (record: any) => {
+			if (!record) return record;
+			return {
+				...record,
+				EducationInterventionType: mapInterventionTypeForDisplay(record.EducationInterventionType)
+			};
+		};
+
 		// If fdpSocialEduId is provided, return single record; otherwise return all records
 		if (fdpSocialEduId) {
+			const record = result.recordset[0] || null;
 			return NextResponse.json({
 				success: true,
-				data: result.recordset[0] || null,
+				data: transformRecord(record),
 			});
 		} else {
+			const records = result.recordset || [];
 			return NextResponse.json({
 				success: true,
-				data: result.recordset || [],
+				data: records.map(transformRecord),
 			});
 		}
 	} catch (error: any) {
@@ -175,6 +320,32 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
 	try {
+		// Get userId from auth cookie
+		const userId = getUserIdFromNextRequest(request);
+		
+		if (!userId) {
+			return NextResponse.json(
+				{
+					success: false,
+					message: "Not authenticated",
+				},
+				{ status: 401 }
+			);
+		}
+
+		// Get user's full name (username) for UpdatedBy
+		const userPool = await getDb();
+		const userResult = await userPool
+			.request()
+			.input("user_id", userId)
+			.input("email_address", userId)
+			.query(
+				"SELECT TOP(1) [UserFullName] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
+			);
+
+		const user = userResult.recordset?.[0];
+		const userFullName = user?.UserFullName || userId;
+
 		const { searchParams } = new URL(request.url);
 		const fdpSocialEduId = searchParams.get("fdpSocialEduId");
 
@@ -197,7 +368,7 @@ export async function PUT(request: NextRequest) {
 		
 		// Validate and normalize EducationInterventionType
 		const allowedValues = ["Admitted", "Transferred", "Regular Support"];
-		const interventionType = body.EducationInterventionType ? String(body.EducationInterventionType).trim() : "";
+		let interventionType = body.EducationInterventionType ? String(body.EducationInterventionType).trim() : "";
 		
 		if (!interventionType || !allowedValues.includes(interventionType)) {
 			return NextResponse.json(
@@ -209,8 +380,29 @@ export async function PUT(request: NextRequest) {
 			);
 		}
 		
-		// Check if Regular Support is selected
+		// Check if Regular Support is selected (use original value for logic)
 		const isRegularSupport = interventionType === "Regular Support";
+		
+		// Map "Regular Support" to a database-compatible value
+		// The CHECK constraint might only allow "Admitted" and "Transferred"
+		// If "Regular" is not allowed, we'll try NULL or use a workaround
+		let dbInterventionType: string | null;
+		
+		if (isRegularSupport) {
+			// Try "Regular" first - if constraint fails, we'll need to handle differently
+			// The constraint might only allow "Admitted" and "Transferred"
+			dbInterventionType = "Regular";
+		} else {
+			dbInterventionType = interventionType;
+		}
+		
+		// Log the value being sent for debugging
+		console.log("EducationInterventionType mapping (PUT):", {
+			original: interventionType,
+			mapped: dbInterventionType,
+			bodyValue: body.EducationInterventionType,
+			isRegularSupport: isRegularSupport
+		});
 		
 		// Set one-time admission costs to 0 if Regular Support is selected
 		const oneTimeCost = isRegularSupport ? 0 : (body.EduOneTimeAdmissionTotalCost || 0);
@@ -235,14 +427,14 @@ export async function PUT(request: NextRequest) {
 		sqlRequest.input("BeneficiaryName", sql.NVarChar, body.BeneficiaryName || null);
 		sqlRequest.input("BeneficiaryAge", sql.Int, body.BeneficiaryAge || null);
 		sqlRequest.input("BeneficiaryGender", sql.VarChar, body.BeneficiaryGender || null);
-		sqlRequest.input("EducationInterventionType", sql.VarChar, interventionType);
+		sqlRequest.input("EducationInterventionType", sql.VarChar, dbInterventionType);
 		sqlRequest.input("BaselineReasonNotStudying", sql.NVarChar, isRegularSupport ? null : (body.BaselineReasonNotStudying || null));
 		sqlRequest.input("AdmittedToSchoolType", sql.VarChar, body.AdmittedToSchoolType || null);
 		sqlRequest.input("AdmittedToClassLevel", sql.VarChar, body.AdmittedToClassLevel || null);
 		sqlRequest.input("BaselineSchoolType", sql.VarChar, body.BaselineSchoolType || null);
 		sqlRequest.input("TransferredToSchoolType", sql.VarChar, body.TransferredToSchoolType || null);
 		sqlRequest.input("TransferredToClassLevel", sql.VarChar, body.TransferredToClassLevel || null);
-		sqlRequest.input("UpdatedBy", sql.VarChar, body.UpdatedBy || "System");
+		sqlRequest.input("UpdatedBy", sql.VarChar, userFullName);
 
 		const updateQuery = `
 			UPDATE [SJDA_Users].[dbo].[PE_FDP_SocialEducation]
@@ -279,7 +471,29 @@ export async function PUT(request: NextRequest) {
 			WHERE [FDP_SocialEduID] = @FDP_SocialEduID
 		`;
 
-		await sqlRequest.query(updateQuery);
+		console.log("Executing UPDATE with EducationInterventionType:", dbInterventionType);
+		
+		try {
+			await sqlRequest.query(updateQuery);
+		} catch (updateError: any) {
+			// If the error is about the CHECK constraint and we're trying to update to "Regular"
+			if (updateError.message && updateError.message.includes("CHECK constraint") && dbInterventionType === "Regular") {
+				console.error("CHECK constraint error - 'Regular' is not allowed. Constraint likely only allows 'Admitted' and 'Transferred'.");
+				console.error("Error details:", updateError.message);
+				
+				// The constraint doesn't allow "Regular" - we need to inform the user
+				// or use an alternative approach (e.g., NULL if allowed, or update the constraint)
+				return NextResponse.json(
+					{
+						success: false,
+						message: "The database constraint does not allow 'Regular Support' as an Education Intervention Type. The database only allows 'Admitted' and 'Transferred'. Please contact the database administrator to update the constraint to allow 'Regular Support'.",
+						errorDetails: updateError.message
+					},
+					{ status: 400 }
+				);
+			}
+			throw updateError; // Re-throw if it's a different error
+		}
 
 		return NextResponse.json({
 			success: true,

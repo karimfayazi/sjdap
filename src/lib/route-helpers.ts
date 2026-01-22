@@ -11,7 +11,6 @@ export function getSectionNameFromRoute(route: string): string {
 		'/dashboard': 'Dashboard',
 		'/dashboard/baseline-qol': 'Baseline QOL',
 		'/dashboard/family-development-plan': 'Family Development Plan',
-		'/dashboard/family-approval-crc': 'Family Approval CRC',
 		'/dashboard/family-income': 'Family Income',
 		'/dashboard/rops': 'ROPs',
 		'/dashboard/actual-intervention': 'Actual Intervention',

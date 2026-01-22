@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPeDb } from "@/lib/db";
+import { getPeDb, getDb } from "@/lib/db";
 import sql from "mssql";
 import { checkSuperUserFromDb } from "@/lib/auth-server-utils";
+import { isSuperAdmin } from "@/lib/rbac-utils";
 
 export const maxDuration = 120;
 
@@ -25,20 +26,24 @@ export async function GET(request: NextRequest) {
 		}
 
 		const pool = await getPeDb();
+		const userPool = await getDb();
 		
-		// Check if user is Super User
+		// Check if user is Super User/Admin
 		const isSuperUser = await checkSuperUserFromDb(userId);
+		const isSuperAdminUser = await isSuperAdmin(userId);
 
-		// Get user's full name to match with SubmittedBy (only needed if not Super User)
+		// Get user's UserType and full name
 		let userFullName: string | null = null;
+		let userType: string | null = null;
+		let isRegionalAM = false;
 		
-		if (!isSuperUser) {
-			const userResult = await pool
+		if (!isSuperUser && !isSuperAdminUser) {
+			const userResult = await userPool
 				.request()
 				.input("user_id", userId)
 				.input("email_address", userId)
 				.query(
-					"SELECT TOP(1) [UserFullName] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
+					"SELECT TOP(1) [UserFullName], [UserType] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
 				);
 
 			const user = userResult.recordset?.[0];
@@ -50,6 +55,46 @@ export async function GET(request: NextRequest) {
 			}
 
 			userFullName = user.UserFullName;
+			userType = user.UserType ? String(user.UserType).trim() : null;
+			
+			// Check if user is Regional AM (case-insensitive)
+			isRegionalAM = userType !== null && userType.toUpperCase() === "REGIONAL AM";
+			
+			// Log user info for debugging (server-side only)
+			console.log("[FDP-Approval] User info:", {
+				userId,
+				userType,
+				isRegionalAM,
+				userFullName,
+				isSuperUser,
+				isSuperAdminUser
+			});
+			
+			// For Regional AM: Check if they have RegionalCouncil access
+			if (isRegionalAM) {
+				const rcCheckRequest = userPool.request();
+				rcCheckRequest.input("userId", userId);
+				const rcCheckResult = await rcCheckRequest.query(`
+					SELECT COUNT(*) as Count
+					FROM [SJDA_Users].[dbo].[PE_User_RegionalCouncilAccess] ura
+					WHERE ura.[UserId] = @userId
+				`);
+				
+				const rcCount = rcCheckResult.recordset?.[0]?.Count || 0;
+				console.log("[FDP-Approval] Regional AM RegionalCouncil count:", rcCount);
+				
+				if (rcCount === 0) {
+					return NextResponse.json(
+						{ 
+							success: false, 
+							message: "Regional AM user has no assigned Regional Council. Please contact administrator to assign a Regional Council.",
+							data: [],
+							total: 0
+						},
+						{ status: 403 }
+					);
+				}
+			}
 		}
 
 		const { searchParams } = new URL(request.url);
@@ -67,8 +112,15 @@ export async function GET(request: NextRequest) {
 		// Build WHERE clause for filters
 		const whereConditions: string[] = [];
 		
-		// Filter by SubmittedBy matching user's full name (only if not Super User)
-		if (!isSuperUser && userFullName) {
+		// Regional AM: Filter by RegionalCommunity using RegionalCouncilAccess table
+		// Super User/Admin: No filter (see all records)
+		// Other users: Filter by SubmittedBy matching user's full name
+		if (isRegionalAM) {
+			// Use EXISTS subquery to filter by user's regional councils
+			// This matches the pattern used in feasibility-approval route
+			whereConditions.push(`EXISTS (SELECT 1 FROM [SJDA_Users].[dbo].[PE_User_RegionalCouncilAccess] ura INNER JOIN [SJDA_Users].[dbo].[LU_RegionalCouncil] rc ON ura.[RegionalCouncilId] = rc.[RegionalCouncilId] WHERE ura.[UserId] = @userId AND rc.[RegionalCouncilName] = app.[RegionalCommunity])`);
+		} else if (!isSuperUser && !isSuperAdminUser && userFullName) {
+			// Filter by SubmittedBy matching user's full name (for non-Regional AM, non-Super users)
 			whereConditions.push(`app.[SubmittedBy] = @userFullName`);
 		}
 		
@@ -92,7 +144,11 @@ export async function GET(request: NextRequest) {
 
 		// Query to get total count
 		const countRequest = pool.request();
-		if (userFullName) countRequest.input("userFullName", userFullName);
+		if (isRegionalAM) {
+			countRequest.input("userId", userId);
+		} else if (userFullName) {
+			countRequest.input("userFullName", userFullName);
+		}
 		
 		const countQuery = `
 			SELECT COUNT(*) as Total
@@ -102,6 +158,15 @@ export async function GET(request: NextRequest) {
 
 		const countResult = await countRequest.query(countQuery);
 		const total = countResult.recordset[0]?.Total || 0;
+		
+		// Log query info for debugging
+		if (isRegionalAM) {
+			console.log("[FDP-Approval] Regional AM query executed:", {
+				userId,
+				total,
+				whereClause: whereClause.substring(0, 200) // First 200 chars
+			});
+		}
 
 		// Query to get data with pagination - JOIN with PE_FamilyMember to count family members and calculate income
 		// Also check approval status from EconomicDevelopment
@@ -166,7 +231,11 @@ export async function GET(request: NextRequest) {
 
 		// Execute query with user parameters
 		const dataRequest = pool.request();
-		if (userFullName) dataRequest.input("userFullName", userFullName);
+		if (isRegionalAM) {
+			dataRequest.input("userId", userId);
+		} else if (userFullName) {
+			dataRequest.input("userFullName", userFullName);
+		}
 		
 		const result = await dataRequest.query(query);
 

@@ -24,7 +24,6 @@ export type UserProfile = {
 	Dashboard: boolean | number | null;
 	PowerBI: boolean | number | null;
 	Family_Development_Plan: boolean | number | null;
-	Family_Approval_CRC: boolean | number | null;
 	Family_Income: boolean | number | null;
 	ROP: boolean | number | null;
 	Setting: boolean | number | null;

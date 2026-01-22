@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Save, AlertCircle, Upload, FileText, Edit, Eye, Briefcase, ExternalLink, CheckCircle, X } from "lucide-react";
+import { ArrowLeft, Save, AlertCircle, Upload, FileText, Edit, Eye, Briefcase, ExternalLink, CheckCircle, X, Users, FileCheck, Clock, CheckCircle2, XCircle } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 type FeasibilityFormData = {
@@ -215,6 +215,17 @@ function FeasibilityStudyContent() {
 	const [maxEconomicSupportAmount, setMaxEconomicSupportAmount] = useState<number>(500000); // Fixed at PKR 500,000
 	const [alreadyDefinedEconomicSupport, setAlreadyDefinedEconomicSupport] = useState<number>(0);
 	const [availableEconomicSupport, setAvailableEconomicSupport] = useState<number>(0);
+	
+	// Stats state
+	const [stats, setStats] = useState({
+		families: 0,
+		feasibility: 0,
+		pending: 0,
+		approved: 0,
+		rejected: 0,
+	});
+	const [statsLoading, setStatsLoading] = useState(true);
+	const [statsError, setStatsError] = useState<string | null>(null);
 
 	// Calculate age from DOB
 	const calculateAge = (dobMonth: string | null, dobYear: string | null): number => {
@@ -305,12 +316,12 @@ function FeasibilityStudyContent() {
 					const data = baselineResult.data;
 					setBaselineData(data);
 					
-					// Calculate per capita income
+					// Calculate per capita income (rounded)
 					const perCapitaIncome = data.FamilyMembersCount > 0 
-						? data.BaselineFamilyIncome / data.FamilyMembersCount 
+						? Math.round(data.BaselineFamilyIncome / data.FamilyMembersCount)
 						: 0;
 					
-					// Calculate percentage of self-sufficiency
+					// Calculate percentage of self-sufficiency (rounded to 2 decimal places for percentage)
 					const selfSufficiencyPercent = data.SelfSufficiencyIncomePerCapita > 0
 						? (perCapitaIncome / data.SelfSufficiencyIncomePerCapita) * 100
 						: 0;
@@ -339,12 +350,12 @@ function FeasibilityStudyContent() {
 					// Auto-select the member if memberNo is provided
 					const selectedMember = membersData.data.find((m: FamilyMember) => m.BeneficiaryID === memberNo);
 					if (selectedMember) {
-						setFormData(prev => ({
-							...prev,
-							MemberID: selectedMember.BeneficiaryID,
-							MemberName: selectedMember.FullName,
-							CurrentBaselineIncome: selectedMember.MonthlyIncome || 0,
-						}));
+							setFormData(prev => ({
+								...prev,
+								MemberID: selectedMember.BeneficiaryID,
+								MemberName: selectedMember.FullName,
+								CurrentBaselineIncome: Math.round(selectedMember.MonthlyIncome || 0),
+							}));
 					}
 				}
 
@@ -386,16 +397,16 @@ function FeasibilityStudyContent() {
 								MemberID: record.MemberID || memberNo || "",
 								MemberName: record.MemberName || memberName || "",
 								PlanCategory: record.PlanCategory || "",
-								CurrentBaselineIncome: memberBaselineIncome,
+								CurrentBaselineIncome: Math.round(memberBaselineIncome),
 								FeasibilityType: record.FeasibilityType || "",
 								InvestmentRationale: record.InvestmentRationale || "",
 								MarketBusinessAnalysis: record.MarketBusinessAnalysis || "",
-								TotalSalesRevenue: record.TotalSalesRevenue || 0,
-								TotalDirectCosts: record.TotalDirectCosts || 0,
-								TotalIndirectCosts: record.TotalIndirectCosts || 0,
-								NetProfitLoss: record.NetProfitLoss || 0,
-								TotalInvestmentRequired: record.TotalInvestmentRequired ?? null,
-								InvestmentFromPEProgram: record.InvestmentFromPEProgram ?? null,
+								TotalSalesRevenue: Math.round(record.TotalSalesRevenue || 0),
+								TotalDirectCosts: Math.round(record.TotalDirectCosts || 0),
+								TotalIndirectCosts: Math.round(record.TotalIndirectCosts || 0),
+								NetProfitLoss: Math.round(record.NetProfitLoss || 0),
+								TotalInvestmentRequired: record.TotalInvestmentRequired !== null && record.TotalInvestmentRequired !== undefined ? Math.round(record.TotalInvestmentRequired) : null,
+								InvestmentFromPEProgram: record.InvestmentFromPEProgram !== null && record.InvestmentFromPEProgram !== undefined ? Math.round(record.InvestmentFromPEProgram) : null,
 								MainTrade: record.Trade || record.MainTrade || "Technical/Vocational Skills Enhancement Training",
 								SubTrade: subTradeValue,
 								SubTradeCode: subTradeCode,
@@ -406,12 +417,12 @@ function FeasibilityStudyContent() {
 								InstitutionCertifiedBy: record.InstitutionCertifiedBy || "",
 								CourseTitle: record.CourseTitle || "",
 								CourseDeliveryType: record.CourseDeliveryType || "",
-								HoursOfInstruction: record.HoursOfInstruction || 0,
-								DurationWeeks: record.DurationWeeks || 0,
+								HoursOfInstruction: Math.round(record.HoursOfInstruction || 0),
+								DurationWeeks: Math.round(record.DurationWeeks || 0),
 								StartDate: record.StartDate ? record.StartDate.split('T')[0] : "",
 								EndDate: record.EndDate ? record.EndDate.split('T')[0] : "",
-								CostPerParticipant: record.CostPerParticipant || 0,
-								ExpectedStartingSalary: record.ExpectedStartingSalary || 0,
+								CostPerParticipant: Math.round(record.CostPerParticipant || 0),
+								ExpectedStartingSalary: Math.round(record.ExpectedStartingSalary || 0),
 								FeasibilityPdfPath: record.FeasibilityPdfPath || "",
 								ApprovalStatus: "Pending", // Always set to Pending as it's read-only
 								ApprovalRemarks: record.ApprovalRemarks || "",
@@ -446,7 +457,7 @@ function FeasibilityStudyContent() {
 						return sum + investment;
 					}, 0);
 					
-					const alreadyDefined = totalDefined;
+					const alreadyDefined = Math.round(totalDefined);
 					const available = Math.max(0, maxEconomicSupportAmount - alreadyDefined);
 					
 					setAlreadyDefinedEconomicSupport(alreadyDefined);
@@ -464,9 +475,47 @@ function FeasibilityStudyContent() {
 	useEffect(() => {
 		if (formData.PlanCategory === "ECONOMIC") {
 			const netProfitLoss = (formData.TotalSalesRevenue || 0) - (formData.TotalDirectCosts || 0) - (formData.TotalIndirectCosts || 0);
-			setFormData(prev => ({ ...prev, NetProfitLoss: netProfitLoss }));
+			setFormData(prev => ({ ...prev, NetProfitLoss: Math.round(netProfitLoss) }));
 		}
 	}, [formData.PlanCategory, formData.TotalSalesRevenue, formData.TotalDirectCosts, formData.TotalIndirectCosts]);
+
+	// Fetch feasibility stats
+	useEffect(() => {
+		const fetchStats = async () => {
+			try {
+				setStatsLoading(true);
+				setStatsError(null);
+				const response = await fetch("/api/feasibility-stats");
+				const result = await response.json();
+				
+				if (result.success) {
+					setStats({
+						families: result.families || 0,
+						feasibility: result.feasibility || 0,
+						pending: result.pending || 0,
+						approved: result.approved || 0,
+						rejected: result.rejected || 0,
+					});
+				} else {
+					setStats({
+						families: result.families || 0,
+						feasibility: result.feasibility || 0,
+						pending: result.pending || 0,
+						approved: result.approved || 0,
+						rejected: result.rejected || 0,
+					});
+					setStatsError(result.message || "Unable to load stats");
+				}
+			} catch (err) {
+				console.error("Error fetching feasibility stats:", err);
+				setStatsError("Unable to load stats");
+			} finally {
+				setStatsLoading(false);
+			}
+		};
+
+		fetchStats();
+	}, []);
 
 	// Handle PDF upload
 	const handlePdfUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -627,6 +676,18 @@ function FeasibilityStudyContent() {
 
 			const payload = {
 				...formData,
+				// Round all numeric values before sending to API
+				CurrentBaselineIncome: Math.round(formData.CurrentBaselineIncome || 0),
+				TotalSalesRevenue: Math.round(formData.TotalSalesRevenue || 0),
+				TotalDirectCosts: Math.round(formData.TotalDirectCosts || 0),
+				TotalIndirectCosts: Math.round(formData.TotalIndirectCosts || 0),
+				NetProfitLoss: Math.round(formData.NetProfitLoss || 0),
+				TotalInvestmentRequired: formData.TotalInvestmentRequired !== null ? Math.round(formData.TotalInvestmentRequired) : null,
+				InvestmentFromPEProgram: formData.InvestmentFromPEProgram !== null ? Math.round(formData.InvestmentFromPEProgram) : null,
+				HoursOfInstruction: Math.round(formData.HoursOfInstruction || 0),
+				DurationWeeks: Math.round(formData.DurationWeeks || 0),
+				CostPerParticipant: Math.round(formData.CostPerParticipant || 0),
+				ExpectedStartingSalary: Math.round(formData.ExpectedStartingSalary || 0),
 				CreatedBy: userProfile?.username || null,
 			};
 
@@ -663,7 +724,7 @@ function FeasibilityStudyContent() {
 
 	const formatCurrency = (value: number | null | undefined): string => {
 		if (value === null || value === undefined) return "0";
-		return `Rs. ${value.toLocaleString()}`;
+		return `Rs. ${Math.round(value).toLocaleString()}`;
 	};
 
 	const formatPercent = (value: number): string => {
@@ -700,6 +761,58 @@ function FeasibilityStudyContent() {
 					</div>
 				</div>
 			</div>
+
+			{/* Stats Cards */}
+			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+				<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+					<div className="flex items-center justify-between">
+						<div>
+							<p className="text-sm text-gray-600 mb-1"># of Families</p>
+							<p className="text-2xl font-bold text-gray-900">{stats.families}</p>
+						</div>
+						<Users className="h-5 w-5 text-gray-400" />
+					</div>
+				</div>
+				<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+					<div className="flex items-center justify-between">
+						<div>
+							<p className="text-sm text-gray-600 mb-1"># of Feasibility</p>
+							<p className="text-2xl font-bold text-gray-900">{stats.feasibility}</p>
+						</div>
+						<FileCheck className="h-5 w-5 text-gray-400" />
+					</div>
+				</div>
+				<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+					<div className="flex items-center justify-between">
+						<div>
+							<p className="text-sm text-gray-600 mb-1"># of Pending Feasibility</p>
+							<p className="text-2xl font-bold text-gray-900">{stats.pending}</p>
+						</div>
+						<Clock className="h-5 w-5 text-amber-500" />
+					</div>
+				</div>
+				<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+					<div className="flex items-center justify-between">
+						<div>
+							<p className="text-sm text-gray-600 mb-1"># of Approved Feasibility</p>
+							<p className="text-2xl font-bold text-gray-900">{stats.approved}</p>
+						</div>
+						<CheckCircle2 className="h-5 w-5 text-green-500" />
+					</div>
+				</div>
+				<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+					<div className="flex items-center justify-between">
+						<div>
+							<p className="text-sm text-gray-600 mb-1"># of Rejected Feasibility</p>
+							<p className="text-2xl font-bold text-gray-900">{stats.rejected}</p>
+						</div>
+						<XCircle className="h-5 w-5 text-red-500" />
+					</div>
+				</div>
+			</div>
+			{statsError && (
+				<div className="text-xs text-gray-500 text-center">{statsError}</div>
+			)}
 
 			{/* Show Trades Section */}
 			<div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -942,9 +1055,16 @@ function FeasibilityStudyContent() {
 								</label>
 								<input
 									type="number"
-									step="0.01"
+									step="1"
 									value={formData.TotalSalesRevenue || 0}
-									onChange={(e) => setFormData(prev => ({ ...prev, TotalSalesRevenue: parseFloat(e.target.value) || 0 }))}
+									onChange={(e) => {
+										const value = parseFloat(e.target.value) || 0;
+										setFormData(prev => ({ ...prev, TotalSalesRevenue: Math.round(value) }));
+									}}
+									onBlur={(e) => {
+										const value = parseFloat(e.target.value) || 0;
+										setFormData(prev => ({ ...prev, TotalSalesRevenue: Math.round(value) }));
+									}}
 									className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
 									required
 								/>
@@ -956,9 +1076,16 @@ function FeasibilityStudyContent() {
 									</label>
 									<input
 										type="number"
-										step="0.01"
+										step="1"
 										value={formData.TotalDirectCosts || 0}
-										onChange={(e) => setFormData(prev => ({ ...prev, TotalDirectCosts: parseFloat(e.target.value) || 0 }))}
+										onChange={(e) => {
+											const value = parseFloat(e.target.value) || 0;
+											setFormData(prev => ({ ...prev, TotalDirectCosts: Math.round(value) }));
+										}}
+										onBlur={(e) => {
+											const value = parseFloat(e.target.value) || 0;
+											setFormData(prev => ({ ...prev, TotalDirectCosts: Math.round(value) }));
+										}}
 										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
 										required
 									/>
@@ -969,9 +1096,16 @@ function FeasibilityStudyContent() {
 									</label>
 									<input
 										type="number"
-										step="0.01"
+										step="1"
 										value={formData.TotalIndirectCosts || 0}
-										onChange={(e) => setFormData(prev => ({ ...prev, TotalIndirectCosts: parseFloat(e.target.value) || 0 }))}
+										onChange={(e) => {
+											const value = parseFloat(e.target.value) || 0;
+											setFormData(prev => ({ ...prev, TotalIndirectCosts: Math.round(value) }));
+										}}
+										onBlur={(e) => {
+											const value = parseFloat(e.target.value) || 0;
+											setFormData(prev => ({ ...prev, TotalIndirectCosts: Math.round(value) }));
+										}}
 										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
 										required
 									/>
@@ -984,8 +1118,8 @@ function FeasibilityStudyContent() {
 									</label>
 									<input
 										type="number"
-										step="0.01"
-										value={formData.NetProfitLoss}
+										step="1"
+										value={Math.round(formData.NetProfitLoss)}
 										readOnly
 										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm bg-gray-50"
 									/>
@@ -996,10 +1130,10 @@ function FeasibilityStudyContent() {
 									</label>
 									<input
 										type="number"
-										step="0.01"
-										value={formData.TotalInvestmentRequired ?? ""}
+										step="1"
+										value={formData.TotalInvestmentRequired !== null ? Math.round(formData.TotalInvestmentRequired) : ""}
 										onChange={(e) => {
-											const newValue = e.target.value === "" ? null : (parseFloat(e.target.value) || null);
+											const newValue = e.target.value === "" ? null : Math.round(parseFloat(e.target.value) || 0);
 											setFormData(prev => {
 												// Check if Investment from PE Program is valid with new Total Investment Required
 												if (newValue !== null && prev.InvestmentFromPEProgram !== null && prev.InvestmentFromPEProgram > newValue) {
@@ -1009,6 +1143,10 @@ function FeasibilityStudyContent() {
 												}
 												return { ...prev, TotalInvestmentRequired: newValue };
 											});
+										}}
+										onBlur={(e) => {
+											const newValue = e.target.value === "" ? null : Math.round(parseFloat(e.target.value) || 0);
+											setFormData(prev => ({ ...prev, TotalInvestmentRequired: newValue }));
 										}}
 										className={`w-full rounded-md border px-4 py-2 text-sm focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${
 											investmentError ? "border-red-500 focus:border-red-500" : "border-gray-300 focus:border-[#0b4d2b]"
@@ -1024,11 +1162,11 @@ function FeasibilityStudyContent() {
 								</label>
 								<input
 									type="number"
-									step="0.01"
+									step="1"
 									max={formData.TotalInvestmentRequired ?? undefined}
-									value={formData.InvestmentFromPEProgram ?? ""}
+									value={formData.InvestmentFromPEProgram !== null ? Math.round(formData.InvestmentFromPEProgram) : ""}
 									onChange={(e) => {
-										const newValue = e.target.value === "" ? null : (parseFloat(e.target.value) || null);
+										const newValue = e.target.value === "" ? null : Math.round(parseFloat(e.target.value) || 0);
 										const totalInvestment = formData.TotalInvestmentRequired;
 										
 										if (newValue !== null && totalInvestment !== null && newValue > totalInvestment) {
@@ -1037,6 +1175,10 @@ function FeasibilityStudyContent() {
 											setInvestmentError(null);
 										}
 										
+										setFormData(prev => ({ ...prev, InvestmentFromPEProgram: newValue }));
+									}}
+									onBlur={(e) => {
+										const newValue = e.target.value === "" ? null : Math.round(parseFloat(e.target.value) || 0);
 										setFormData(prev => ({ ...prev, InvestmentFromPEProgram: newValue }));
 									}}
 									className={`w-full rounded-md border px-4 py-2 text-sm focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${
@@ -1264,7 +1406,14 @@ function FeasibilityStudyContent() {
 									<input
 										type="number"
 										value={formData.HoursOfInstruction}
-										onChange={(e) => setFormData(prev => ({ ...prev, HoursOfInstruction: parseInt(e.target.value) || 0 }))}
+										onChange={(e) => {
+											const value = parseInt(e.target.value) || 0;
+											setFormData(prev => ({ ...prev, HoursOfInstruction: Math.round(value) }));
+										}}
+										onBlur={(e) => {
+											const value = parseInt(e.target.value) || 0;
+											setFormData(prev => ({ ...prev, HoursOfInstruction: Math.round(value) }));
+										}}
 										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
 										required
 										min="1"
@@ -1279,7 +1428,14 @@ function FeasibilityStudyContent() {
 									<input
 										type="number"
 										value={formData.DurationWeeks}
-										onChange={(e) => setFormData(prev => ({ ...prev, DurationWeeks: parseInt(e.target.value) || 0 }))}
+										onChange={(e) => {
+											const value = parseInt(e.target.value) || 0;
+											setFormData(prev => ({ ...prev, DurationWeeks: Math.round(value) }));
+										}}
+										onBlur={(e) => {
+											const value = parseInt(e.target.value) || 0;
+											setFormData(prev => ({ ...prev, DurationWeeks: Math.round(value) }));
+										}}
 										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
 										required
 										min="1"
@@ -1291,9 +1447,16 @@ function FeasibilityStudyContent() {
 									</label>
 									<input
 										type="number"
-										step="0.01"
+										step="1"
 										value={formData.CostPerParticipant}
-										onChange={(e) => setFormData(prev => ({ ...prev, CostPerParticipant: parseFloat(e.target.value) || 0 }))}
+										onChange={(e) => {
+											const value = parseFloat(e.target.value) || 0;
+											setFormData(prev => ({ ...prev, CostPerParticipant: Math.round(value) }));
+										}}
+										onBlur={(e) => {
+											const value = parseFloat(e.target.value) || 0;
+											setFormData(prev => ({ ...prev, CostPerParticipant: Math.round(value) }));
+										}}
 										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
 										required
 									/>
@@ -1331,9 +1494,16 @@ function FeasibilityStudyContent() {
 								</label>
 								<input
 									type="number"
-									step="0.01"
+									step="1"
 									value={formData.ExpectedStartingSalary}
-									onChange={(e) => setFormData(prev => ({ ...prev, ExpectedStartingSalary: parseFloat(e.target.value) || 0 }))}
+									onChange={(e) => {
+										const value = parseFloat(e.target.value) || 0;
+										setFormData(prev => ({ ...prev, ExpectedStartingSalary: Math.round(value) }));
+									}}
+									onBlur={(e) => {
+										const value = parseFloat(e.target.value) || 0;
+										setFormData(prev => ({ ...prev, ExpectedStartingSalary: Math.round(value) }));
+									}}
 									className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
 									required
 								/>
@@ -1520,22 +1690,22 @@ function FeasibilityStudyContent() {
 										</td>
 										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
 											{record.TotalInvestmentRequired || record.CostPerParticipant
-												? `PKR ${(record.TotalInvestmentRequired || record.CostPerParticipant || 0).toLocaleString()}`
+												? `PKR ${Math.round(record.TotalInvestmentRequired || record.CostPerParticipant || 0).toLocaleString()}`
 												: "-"}
 										</td>
 										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
 											{record.InvestmentFromPEProgram
-												? `PKR ${parseFloat(record.InvestmentFromPEProgram).toLocaleString()}`
+												? `PKR ${Math.round(parseFloat(record.InvestmentFromPEProgram)).toLocaleString()}`
 												: "-"}
 										</td>
 										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
 											{record.TotalSalesRevenue
-												? `PKR ${parseFloat(record.TotalSalesRevenue).toLocaleString()}`
+												? `PKR ${Math.round(parseFloat(record.TotalSalesRevenue)).toLocaleString()}`
 												: "-"}
 										</td>
 										<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
 											{record.NetProfitLoss !== null && record.NetProfitLoss !== undefined
-												? `PKR ${parseFloat(record.NetProfitLoss).toLocaleString()}`
+												? `PKR ${Math.round(parseFloat(record.NetProfitLoss)).toLocaleString()}`
 												: "-"}
 										</td>
 										<td className="px-6 py-4 whitespace-nowrap text-sm">

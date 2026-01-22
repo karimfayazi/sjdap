@@ -24,6 +24,7 @@ type FamilyMember = {
 	DOBMonth: number | null;
 	DOBYear: number | null;
 	MonthlyIncome: number | null;
+	PEInvestmentAmount: number;
 };
 
 type MemberInterventions = {
@@ -362,7 +363,7 @@ export default function ActualInterventionPage() {
 																Date of Birth
 															</th>
 															<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
-																Monthly Income
+																PE Investment Amount
 															</th>
 															<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
 																Interventions
@@ -411,9 +412,9 @@ export default function ActualInterventionPage() {
 																		<span className="text-sm text-gray-700">{formatDateOfBirth(member.DOBMonth, member.DOBYear)}</span>
 																	</td>
 																	<td className="px-6 py-4 whitespace-nowrap">
-																		{member.MonthlyIncome != null ? (
-																			<span className="inline-flex items-center px-2 py-1 bg-green-100 text-green-800 rounded-md text-xs font-semibold">
-																				Rs. {member.MonthlyIncome.toLocaleString()}
+																		{member.PEInvestmentAmount > 0 ? (
+																			<span className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-xs font-semibold">
+																				PKR {member.PEInvestmentAmount.toLocaleString()}
 																			</span>
 																		) : (
 																			<span className="text-sm text-gray-400">N/A</span>

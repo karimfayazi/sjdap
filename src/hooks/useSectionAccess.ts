@@ -12,7 +12,6 @@ type SectionPermission =
 	| "Dashboard"
 	| "PowerBI"
 	| "Family_Development_Plan"
-	| "Family_Approval_CRC"
 	| "Family_Income"
 	| "ROP"
 	| "Setting"

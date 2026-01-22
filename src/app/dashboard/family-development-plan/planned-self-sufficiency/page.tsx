@@ -40,19 +40,56 @@ function PlannedSelfSufficiencyContent() {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 
-	// Calculate poverty level
+	// Helper function: Format number with commas
+	const formatNumber = (value: number | null | undefined): string => {
+		if (value === null || value === undefined || isNaN(value)) return "-";
+		const roundedValue = Math.round(value);
+		return roundedValue.toLocaleString();
+	};
+
+	// Alias for PDF compatibility
+	const formatCurrency = formatNumber;
+
+	// Helper function: Format status with parentheses for negative values
+	const formatStatusParen = (value: number): string => {
+		if (value < 0) {
+			return `(${formatNumber(Math.abs(value))})`;
+		}
+		return formatNumber(value);
+	};
+
+	// Helper function: Format percent
+	const formatPercent = (value: number): string => {
+		if (isNaN(value)) return "-";
+		return `${Math.round(value)}%`;
+	};
+
+	// Helper function: Get poverty level based on percentage
+	const getPovertyLevel = (percent: number): string => {
+		if (percent < 40) return "-3";
+		if (percent < 70) return "-2";
+		if (percent < 100) return "-1";
+		if (percent < 140) return "Nil";
+		return "+1";
+	};
+
+	// Calculate % of self-sufficiency
+	const calculateSelfSufficiencyPercent = (perCapitaIncome: number, selfSufficiencyIncome: number): number => {
+		if (selfSufficiencyIncome <= 0) return 0;
+		return (perCapitaIncome / selfSufficiencyIncome) * 100;
+	};
+
+	// Calculate self-sufficiency status (difference)
+	const calculateSelfSufficiencyStatus = (totalIncome: number, selfSufficiencyTarget: number): number => {
+		return totalIncome - selfSufficiencyTarget;
+	};
+
+	// Legacy poverty level calculation (kept for backward compatibility)
 	const calculatePovertyLevel = (perCapitaIncome: number, areaType: string, selfSufficiencyIncome?: number): string => {
-		// If self-sufficiency income is provided, check the percentage first
+		// If self-sufficiency income is provided, use percentage-based calculation
 		if (selfSufficiencyIncome && selfSufficiencyIncome > 0) {
 			const percent = (perCapitaIncome / selfSufficiencyIncome) * 100;
-			// If percentage is more than 125%, return "Level +1"
-			if (percent > 125) {
-				return "Level +1";
-			}
-			// If per capita income is at or above self-sufficiency level (100% or more), return "Nil"
-			if (perCapitaIncome >= selfSufficiencyIncome) {
-				return "Nil";
-			}
+			return getPovertyLevel(percent);
 		}
 
 		const thresholds: { [key: string]: { [key: number]: string } } = {
@@ -96,17 +133,6 @@ function PlannedSelfSufficiencyContent() {
 		return "Level -4";
 	};
 
-	// Calculate % of self-sufficiency
-	const calculateSelfSufficiencyPercent = (perCapitaIncome: number, selfSufficiencyIncome: number): number => {
-		if (selfSufficiencyIncome <= 0) return 0;
-		return (perCapitaIncome / selfSufficiencyIncome) * 100;
-	};
-
-	// Calculate self-sufficiency status (difference)
-	const calculateSelfSufficiencyStatus = (totalIncome: number, selfSufficiencyTarget: number): number => {
-		return totalIncome - selfSufficiencyTarget;
-	};
-
 	// Fetch data
 	useEffect(() => {
 		if (!formNumber) {
@@ -136,16 +162,6 @@ function PlannedSelfSufficiencyContent() {
 		fetchData();
 	}, [formNumber]);
 
-	const formatCurrency = (value: number): string => {
-		const roundedValue = Math.round(value);
-		return roundedValue.toLocaleString();
-	};
-
-	const formatNumber = (value: number | null | undefined): string => {
-		if (value === null || value === undefined) return "-";
-		const roundedValue = Math.round(value);
-		return roundedValue.toLocaleString();
-	};
 
 	const downloadPDF = () => {
 		if (!data) return;
@@ -321,10 +337,54 @@ function PlannedSelfSufficiencyContent() {
 		rightAlignText(formatCurrency(baselineStatus), colWidths[6], xPos); // Status
 		yPos += 9;
 
+		// Calculate incremental income values (same logic as UI)
+		const approvedEconomicInterventions = data.interventions
+			.filter((inv) => {
+				const interventionType = (inv.InterventionType || "").trim().toUpperCase();
+				return interventionType === "ECONOMIC";
+			})
+			.slice(0, 4);
+
+		const inc1 = approvedEconomicInterventions[0]?.IncrementalIncome != null
+			? (typeof approvedEconomicInterventions[0].IncrementalIncome === 'number' 
+				? approvedEconomicInterventions[0].IncrementalIncome 
+				: parseFloat(approvedEconomicInterventions[0].IncrementalIncome) || 0)
+			: 0;
+		const inc2 = approvedEconomicInterventions[1]?.IncrementalIncome != null
+			? (typeof approvedEconomicInterventions[1].IncrementalIncome === 'number' 
+				? approvedEconomicInterventions[1].IncrementalIncome 
+				: parseFloat(approvedEconomicInterventions[1].IncrementalIncome) || 0)
+			: 0;
+		const inc3 = approvedEconomicInterventions[2]?.IncrementalIncome != null
+			? (typeof approvedEconomicInterventions[2].IncrementalIncome === 'number' 
+				? approvedEconomicInterventions[2].IncrementalIncome 
+				: parseFloat(approvedEconomicInterventions[2].IncrementalIncome) || 0)
+			: 0;
+		const inc4 = approvedEconomicInterventions[3]?.IncrementalIncome != null
+			? (typeof approvedEconomicInterventions[3].IncrementalIncome === 'number' 
+				? approvedEconomicInterventions[3].IncrementalIncome 
+				: parseFloat(approvedEconomicInterventions[3].IncrementalIncome) || 0)
+			: 0;
+
+		const incrementalIncomes = [inc1, inc2, inc3, inc4];
+
 		// Interventions
 		let cumulativeIncome = data.familyInfo.BaselineFamilyIncome;
-		data.interventions.forEach((intervention, index) => {
-			cumulativeIncome += intervention.IncrementalIncome;
+		for (let i = 0; i < 4; i++) {
+			const incrementalIncome = incrementalIncomes[i] || 0;
+			const intervention = data.interventions[i] || null;
+			
+			// Calculate incremental income per capita and % of self-sufficiency
+			const incrementalIncomePerCapita = data.familyInfo.TotalMembers > 0 
+				? incrementalIncome / data.familyInfo.TotalMembers 
+				: 0;
+			const incrementalIncomePercent = calculateSelfSufficiencyPercent(
+				incrementalIncomePerCapita, 
+				data.familyInfo.SelfSufficiencyIncomePerCapita
+			);
+
+			// Calculate cumulative income after this intervention
+			cumulativeIncome += incrementalIncome;
 			const cumulativePerCapita = data.familyInfo.TotalMembers > 0 
 				? cumulativeIncome / data.familyInfo.TotalMembers 
 				: 0;
@@ -337,15 +397,16 @@ function PlannedSelfSufficiencyContent() {
 			pdf.rect(margin, yPos - 2, contentWidth, 7, 'F');
 			xPos = margin;
 			pdf.setTextColor(0, 0, 0);
-			pdf.text(`Incremental Income from Intervention ${intervention.InterventionNumber}`, xPos + 2, yPos + 5);
+			pdf.text(`Incremental Income from Intervention ${i + 1}`, xPos + 2, yPos + 5);
 			xPos += colWidths[0];
-			rightAlignText(formatCurrency(intervention.Investment), colWidths[1], xPos); // Investment
+			rightAlignText(intervention?.Investment ? formatCurrency(intervention.Investment) : '-', colWidths[1], xPos); // Investment
 			xPos += colWidths[1];
-			rightAlignText(formatCurrency(intervention.IncrementalIncome), colWidths[2], xPos); // Amount
+			rightAlignText(incrementalIncome > 0 ? formatCurrency(incrementalIncome) : '-', colWidths[2], xPos); // Amount
 			xPos += colWidths[2];
-			rightAlignText(formatCurrency(intervention.IncrementalIncomePerCapita), colWidths[3], xPos); // Per Capita
+			rightAlignText(incrementalIncomePerCapita > 0 ? formatCurrency(incrementalIncomePerCapita) : '-', colWidths[3], xPos); // Per Capita
 			xPos += colWidths[3];
-			xPos += colWidths[4]; // Skip % column
+			rightAlignText(incrementalIncome > 0 ? `${incrementalIncomePercent.toFixed(0)}%` : '-', colWidths[4], xPos); // % of Self-Sufficiency
+			xPos += colWidths[4];
 			xPos += colWidths[5]; // Skip Poverty Level
 			xPos += colWidths[6]; // Skip Status
 			yPos += 9;
@@ -354,7 +415,7 @@ function PlannedSelfSufficiencyContent() {
 			pdf.setFillColor(240, 255, 240); // Light green for after intervention
 			pdf.rect(margin, yPos - 2, contentWidth, 7, 'F');
 			xPos = margin;
-			pdf.text(`Income after Intervention ${intervention.InterventionNumber}`, xPos + 2, yPos + 5);
+			pdf.text(`Income after Intervention ${i + 1}`, xPos + 2, yPos + 5);
 			xPos += colWidths[0];
 			pdf.text('Calculated', xPos + 2, yPos + 5); // Investment column
 			xPos += colWidths[1];
@@ -382,73 +443,10 @@ function PlannedSelfSufficiencyContent() {
 			xPos += colWidths[5]; // Skip Poverty Level
 			rightAlignText(formatCurrency(cumulativeStatus), colWidths[6], xPos); // Status
 			yPos += 9;
-		});
-
-		// Fill remaining interventions with "-"
-		for (let i = data.interventions.length; i < 4; i++) {
-			// Incremental Income row
-			pdf.setFillColor(245, 245, 245);
-			pdf.rect(margin, yPos - 2, contentWidth, 7, 'F');
-			xPos = margin;
-			pdf.text(`Incremental Income from Intervention ${i + 1}`, xPos + 2, yPos + 5);
-			xPos += colWidths[0];
-			rightAlignText('-', colWidths[1], xPos); // Investment
-			xPos += colWidths[1];
-			rightAlignText('-', colWidths[2], xPos); // Amount
-			xPos += colWidths[2];
-			rightAlignText('-', colWidths[3], xPos); // Per Capita
-			xPos += colWidths[3];
-			xPos += colWidths[4]; // Skip % column
-			xPos += colWidths[5]; // Skip Poverty Level
-			xPos += colWidths[6]; // Skip Status
-			yPos += 9;
-
-			// Income after Intervention row (use last cumulative values)
-			const lastCumulativeIncome = data.interventions.length > 0 
-				? data.familyInfo.BaselineFamilyIncome + data.interventions.reduce((sum, inv) => sum + inv.IncrementalIncome, 0)
-				: data.familyInfo.BaselineFamilyIncome;
-			const lastCumulativePerCapita = data.familyInfo.TotalMembers > 0 
-				? lastCumulativeIncome / data.familyInfo.TotalMembers 
-				: 0;
-			const lastCumulativePercent = calculateSelfSufficiencyPercent(lastCumulativePerCapita, data.familyInfo.SelfSufficiencyIncomePerCapita);
-			const lastCumulativePovertyLevel = calculatePovertyLevel(lastCumulativePerCapita, data.familyInfo.AreaType, data.familyInfo.SelfSufficiencyIncomePerCapita);
-			const lastCumulativeStatus = calculateSelfSufficiencyStatus(lastCumulativeIncome, selfSufficiencyTarget);
-
-			pdf.setFillColor(240, 255, 240);
-			pdf.rect(margin, yPos - 2, contentWidth, 7, 'F');
-			xPos = margin;
-			pdf.text(`Income after Intervention ${i + 1}`, xPos + 2, yPos + 5);
-			xPos += colWidths[0];
-			pdf.text('Calculated', xPos + 2, yPos + 5); // Investment column
-			xPos += colWidths[1];
-			rightAlignText(formatCurrency(lastCumulativeIncome), colWidths[2], xPos); // Amount
-			xPos += colWidths[2];
-			rightAlignText(formatCurrency(lastCumulativePerCapita), colWidths[3], xPos); // Per Capita
-			xPos += colWidths[3];
-			rightAlignText(`${lastCumulativePercent.toFixed(0)}%`, colWidths[4], xPos); // % of Self-Sufficiency
-			xPos += colWidths[4];
-			pdf.text(lastCumulativePovertyLevel, xPos + 2, yPos + 5); // Poverty Level (left align)
-			xPos += colWidths[5];
-			xPos += colWidths[6]; // Skip Status
-			yPos += 9;
-
-			// Self-Sufficiency Status row
-			xPos = margin;
-			pdf.setFillColor(255, 255, 255);
-			pdf.rect(margin, yPos - 2, contentWidth, 7, 'F');
-			pdf.text(`Self-Sufficiency Status`, xPos + 2, yPos + 5);
-			xPos += colWidths[0];
-			xPos += colWidths[1]; // Skip Investment column
-			xPos += colWidths[2]; // Skip Amount column
-			xPos += colWidths[3]; // Skip Per Capita column
-			xPos += colWidths[4]; // Skip % column
-			xPos += colWidths[5]; // Skip Poverty Level
-			rightAlignText(formatCurrency(lastCumulativeStatus), colWidths[6], xPos); // Status
-			yPos += 9;
 		}
 
 		// Total Investment
-		const totalInvestment = data.interventions.reduce((sum, inv) => sum + inv.Investment, 0);
+		const totalInvestment = data.interventions.slice(0, 4).reduce((sum, inv) => sum + (inv.Investment || 0), 0);
 		pdf.setFillColor(255, 250, 205); // Light yellow
 		pdf.rect(margin, yPos - 2, contentWidth, 7, 'F');
 		pdf.setFont('helvetica', 'bold');
@@ -473,6 +471,7 @@ function PlannedSelfSufficiencyContent() {
 		// Save PDF
 		pdf.save(`Planned_Self_Sufficiency_Status_${data.familyInfo.FamilyNumber}_${new Date().toISOString().split('T')[0]}.pdf`);
 	};
+
 
 	if (loading) {
 		return (
@@ -525,13 +524,55 @@ function PlannedSelfSufficiencyContent() {
 		);
 	}
 
+	// Helper function to calculate incremental income from approved ECONOMIC interventions
+	const calculateIncrementalIncome = () => {
+		// Filter approved ECONOMIC interventions (already filtered by API, but ensure here too)
+		const approvedEconomicInterventions = data.interventions
+			.filter((inv) => {
+				const interventionType = (inv.InterventionType || "").trim().toUpperCase();
+				return interventionType === "ECONOMIC";
+			})
+			.slice(0, 4); // Take only first 4
+
+		// Extract incremental income values for slots 1-4
+		const inc1 = approvedEconomicInterventions[0]?.IncrementalIncome != null
+			? (typeof approvedEconomicInterventions[0].IncrementalIncome === 'number' 
+				? approvedEconomicInterventions[0].IncrementalIncome 
+				: parseFloat(approvedEconomicInterventions[0].IncrementalIncome) || 0)
+			: 0;
+		
+		const inc2 = approvedEconomicInterventions[1]?.IncrementalIncome != null
+			? (typeof approvedEconomicInterventions[1].IncrementalIncome === 'number' 
+				? approvedEconomicInterventions[1].IncrementalIncome 
+				: parseFloat(approvedEconomicInterventions[1].IncrementalIncome) || 0)
+			: 0;
+		
+		const inc3 = approvedEconomicInterventions[2]?.IncrementalIncome != null
+			? (typeof approvedEconomicInterventions[2].IncrementalIncome === 'number' 
+				? approvedEconomicInterventions[2].IncrementalIncome 
+				: parseFloat(approvedEconomicInterventions[2].IncrementalIncome) || 0)
+			: 0;
+		
+		const inc4 = approvedEconomicInterventions[3]?.IncrementalIncome != null
+			? (typeof approvedEconomicInterventions[3].IncrementalIncome === 'number' 
+				? approvedEconomicInterventions[3].IncrementalIncome 
+				: parseFloat(approvedEconomicInterventions[3].IncrementalIncome) || 0)
+			: 0;
+
+		const totalIncrementalIncome = inc1 + inc2 + inc3 + inc4;
+
+		return { inc1, inc2, inc3, inc4, totalIncrementalIncome };
+	};
+
+	const { inc1, inc2, inc3, inc4, totalIncrementalIncome } = calculateIncrementalIncome();
+
 	// Calculate values
 	const selfSufficiencyTarget = data.familyInfo.SelfSufficiencyIncomePerCapita * data.familyInfo.TotalMembers;
 	const baselinePerCapita = data.familyInfo.TotalMembers > 0 
 		? data.familyInfo.BaselineFamilyIncome / data.familyInfo.TotalMembers 
 		: 0;
 	const baselinePercent = calculateSelfSufficiencyPercent(baselinePerCapita, data.familyInfo.SelfSufficiencyIncomePerCapita);
-	const baselinePovertyLevel = calculatePovertyLevel(baselinePerCapita, data.familyInfo.AreaType, data.familyInfo.SelfSufficiencyIncomePerCapita);
+	const baselinePovertyLevel = getPovertyLevel(baselinePercent);
 	const baselineStatus = calculateSelfSufficiencyStatus(data.familyInfo.BaselineFamilyIncome, selfSufficiencyTarget);
 
 	// Calculate cumulative values for each intervention
@@ -541,6 +582,7 @@ function PlannedSelfSufficiencyContent() {
 		investment: number;
 		incrementalIncome: number;
 		incrementalIncomePerCapita: number;
+		incrementalIncomePercent: number; // % of Self-Sufficiency for incremental income
 		incomeAfter: number;
 		incomeAfterPerCapita: number;
 		incomeAfterPercent: number;
@@ -549,56 +591,81 @@ function PlannedSelfSufficiencyContent() {
 		interventionType: string;
 	}> = [];
 
-	data.interventions.forEach((intervention) => {
-		cumulativeIncome += intervention.IncrementalIncome;
+	// Get approved economic interventions for investment values
+	const approvedEconomicInterventions = data.interventions
+		.filter((inv) => {
+			const interventionType = (inv.InterventionType || "").trim().toUpperCase();
+			return interventionType === "ECONOMIC";
+		})
+		.slice(0, 4);
+
+	// Extract investment values for slots 1-4
+	const investments = [
+		approvedEconomicInterventions[0]?.Investment != null
+			? (typeof approvedEconomicInterventions[0].Investment === 'number' 
+				? approvedEconomicInterventions[0].Investment 
+				: parseFloat(approvedEconomicInterventions[0].Investment) || 0)
+			: 0,
+		approvedEconomicInterventions[1]?.Investment != null
+			? (typeof approvedEconomicInterventions[1].Investment === 'number' 
+				? approvedEconomicInterventions[1].Investment 
+				: parseFloat(approvedEconomicInterventions[1].Investment) || 0)
+			: 0,
+		approvedEconomicInterventions[2]?.Investment != null
+			? (typeof approvedEconomicInterventions[2].Investment === 'number' 
+				? approvedEconomicInterventions[2].Investment 
+				: parseFloat(approvedEconomicInterventions[2].Investment) || 0)
+			: 0,
+		approvedEconomicInterventions[3]?.Investment != null
+			? (typeof approvedEconomicInterventions[3].Investment === 'number' 
+				? approvedEconomicInterventions[3].Investment 
+				: parseFloat(approvedEconomicInterventions[3].Investment) || 0)
+			: 0,
+	];
+
+	// Use the calculated incremental income values for slots 1-4
+	const incrementalIncomes = [inc1, inc2, inc3, inc4];
+	
+	for (let i = 0; i < 4; i++) {
+		const incrementalIncome = incrementalIncomes[i] || 0;
+		const investment = investments[i] || 0;
+		
+		// Calculate incremental income per capita
+		const incrementalIncomePerCapita = data.familyInfo.TotalMembers > 0 
+			? incrementalIncome / data.familyInfo.TotalMembers 
+			: 0;
+		
+		// Calculate % of Self-Sufficiency for incremental income
+		const incrementalIncomePercent = calculateSelfSufficiencyPercent(
+			incrementalIncomePerCapita, 
+			data.familyInfo.SelfSufficiencyIncomePerCapita
+		);
+		
+		// Calculate cumulative income after this intervention
+		cumulativeIncome += incrementalIncome;
 		const cumulativePerCapita = data.familyInfo.TotalMembers > 0 
 			? cumulativeIncome / data.familyInfo.TotalMembers 
 			: 0;
 		const cumulativePercent = calculateSelfSufficiencyPercent(cumulativePerCapita, data.familyInfo.SelfSufficiencyIncomePerCapita);
-		const cumulativePovertyLevel = calculatePovertyLevel(cumulativePerCapita, data.familyInfo.AreaType, data.familyInfo.SelfSufficiencyIncomePerCapita);
+		const cumulativePovertyLevel = getPovertyLevel(cumulativePercent);
 		const cumulativeStatus = calculateSelfSufficiencyStatus(cumulativeIncome, selfSufficiencyTarget);
 
 		interventionRows.push({
-			interventionNumber: intervention.InterventionNumber,
-			investment: intervention.Investment,
-			incrementalIncome: intervention.IncrementalIncome,
-			incrementalIncomePerCapita: intervention.IncrementalIncomePerCapita,
+			interventionNumber: i + 1,
+			investment: investment,
+			incrementalIncome: incrementalIncome,
+			incrementalIncomePerCapita: incrementalIncomePerCapita,
+			incrementalIncomePercent: incrementalIncomePercent,
 			incomeAfter: cumulativeIncome,
 			incomeAfterPerCapita: cumulativePerCapita,
 			incomeAfterPercent: cumulativePercent,
 			incomeAfterPovertyLevel: cumulativePovertyLevel,
 			incomeAfterStatus: cumulativeStatus,
-			interventionType: intervention.InterventionType,
-		});
-	});
-
-	// Fill remaining interventions (up to 4)
-	while (interventionRows.length < 4) {
-		const lastIncome = interventionRows.length > 0 
-			? interventionRows[interventionRows.length - 1].incomeAfter
-			: data.familyInfo.BaselineFamilyIncome;
-		const lastPerCapita = data.familyInfo.TotalMembers > 0 
-			? lastIncome / data.familyInfo.TotalMembers 
-			: 0;
-		const lastPercent = calculateSelfSufficiencyPercent(lastPerCapita, data.familyInfo.SelfSufficiencyIncomePerCapita);
-		const lastPovertyLevel = calculatePovertyLevel(lastPerCapita, data.familyInfo.AreaType, data.familyInfo.SelfSufficiencyIncomePerCapita);
-		const lastStatus = calculateSelfSufficiencyStatus(lastIncome, selfSufficiencyTarget);
-
-		interventionRows.push({
-			interventionNumber: interventionRows.length + 1,
-			investment: 0,
-			incrementalIncome: 0,
-			incrementalIncomePerCapita: 0,
-			incomeAfter: lastIncome,
-			incomeAfterPerCapita: lastPerCapita,
-			incomeAfterPercent: lastPercent,
-			incomeAfterPovertyLevel: lastPovertyLevel,
-			incomeAfterStatus: lastStatus,
-			interventionType: "",
+			interventionType: "Economic",
 		});
 	}
 
-	const totalInvestment = data.interventions.reduce((sum, inv) => sum + inv.Investment, 0);
+	const totalInvestment = investments.reduce((sum, inv) => sum + (inv || 0), 0);
 
 	return (
 		<div className="space-y-6">
@@ -666,22 +733,22 @@ function PlannedSelfSufficiencyContent() {
 				</div>
 			</div>
 
-			{/* Planned Self-Sufficiency Status Table */}
+			{/* FDP Economic Development - Planned Self-Sufficiency Status Table */}
 			<div className="bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden">
 				<div className="bg-[#0b4d2b] text-white px-6 py-4">
-					<h2 className="text-xl font-semibold">Planned Self-Sufficiency Status</h2>
+					<h2 className="text-xl font-semibold">FDP Economic Development</h2>
+					<p className="text-sm opacity-90 mt-1">Planned Self-Sufficiency Status:</p>
 				</div>
 				<div className="overflow-x-auto">
 					<table className="min-w-full divide-y divide-gray-200">
 						<thead className="bg-gray-50">
 							<tr>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Investment *</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Investment</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Amount</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Per Capita</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">% of Self-Sufficiency</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Poverty Level</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Status</th>
+								<th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Label</th>
+								<th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Investment *</th>
+								<th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Amount</th>
+								<th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Per Capita</th>
+								<th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">% of Self-Sufficiency</th>
+								<th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Poverty Level</th>
 							</tr>
 						</thead>
 						<tbody className="bg-white divide-y divide-gray-200">
@@ -690,15 +757,13 @@ function PlannedSelfSufficiencyContent() {
 								<td className="px-4 py-3 text-sm text-gray-900">Self-Sufficiency Income Required Per Capita PM</td>
 								<td className="px-4 py-3 text-sm text-gray-700"></td>
 								<td className="px-4 py-3 text-sm text-gray-700"></td>
-								<td className="px-4 py-3 text-sm font-semibold text-gray-900">{formatCurrency(data.familyInfo.SelfSufficiencyIncomePerCapita)}</td>
+								<td className="px-4 py-3 text-sm font-semibold text-gray-900">{formatNumber(data.familyInfo.SelfSufficiencyIncomePerCapita)}</td>
 								<td className="px-4 py-3 text-sm font-semibold text-gray-900">100%</td>
-								<td className="px-4 py-3 text-sm text-gray-700"></td>
 								<td className="px-4 py-3 text-sm text-gray-700"></td>
 							</tr>
 							{/* Number of family members */}
 							<tr className="bg-blue-50">
 								<td className="px-4 py-3 text-sm text-gray-900">Number of family members</td>
-								<td className="px-4 py-3 text-sm text-gray-700"></td>
 								<td className="px-4 py-3 text-sm text-gray-700"></td>
 								<td className="px-4 py-3 text-sm font-semibold text-gray-900">{data.familyInfo.TotalMembers}</td>
 								<td className="px-4 py-3 text-sm text-gray-700"></td>
@@ -708,9 +773,8 @@ function PlannedSelfSufficiencyContent() {
 							{/* Self-Sufficiency Income Target */}
 							<tr className="bg-blue-50">
 								<td className="px-4 py-3 text-sm text-gray-900">Self-Sufficiency Income Target</td>
-								<td className="px-4 py-3 text-sm text-gray-700"></td>
-								<td className="px-4 py-3 text-sm font-semibold text-blue-600">Calculated</td>
-								<td className="px-4 py-3 text-sm font-semibold text-gray-900">{formatCurrency(selfSufficiencyTarget)}</td>
+								<td className="px-4 py-3 text-sm font-semibold bg-yellow-50 text-green-600">Calculated</td>
+								<td className="px-4 py-3 text-sm font-semibold text-gray-900">{formatNumber(selfSufficiencyTarget)}</td>
 								<td className="px-4 py-3 text-sm text-gray-700"></td>
 								<td className="px-4 py-3 text-sm text-gray-700"></td>
 								<td className="px-4 py-3 text-sm text-gray-700"></td>
@@ -719,41 +783,42 @@ function PlannedSelfSufficiencyContent() {
 							<tr className="bg-orange-50 border-l-4 border-orange-400">
 								<td className="px-4 py-3 text-sm font-medium text-gray-900">Baseline Income PM</td>
 								<td className="px-4 py-3 text-sm text-gray-700"></td>
-								<td className="px-4 py-3 text-sm font-semibold text-gray-900">{formatCurrency(data.familyInfo.BaselineFamilyIncome)}</td>
-								<td className="px-4 py-3 text-sm font-semibold text-gray-900">{formatCurrency(baselinePerCapita)}</td>
-								<td className="px-4 py-3 text-sm font-semibold text-gray-900">{baselinePercent.toFixed(0)}%</td>
-								<td className="px-4 py-3 text-sm font-semibold text-orange-600">{baselinePovertyLevel}</td>
-								<td className="px-4 py-3 text-sm font-semibold text-gray-900">{formatCurrency(baselineStatus)}</td>
+								<td className="px-4 py-3 text-sm font-semibold text-gray-900">{formatNumber(data.familyInfo.BaselineFamilyIncome)}</td>
+								<td className="px-4 py-3 text-sm font-semibold text-gray-900">{formatNumber(baselinePerCapita)}</td>
+								<td className="px-4 py-3 text-sm font-semibold text-gray-900">{formatPercent(baselinePercent)}</td>
+								<td className="px-4 py-3 text-sm font-semibold text-orange-600">{getPovertyLevel(baselinePercent)}</td>
 							</tr>
 							{/* Self-Sufficiency Status */}
 							<tr>
 								<td className="px-4 py-3 text-sm text-gray-700">Self-Sufficiency Status</td>
+								<td className="px-4 py-3 text-sm font-semibold bg-yellow-50 text-green-600">Calculated</td>
+								<td className={`px-4 py-3 text-sm font-semibold ${baselineStatus < 0 ? 'text-red-600' : 'text-green-600'}`}>
+									{formatStatusParen(baselineStatus)}
+								</td>
 								<td className="px-4 py-3 text-sm text-gray-700"></td>
 								<td className="px-4 py-3 text-sm text-gray-700"></td>
 								<td className="px-4 py-3 text-sm text-gray-700"></td>
-								<td className="px-4 py-3 text-sm text-gray-700"></td>
-								<td className="px-4 py-3 text-sm text-gray-700"></td>
-								<td className="px-4 py-3 text-sm font-semibold text-gray-900">{formatCurrency(baselineStatus)}</td>
 							</tr>
 							{/* Interventions */}
 							{interventionRows.map((row, index) => (
 								<React.Fragment key={index}>
 									{/* Incremental Income */}
-									<tr className={row.investment > 0 ? "bg-blue-50 border-l-4 border-blue-400" : "bg-gray-50"}>
+									<tr className={row.investment > 0 || row.incrementalIncome > 0 ? "bg-blue-50 border-l-4 border-blue-400" : "bg-gray-50"}>
 										<td className="px-4 py-3 text-sm text-gray-900">
 											Incremental Income from Intervention {row.interventionNumber}
 										</td>
 										<td className="px-4 py-3 text-sm font-semibold text-gray-900">
-											{row.investment > 0 ? formatCurrency(row.investment) : "-"}
+											{row.investment > 0 ? formatNumber(row.investment) : "-"}
 										</td>
 										<td className="px-4 py-3 text-sm font-semibold text-gray-900">
-											{row.incrementalIncome > 0 ? formatCurrency(row.incrementalIncome) : "-"}
+											{row.incrementalIncome > 0 ? formatNumber(row.incrementalIncome) : "-"}
 										</td>
 										<td className="px-4 py-3 text-sm font-semibold text-gray-900">
-											{row.incrementalIncomePerCapita > 0 ? formatCurrency(row.incrementalIncomePerCapita) : "-"}
+											{row.incrementalIncome > 0 ? formatNumber(row.incrementalIncomePerCapita) : "-"}
 										</td>
-										<td className="px-4 py-3 text-sm text-gray-700"></td>
-										<td className="px-4 py-3 text-sm text-gray-700"></td>
+										<td className="px-4 py-3 text-sm font-semibold text-gray-900">
+											{row.incrementalIncome > 0 ? formatPercent(row.incrementalIncomePercent) : "-"}
+										</td>
 										<td className="px-4 py-3 text-sm text-gray-700"></td>
 									</tr>
 									{/* Income after Intervention */}
@@ -761,30 +826,29 @@ function PlannedSelfSufficiencyContent() {
 										<td className="px-4 py-3 text-sm font-medium text-gray-900">
 											Income after Intervention {row.interventionNumber}
 										</td>
-										<td className="px-4 py-3 text-sm font-semibold text-green-600">Calculated</td>
-										<td className="px-4 py-3 text-sm font-semibold text-gray-900">{formatCurrency(row.incomeAfter)}</td>
-										<td className="px-4 py-3 text-sm font-semibold text-gray-900">{formatCurrency(row.incomeAfterPerCapita)}</td>
-										<td className="px-4 py-3 text-sm font-semibold text-gray-900">{row.incomeAfterPercent.toFixed(0)}%</td>
-										<td className="px-4 py-3 text-sm font-semibold text-green-600">{row.incomeAfterPovertyLevel === "Nil" ? "Nil" : row.incomeAfterPovertyLevel}</td>
-										<td className="px-4 py-3 text-sm text-gray-700"></td>
+										<td className="px-4 py-3 text-sm font-semibold bg-yellow-50 text-green-600">Calculated</td>
+										<td className="px-4 py-3 text-sm font-bold bg-yellow-50 text-gray-900">{formatNumber(row.incomeAfter)}</td>
+										<td className="px-4 py-3 text-sm font-semibold text-gray-900">{formatNumber(row.incomeAfterPerCapita)}</td>
+										<td className="px-4 py-3 text-sm font-semibold text-gray-900">{formatPercent(row.incomeAfterPercent)}</td>
+										<td className="px-4 py-3 text-sm font-semibold text-green-600">{row.incomeAfterPovertyLevel}</td>
 									</tr>
 									{/* Self-Sufficiency Status */}
 									<tr>
 										<td className="px-4 py-3 text-sm text-gray-700">Self-Sufficiency Status</td>
+										<td className="px-4 py-3 text-sm font-semibold bg-yellow-50 text-green-600">Calculated</td>
+										<td className={`px-4 py-3 text-sm font-semibold ${row.incomeAfterStatus < 0 ? 'text-red-600' : 'text-green-600'}`}>
+											{formatStatusParen(row.incomeAfterStatus)}
+										</td>
 										<td className="px-4 py-3 text-sm text-gray-700"></td>
 										<td className="px-4 py-3 text-sm text-gray-700"></td>
 										<td className="px-4 py-3 text-sm text-gray-700"></td>
-										<td className="px-4 py-3 text-sm text-gray-700"></td>
-										<td className="px-4 py-3 text-sm text-gray-700"></td>
-										<td className="px-4 py-3 text-sm font-semibold text-gray-900">{formatCurrency(row.incomeAfterStatus)}</td>
 									</tr>
 								</React.Fragment>
 							))}
 							{/* Total Investment */}
 							<tr className="bg-yellow-50 border-l-4 border-yellow-400">
 								<td className="px-4 py-3 text-sm font-bold text-gray-900">Total Investment</td>
-								<td className="px-4 py-3 text-sm font-bold text-gray-900">{formatCurrency(totalInvestment)}</td>
-								<td className="px-4 py-3 text-sm text-gray-700"></td>
+								<td className="px-4 py-3 text-sm font-bold text-gray-900">{formatNumber(totalInvestment)}</td>
 								<td className="px-4 py-3 text-sm text-gray-700"></td>
 								<td className="px-4 py-3 text-sm text-gray-700"></td>
 								<td className="px-4 py-3 text-sm text-gray-700"></td>

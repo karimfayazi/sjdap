@@ -2,17 +2,24 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Plus, Edit } from "lucide-react";
+import { ArrowLeft, Plus } from "lucide-react";
 
 type FamilyInfo = {
-	FamilyNumber: string;
-	HeadName: string;
-	RegionalCouncil: string;
-	LocalCommunity: string;
-	AreaType: string;
-	BaselineIncomeLevel: string;
-	TotalMembers: number;
-	Mentor?: string | null;
+	FormNumber: string | null;
+	Full_Name: string | null;
+	CNICNumber: string | null;
+	RegionalCommunity: string | null;
+	LocalCommunity: string | null;
+};
+
+type CRCApprovalData = {
+	isApproved: boolean;
+	approvalLogId?: number;
+	family: FamilyInfo | null;
+	totals: {
+		economic: number;
+		social: number;
+	};
 };
 
 function CRCApprovalContent() {
@@ -20,10 +27,7 @@ function CRCApprovalContent() {
 	const searchParams = useSearchParams();
 	const formNumber = searchParams.get("formNumber");
 	
-	const [fdpStatus, setFdpStatus] = useState<string | null>(null);
-	const [familyInfo, setFamilyInfo] = useState<FamilyInfo | null>(null);
-	const [totalEconomicSupport, setTotalEconomicSupport] = useState<number>(0);
-	const [totalSocialSupport, setTotalSocialSupport] = useState<number>(0);
+	const [data, setData] = useState<CRCApprovalData | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 
@@ -34,7 +38,7 @@ function CRCApprovalContent() {
 			return;
 		}
 
-		const fetchFDPStatus = async () => {
+		const fetchData = async () => {
 			try {
 				setLoading(true);
 				setError(null);
@@ -42,25 +46,22 @@ function CRCApprovalContent() {
 				const response = await fetch(
 					`/api/family-development-plan/crc-approval-check?formNumber=${encodeURIComponent(formNumber)}`
 				);
-				const data = await response.json();
+				const result = await response.json();
 
-				if (data.success) {
-					setFdpStatus(data.fdpStatus);
-					setFamilyInfo(data.familyInfo);
-					setTotalEconomicSupport(data.totalEconomicSupport || 0);
-					setTotalSocialSupport(data.totalSocialSupport || 0);
+				if (result.success) {
+					setData(result);
 				} else {
-					setError(data.message || "Failed to fetch FDP Status");
+					setError(result.message || "Failed to fetch data");
 				}
 			} catch (err: any) {
-				console.error("Error fetching FDP Status:", err);
-				setError(err.message || "Error fetching FDP Status");
+				console.error("Error fetching data:", err);
+				setError(err.message || "Error fetching data");
 			} finally {
 				setLoading(false);
 			}
 		};
 
-		fetchFDPStatus();
+		fetchData();
 	}, [formNumber]);
 
 	if (loading) {
@@ -78,6 +79,8 @@ function CRCApprovalContent() {
 		const roundedValue = Math.round(value);
 		return roundedValue.toLocaleString();
 	};
+
+	const isApproved = data?.isApproved || false;
 
 	return (
 		<div className="space-y-6">
@@ -97,7 +100,7 @@ function CRCApprovalContent() {
 						</p>
 					</div>
 				</div>
-				{formNumber && (
+				{isApproved && formNumber && (
 					<button
 						onClick={() => router.push(`/dashboard/family-development-plan/crc-approval/add?formNumber=${encodeURIComponent(formNumber)}`)}
 						className="inline-flex items-center gap-2 px-4 py-2 bg-[#0b4d2b] text-white rounded-md hover:bg-[#0a3d22] transition-colors"
@@ -115,94 +118,101 @@ function CRCApprovalContent() {
 				</div>
 			)}
 
-			{/* Family Information */}
-			<div className="bg-gradient-to-r from-[#0b4d2b] to-[#0a3d22] rounded-lg shadow-lg p-6 text-white">
-				<h2 className="text-xl font-semibold mb-4">Family Information</h2>
-				<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-					<div>
-						<p className="text-sm opacity-90">Family Number</p>
-						<p className="text-lg font-bold">{familyInfo?.FamilyNumber || formNumber || "-"}</p>
-					</div>
-					<div>
-						<p className="text-sm opacity-90">Head Name</p>
-						<p className="text-lg font-bold">{familyInfo?.HeadName || "-"}</p>
-					</div>
-					<div>
-						<p className="text-sm opacity-90">Regional Council</p>
-						<p className="text-lg font-bold">{familyInfo?.RegionalCouncil || "-"}</p>
-					</div>
-					<div>
-						<p className="text-sm opacity-90">Local Community</p>
-						<p className="text-lg font-bold">{familyInfo?.LocalCommunity || "-"}</p>
-					</div>
-					<div>
-						<p className="text-sm opacity-90">Area Type</p>
-						<p className="text-lg font-bold">{familyInfo?.AreaType || "-"}</p>
-					</div>
-					<div>
-						<p className="text-sm opacity-90">Baseline Income Level</p>
-						<p className="text-lg font-bold">{familyInfo?.BaselineIncomeLevel || "-"}</p>
-					</div>
-					<div>
-						<p className="text-sm opacity-90">Total Members</p>
-						<p className="text-lg font-bold">{familyInfo?.TotalMembers || 0}</p>
-					</div>
-					<div>
-						<p className="text-sm opacity-90">Mentor</p>
-						<p className="text-lg font-bold">{familyInfo?.Mentor || "-"}</p>
-					</div>
-				</div>
-			</div>
-
-			{/* Support Summary */}
-			<div className="bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden">
-				<div className="bg-[#0b4d2b] text-white px-6 py-2">
-					<h2 className="text-base font-semibold">Support Summary</h2>
-				</div>
-				<div className="p-4">
-					<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-						{/* Total Economic Support */}
-						<div className="bg-blue-50 rounded-lg border border-blue-200 p-4">
-							<h3 className="text-sm font-semibold text-gray-900 mb-1">Total Economic Support from PE</h3>
-							<p className="text-xl font-bold text-blue-600">
-								Rs. {formatCurrency(totalEconomicSupport)}
-							</p>
+			{/* Not Approved Banner */}
+			{!isApproved && (
+				<div className="bg-yellow-50 border-l-4 border-yellow-400 rounded-lg p-6">
+					<div className="flex items-center">
+						<div className="flex-shrink-0">
+							<svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+								<path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+							</svg>
 						</div>
-
-						{/* Total Social Support */}
-						<div className="bg-green-50 rounded-lg border border-green-200 p-4">
-							<h3 className="text-sm font-semibold text-gray-900 mb-1">Total Social Support from PE</h3>
-							<p className="text-xl font-bold text-green-600">
-								Rs. {formatCurrency(totalSocialSupport)}
+						<div className="ml-3">
+							<p className="text-sm font-medium text-yellow-800">
+								This family is not approved - please contact your Regional Assist Manager
 							</p>
 						</div>
 					</div>
 				</div>
-			</div>
+			)}
 
-			{/* FDP Status Display */}
-			<div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
-				<div className="mb-4">
-					<h2 className="text-xl font-semibold text-gray-900 mb-4">Current FDP Status</h2>
-					<div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 p-6">
-						<div className="flex items-center justify-between">
-							<div>
-								<label className="block text-sm font-medium text-gray-700 mb-2">
-									Current FDP Status
-								</label>
-								<p className="text-2xl font-bold text-[#0b4d2b]">
-									{fdpStatus || "Not found"}
+			{/* Family Information - Show when approved */}
+			{isApproved && data?.family && (
+				<div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+					<h2 className="text-xl font-semibold text-gray-900 mb-4">Family Information</h2>
+					<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-1">Form Number</label>
+							<p className="text-sm text-gray-900">{data.family.FormNumber || "-"}</p>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+							<p className="text-sm text-gray-900">{data.family.Full_Name || "-"}</p>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-1">CNIC Number</label>
+							<p className="text-sm text-gray-900">{data.family.CNICNumber || "-"}</p>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-1">Regional Community</label>
+							<p className="text-sm text-gray-900">{data.family.RegionalCommunity || "-"}</p>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700 mb-1">Local Community</label>
+							<p className="text-sm text-gray-900">{data.family.LocalCommunity || "-"}</p>
+						</div>
+					</div>
+				</div>
+			)}
+
+			{/* Support Totals - Show when approved */}
+			{isApproved && data?.totals && (
+				<div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+					<div className="bg-[#0b4d2b] text-white px-6 py-2">
+						<h2 className="text-base font-semibold">Support Summary</h2>
+					</div>
+					<div className="p-4">
+						<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+							<div className="bg-blue-50 rounded-lg border border-blue-200 p-4">
+								<h3 className="text-sm font-semibold text-gray-900 mb-1">Total Economic Support</h3>
+								<p className="text-xl font-bold text-blue-600">
+									Rs. {formatCurrency(data.totals.economic)}
 								</p>
 							</div>
-							{fdpStatus && (
+							<div className="bg-green-50 rounded-lg border border-green-200 p-4">
+								<h3 className="text-sm font-semibold text-gray-900 mb-1">Total Social Support</h3>
+								<p className="text-xl font-bold text-green-600">
+									Rs. {formatCurrency(data.totals.social)}
+								</p>
+							</div>
+						</div>
+					</div>
+				</div>
+			)}
+
+			{/* CRC Approval Section - Only show when approved */}
+			{isApproved && (
+				<div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
+					<div className="mb-4">
+						<h2 className="text-xl font-semibold text-gray-900 mb-4">CRC Approval Section</h2>
+						<div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 p-6">
+							<div className="flex items-center justify-between">
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-2">
+										Approval Status
+									</label>
+									<p className="text-2xl font-bold text-[#0b4d2b]">
+										Approved
+									</p>
+								</div>
 								<div className="px-4 py-2 bg-[#0b4d2b] text-white rounded-lg">
 									<span className="text-sm font-semibold">Active</span>
 								</div>
-							)}
+							</div>
 						</div>
 					</div>
 				</div>
-			</div>
+			)}
 		</div>
 	);
 }

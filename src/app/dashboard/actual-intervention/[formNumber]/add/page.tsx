@@ -11,23 +11,14 @@ type Intervention = {
 	InterventionStatus: string | null;
 	InterventionCategory: string | null;
 	SubCategory: string | null;
-	FrameworkDimensions: string | null;
 	MainIntervention: string | null;
 	InterventionType: string | null;
 	FinancialCategory: string | null;
-	Frequency: number | null;
-	FrequencyUnit: string | null;
-	Amount: number | null;
 	TotalAmount: number | null;
 	InterventionStartDate: string | null;
 	InterventionEndDate: string | null;
 	Remarks: string | null;
 	MemberID: string | null;
-	MainTrade: string | null;
-	SubTrades: string | null;
-	SpecialtyTrade: string | null;
-	CNIC: string | null;
-	AmountType: string | null;
 	ApprovalStatus: string | null;
 	CreatedBy: string | null;
 	CreatedAt: string | null;
@@ -47,6 +38,8 @@ function AddInterventionContent() {
 	const [headName, setHeadName] = useState<string>("");
 	const [housingSupportRecords, setHousingSupportRecords] = useState<any[]>([]);
 	const [loadingHousingSupport, setLoadingHousingSupport] = useState(false);
+	const [fdpEconomicRecords, setFdpEconomicRecords] = useState<any[]>([]);
+	const [loadingFdpEconomic, setLoadingFdpEconomic] = useState(false);
 	const [filteredInterventions, setFilteredInterventions] = useState<Intervention[]>([]);
 	const [loadingInterventions, setLoadingInterventions] = useState(false);
 	const [formData, setFormData] = useState<Partial<Intervention>>({
@@ -160,7 +153,7 @@ function AddInterventionContent() {
 					const data = await response.json();
 					
 					if (data.success && data.members) {
-						const member = data.members.find((m: any) => m.MemberNo === memberId);
+						const member = data.members.find((m: any) => m.BeneficiaryID === memberId);
 						if (member) {
 							if (member.BFormOrCNIC) {
 								setFormData(prev => ({
@@ -205,6 +198,30 @@ function AddInterventionContent() {
 			fetchHousingSupport();
 		}
 	}, [interventionType, formNumber]);
+
+	// Fetch FDP Economic records when type is "economic"
+	useEffect(() => {
+		if (interventionType === "economic" && formNumber && memberId) {
+			const fetchFdpEconomic = async () => {
+				try {
+					setLoadingFdpEconomic(true);
+					const response = await fetch(`/api/family-development-plan/fdp-economic?familyID=${encodeURIComponent(formNumber)}&beneficiaryID=${encodeURIComponent(memberId)}`);
+					const data = await response.json();
+					
+					if (data.success && data.data) {
+						const records = Array.isArray(data.data) ? data.data : [data.data];
+						setFdpEconomicRecords(records);
+					}
+				} catch (err) {
+					console.error("Error fetching FDP economic data:", err);
+				} finally {
+					setLoadingFdpEconomic(false);
+				}
+			};
+
+			fetchFdpEconomic();
+		}
+	}, [interventionType, formNumber, memberId]);
 
 	// Fetch filtered interventions by Section and MemberID
 	useEffect(() => {
@@ -311,6 +328,15 @@ function AddInterventionContent() {
 				}
 			}
 
+			// Validation: Total Amount is required for economic interventions
+			if (interventionType === "economic") {
+				if (!formData.TotalAmount || formData.TotalAmount <= 0) {
+					setError("Total Intervention Amount is required for economic interventions.");
+					setSaving(false);
+					return;
+				}
+			}
+
 			// Validation: For habitat section, Total Amount should not exceed remaining PE Contribution
 			if (interventionType === "habitat" && formData.TotalAmount) {
 				const totalPEContribution = housingSupportRecords.reduce((sum, record) => {
@@ -348,6 +374,56 @@ function AddInterventionContent() {
 						`Total Amount (PKR ${formData.TotalAmount.toLocaleString()}) exceeds remaining available amount (PKR ${remainingAmount.toLocaleString()}). ` +
 						`Total PE Contribution: PKR ${totalPEContribution.toLocaleString()}, ` +
 						`Already used: PKR ${existingInterventionsTotal.toLocaleString()}`
+					);
+					setSaving(false);
+					return;
+				}
+			}
+
+			// Validation: For economic section, Total Amount should not exceed Investment From PE Program
+			if (interventionType === "economic" && formData.TotalAmount && fdpEconomicRecords.length > 0) {
+				const record = fdpEconomicRecords[0];
+				const investmentFromPE = parseFloat(record.InvestmentFromPEProgram) || 0;
+
+				// Calculate sum of existing interventions for the same Section and MemberID
+				const existingInterventionsTotal = filteredInterventions.reduce((sum, intervention) => {
+					const amount = intervention.TotalAmount || 0;
+					return sum + amount;
+				}, 0);
+
+				// Calculate remaining amount
+				const remainingAmount = investmentFromPE - existingInterventionsTotal;
+
+				// Check if new amount + existing total exceeds Investment From PE Program
+				const newTotal = existingInterventionsTotal + formData.TotalAmount;
+
+				if (newTotal > investmentFromPE) {
+					setError(
+						`Total intervention amount exceeds Investment From PE Program. ` +
+						`Investment From PE Program: PKR ${investmentFromPE.toLocaleString()}, ` +
+						`Existing interventions total: PKR ${existingInterventionsTotal.toLocaleString()}, ` +
+						`Remaining available: PKR ${remainingAmount.toLocaleString()}, ` +
+						`New amount: PKR ${formData.TotalAmount.toLocaleString()}. ` +
+						`Total would be: PKR ${newTotal.toLocaleString()} (exceeds by PKR ${(newTotal - investmentFromPE).toLocaleString()})`
+					);
+					setSaving(false);
+					return;
+				}
+
+				if (formData.TotalAmount > remainingAmount) {
+					setError(
+						`Total Amount (PKR ${formData.TotalAmount.toLocaleString()}) exceeds remaining available amount (PKR ${remainingAmount.toLocaleString()}). ` +
+						`Investment From PE Program: PKR ${investmentFromPE.toLocaleString()}, ` +
+						`Already used: PKR ${existingInterventionsTotal.toLocaleString()}`
+					);
+					setSaving(false);
+					return;
+				}
+
+				// Also check if the amount itself exceeds the Investment From PE Program
+				if (formData.TotalAmount > investmentFromPE) {
+					setError(
+						`Total Intervention Amount (PKR ${formData.TotalAmount.toLocaleString()}) cannot be greater than Investment From PE Program (PKR ${investmentFromPE.toLocaleString()}).`
 					);
 					setSaving(false);
 					return;
@@ -412,7 +488,9 @@ function AddInterventionContent() {
 							<p className="text-gray-500 text-sm mt-1">Section: {interventionType.charAt(0).toUpperCase() + interventionType.slice(1)}</p>
 						)}
 						{memberId && (
-							<p className="text-gray-500 text-sm mt-1">Member ID: {memberId} {memberName && `- ${memberName}`}</p>
+							<p className="text-gray-500 text-sm mt-1">
+								Member ID: {memberId} {memberName && `- ${memberName}`} {formData.CNIC && `| CNIC: ${formData.CNIC}`}
+							</p>
 						)}
 					</div>
 				</div>
@@ -421,6 +499,64 @@ function AddInterventionContent() {
 			{error && (
 				<div className="bg-red-50 border border-red-200 rounded-lg p-4">
 					<p className="text-red-600 text-sm font-medium">Error: {error}</p>
+				</div>
+			)}
+
+			{/* FDP Economic Investment Information - Show when type is economic */}
+			{interventionType === "economic" && (
+				<div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+					<h2 className="text-xl font-semibold text-gray-900 mb-4">Investment Information - From FDP</h2>
+					{loadingFdpEconomic ? (
+						<div className="flex items-center justify-center py-8">
+							<div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#0b4d2b]"></div>
+							<span className="ml-3 text-gray-600">Loading investment information...</span>
+						</div>
+					) : fdpEconomicRecords.length > 0 ? (
+						<div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6">
+							{(() => {
+								// Get the first record (most recent)
+								const record = fdpEconomicRecords[0];
+								return (
+									<div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+										<div className="bg-white rounded-lg p-4 border border-gray-200">
+											<label className="block text-sm font-medium text-gray-600 mb-1">Field Of Investment</label>
+											<p className="text-base font-semibold text-gray-900">{record.FieldOfInvestment || "N/A"}</p>
+										</div>
+										<div className="bg-white rounded-lg p-4 border border-gray-200">
+											<label className="block text-sm font-medium text-gray-600 mb-1">Sub Field Of Investment</label>
+											<p className="text-base font-semibold text-gray-900">{record.SubFieldOfInvestment || "N/A"}</p>
+										</div>
+										<div className="bg-white rounded-lg p-4 border border-gray-200">
+											<label className="block text-sm font-medium text-gray-600 mb-1">Investment From PE Program</label>
+											<p className="text-base font-semibold text-[#0b4d2b]">
+												{record.InvestmentFromPEProgram 
+													? `Rs. ${parseFloat(record.InvestmentFromPEProgram).toLocaleString()}` 
+													: "N/A"}
+											</p>
+										</div>
+										<div className="bg-white rounded-lg p-4 border border-gray-200">
+											<label className="block text-sm font-medium text-gray-600 mb-1">Grant Amount</label>
+											<p className="text-base font-semibold text-gray-900">
+												{record.GrantAmount != null && parseFloat(record.GrantAmount) > 0
+													? `Rs. ${parseFloat(record.GrantAmount).toLocaleString()}` 
+													: "N/A"}
+											</p>
+										</div>
+										<div className="bg-white rounded-lg p-4 border border-gray-200">
+											<label className="block text-sm font-medium text-gray-600 mb-1">Loan Amount</label>
+											<p className="text-base font-semibold text-gray-900">
+												{record.LoanAmount != null && parseFloat(record.LoanAmount) > 0
+													? `Rs. ${parseFloat(record.LoanAmount).toLocaleString()}` 
+													: "N/A"}
+											</p>
+										</div>
+									</div>
+								);
+							})()}
+						</div>
+					) : (
+						<p className="text-gray-500 text-sm py-4">No investment information found for this member in FDP.</p>
+					)}
 				</div>
 			)}
 
@@ -548,73 +684,79 @@ function AddInterventionContent() {
 			<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
 				<form onSubmit={handleSubmit}>
 					<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-						<div>
-							<label className="block text-sm font-medium text-gray-700 mb-1">
-								Form Number <span className="text-red-500">*</span>
-							</label>
-							<input
-								type="text"
-								value={formData.FormNumber || ""}
-								onChange={(e) => handleInputChange("FormNumber", e.target.value)}
-								required
-								readOnly
-								className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-							/>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700 mb-1">Section</label>
-							<input
-								type="text"
-								value={formData.Section || ""}
-								readOnly
-								className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-600 cursor-not-allowed"
-							/>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700 mb-1">
-								Intervention Category
-								{(formData.Section === "Habitat" || formData.Section === "Education") && <span className="text-red-500"> *</span>}
-							</label>
-							{formData.Section === "Habitat" ? (
-								<select
-									value={formData.InterventionCategory || ""}
-									onChange={(e) => handleInputChange("InterventionCategory", e.target.value)}
-									required={formData.Section === "Habitat"}
-									className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-								>
-									<option value="">Select Intervention Category</option>
-									<option value="FOR HOME RENT">FOR HOME RENT</option>
-									<option value="FOR UTILITIES">FOR UTILITIES</option>
-									<option value="FOR MINOR/ESSENTIAL RENOVATION OF HOUSE (FOR SAFETY, WINTERIZATION ,WATER SUPPLY SYSTEM,TOILET ,KITCHEN)">FOR MINOR/ESSENTIAL RENOVATION OF HOUSE (FOR SAFETY, WINTERIZATION ,WATER SUPPLY SYSTEM,TOILET ,KITCHEN)</option>
-									<option value="FOR RESETTLEMENT/MOVING TO A NEW HOUSE">FOR RESETTLEMENT/MOVING TO A NEW HOUSE</option>
-								</select>
-							) : formData.Section === "Education" ? (
-								<select
-									value={formData.InterventionCategory || ""}
-									onChange={(e) => handleInputChange("InterventionCategory", e.target.value)}
-									required={formData.Section === "Education"}
-									className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-								>
-									<option value="">Select Intervention Category</option>
-									<option value="Coaching / Tutoring / Bridge Program">Coaching / Tutoring / Bridge Program</option>
-									<option value="School Fees for Tuition/ Children / Parent Education">School Fees for Tuition/ Children / Parent Education</option>
-									<option value="New Admission for Out-of-School Student">New Admission for Out-of-School Student</option>
-									<option value="In-Kind Support (Kits, Materials, Uniforms, Supplies)">In-Kind Support (Kits, Materials, Uniforms, Supplies)</option>
-									<option value="School Van / Transportation / Hostel Fees">School Van / Transportation / Hostel Fees</option>
-									<option value="Admission in the Same School (Existing Student)">Admission in the Same School (Existing Student)</option>
-									<option value="Day-Care Support">Day-Care Support</option>
-								</select>
-							) : (
+						{interventionType !== "economic" && (
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1">
+									Form Number <span className="text-red-500">*</span>
+								</label>
 								<input
 									type="text"
-									value={formData.InterventionCategory || ""}
-									onChange={(e) => handleInputChange("InterventionCategory", e.target.value)}
-									className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+									value={formData.FormNumber || ""}
+									onChange={(e) => handleInputChange("FormNumber", e.target.value)}
+									required
+									readOnly
+									className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
 								/>
-							)}
-						</div>
+							</div>
+						)}
+
+						{interventionType !== "economic" && (
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1">Section</label>
+								<input
+									type="text"
+									value={formData.Section || ""}
+									readOnly
+									className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-600 cursor-not-allowed"
+								/>
+							</div>
+						)}
+
+						{interventionType !== "economic" && (
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1">
+									Intervention Category
+									{(formData.Section === "Habitat" || formData.Section === "Education") && <span className="text-red-500"> *</span>}
+								</label>
+								{formData.Section === "Habitat" ? (
+									<select
+										value={formData.InterventionCategory || ""}
+										onChange={(e) => handleInputChange("InterventionCategory", e.target.value)}
+										required={formData.Section === "Habitat"}
+										className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+									>
+										<option value="">Select Intervention Category</option>
+										<option value="FOR HOME RENT">FOR HOME RENT</option>
+										<option value="FOR UTILITIES">FOR UTILITIES</option>
+										<option value="FOR MINOR/ESSENTIAL RENOVATION OF HOUSE (FOR SAFETY, WINTERIZATION ,WATER SUPPLY SYSTEM,TOILET ,KITCHEN)">FOR MINOR/ESSENTIAL RENOVATION OF HOUSE (FOR SAFETY, WINTERIZATION ,WATER SUPPLY SYSTEM,TOILET ,KITCHEN)</option>
+										<option value="FOR RESETTLEMENT/MOVING TO A NEW HOUSE">FOR RESETTLEMENT/MOVING TO A NEW HOUSE</option>
+									</select>
+								) : formData.Section === "Education" ? (
+									<select
+										value={formData.InterventionCategory || ""}
+										onChange={(e) => handleInputChange("InterventionCategory", e.target.value)}
+										required={formData.Section === "Education"}
+										className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+									>
+										<option value="">Select Intervention Category</option>
+										<option value="Coaching / Tutoring / Bridge Program">Coaching / Tutoring / Bridge Program</option>
+										<option value="School Fees for Tuition/ Children / Parent Education">School Fees for Tuition/ Children / Parent Education</option>
+										<option value="New Admission for Out-of-School Student">New Admission for Out-of-School Student</option>
+										<option value="In-Kind Support (Kits, Materials, Uniforms, Supplies)">In-Kind Support (Kits, Materials, Uniforms, Supplies)</option>
+										<option value="School Van / Transportation / Hostel Fees">School Van / Transportation / Hostel Fees</option>
+										<option value="Admission in the Same School (Existing Student)">Admission in the Same School (Existing Student)</option>
+										<option value="Day-Care Support">Day-Care Support</option>
+									</select>
+								) : (
+									<input
+										type="text"
+										value={formData.InterventionCategory || ""}
+										onChange={(e) => handleInputChange("InterventionCategory", e.target.value)}
+										className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+									/>
+								)}
+							</div>
+						)}
 
 						<div>
 							<label className="block text-sm font-medium text-gray-700 mb-1">
@@ -695,31 +837,33 @@ function AddInterventionContent() {
 							)}
 						</div>
 
-						<div>
-							<label className="block text-sm font-medium text-gray-700 mb-1">Amount Type</label>
-							<input
-								type="text"
-								value={formData.AmountType || ""}
-								onChange={(e) => handleInputChange("AmountType", e.target.value)}
-								readOnly={
-									formData.InterventionType === "Non-Financial" ||
-									(formData.InterventionType === "Financial" && (formData.FinancialCategory === "Payment From PE Account" || formData.FinancialCategory === "Payment But Non-PE Account")) ||
-									(formData.Section === "Habitat" || formData.Section === "Food" || formData.Section === "Education" || formData.Section === "Health")
-								}
-								className={`w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${
-									formData.InterventionType === "Non-Financial" ||
-									(formData.InterventionType === "Financial" && (formData.FinancialCategory === "Payment From PE Account" || formData.FinancialCategory === "Payment But Non-PE Account")) ||
-									(formData.Section === "Habitat" || formData.Section === "Food" || formData.Section === "Education" || formData.Section === "Health")
-										? "bg-gray-100 text-gray-600 cursor-not-allowed"
-										: ""
-								}`}
-							/>
-						</div>
+						{interventionType !== "economic" && (
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1">Amount Type</label>
+								<input
+									type="text"
+									value={formData.AmountType || ""}
+									onChange={(e) => handleInputChange("AmountType", e.target.value)}
+									readOnly={
+										formData.InterventionType === "Non-Financial" ||
+										(formData.InterventionType === "Financial" && (formData.FinancialCategory === "Payment From PE Account" || formData.FinancialCategory === "Payment But Non-PE Account")) ||
+										(formData.Section === "Habitat" || formData.Section === "Food" || formData.Section === "Education" || formData.Section === "Health")
+									}
+									className={`w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${
+										formData.InterventionType === "Non-Financial" ||
+										(formData.InterventionType === "Financial" && (formData.FinancialCategory === "Payment From PE Account" || formData.FinancialCategory === "Payment But Non-PE Account")) ||
+										(formData.Section === "Habitat" || formData.Section === "Food" || formData.Section === "Education" || formData.Section === "Health")
+											? "bg-gray-100 text-gray-600 cursor-not-allowed"
+											: ""
+									}`}
+								/>
+							</div>
+						)}
 
 						<div>
 							<label className="block text-sm font-medium text-gray-700 mb-1">
 								Total Intervention Amount
-								{(formData.Section === "Habitat" || formData.Section === "Education" || (formData.InterventionType === "Financial" && (formData.FinancialCategory === "Payment From PE Account" || formData.FinancialCategory === "Payment But Non-PE Account"))) && (
+								{(formData.Section === "Habitat" || formData.Section === "Education" || interventionType === "economic" || (formData.InterventionType === "Financial" && (formData.FinancialCategory === "Payment From PE Account" || formData.FinancialCategory === "Payment But Non-PE Account"))) && (
 									<span className="text-red-500"> *</span>
 								)}
 							</label>
@@ -740,7 +884,7 @@ function AddInterventionContent() {
 										}
 									}
 								}}
-								required={formData.Section === "Habitat" || formData.Section === "Education" || (formData.InterventionType === "Financial" && (formData.FinancialCategory === "Payment From PE Account" || formData.FinancialCategory === "Payment But Non-PE Account"))}
+								required={formData.Section === "Habitat" || formData.Section === "Education" || interventionType === "economic" || (formData.InterventionType === "Financial" && (formData.FinancialCategory === "Payment From PE Account" || formData.FinancialCategory === "Payment But Non-PE Account"))}
 								readOnly={formData.InterventionType === "Non-Financial"}
 								className={`w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${
 									formData.InterventionType === "Non-Financial" ? "bg-gray-100 text-gray-600 cursor-not-allowed" : ""
@@ -783,6 +927,56 @@ function AddInterventionContent() {
 									</div>
 								);
 							})()}
+							{interventionType === "economic" && fdpEconomicRecords.length > 0 && (() => {
+								const record = fdpEconomicRecords[0];
+								const investmentFromPE = parseFloat(record.InvestmentFromPEProgram) || 0;
+
+								const existingInterventionsTotal = filteredInterventions.reduce((sum, intervention) => {
+									const amount = intervention.TotalAmount || 0;
+									return sum + amount;
+								}, 0);
+
+								const remainingAmount = investmentFromPE - existingInterventionsTotal;
+								const newAmount = formData.TotalAmount || 0;
+								const wouldBeTotal = existingInterventionsTotal + newAmount;
+
+								return (
+									<div className="mt-2">
+										<p className="text-xs text-gray-600">
+											Investment From PE Program: <span className="font-semibold text-[#0b4d2b]">
+												PKR {investmentFromPE.toLocaleString()}
+											</span>
+											{existingInterventionsTotal > 0 && (
+												<span className="ml-2">
+													| Already used: <span className="font-semibold text-orange-600">
+														PKR {existingInterventionsTotal.toLocaleString()}
+													</span>
+												</span>
+											)}
+										</p>
+										<p className="text-xs text-gray-600 mt-1">
+											Remaining available: <span className={`font-semibold ${remainingAmount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+												PKR {remainingAmount.toLocaleString()}
+											</span>
+											{newAmount > 0 && (
+												<span className="ml-2">
+													| Total would be: <span className={`font-semibold ${wouldBeTotal <= investmentFromPE ? 'text-blue-600' : 'text-red-600'}`}>
+														PKR {wouldBeTotal.toLocaleString()}
+													</span>
+												</span>
+											)}
+										</p>
+										{newAmount > 0 && (newAmount > investmentFromPE || wouldBeTotal > investmentFromPE) && (
+											<p className="text-xs text-red-600 font-medium mt-1">
+												⚠️ {newAmount > investmentFromPE 
+													? `This amount exceeds Investment From PE Program by PKR ${(newAmount - investmentFromPE).toLocaleString()}`
+													: `This amount would exceed Investment From PE Program by PKR ${(wouldBeTotal - investmentFromPE).toLocaleString()}`
+												}
+											</p>
+										)}
+									</div>
+								);
+							})()}
 						</div>
 
 						<div>
@@ -810,17 +1004,19 @@ function AddInterventionContent() {
 							/>
 						</div>
 
-						<div>
-							<label className="block text-sm font-medium text-gray-700 mb-1">Member ID</label>
-							<input
-								type="text"
-								value={formData.MemberID || ""}
-								readOnly
-								className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-600 cursor-not-allowed"
-							/>
-						</div>
+						{interventionType !== "economic" && (
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1">Member ID</label>
+								<input
+									type="text"
+									value={formData.MemberID || ""}
+									readOnly
+									className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-600 cursor-not-allowed"
+								/>
+							</div>
+						)}
 
-						{interventionType !== "habitat" && formData.Section !== "Education" && (
+						{interventionType !== "habitat" && formData.Section !== "Education" && interventionType !== "economic" && (
 							<>
 								<div>
 									<label className="block text-sm font-medium text-gray-700 mb-1">Main Trade</label>
@@ -854,15 +1050,17 @@ function AddInterventionContent() {
 							</>
 						)}
 
-						<div>
-							<label className="block text-sm font-medium text-gray-700 mb-1">CNIC</label>
-							<input
-								type="text"
-								value={formData.CNIC || ""}
-								readOnly
-								className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-600 cursor-not-allowed"
-							/>
-						</div>
+						{interventionType !== "economic" && (
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1">CNIC</label>
+								<input
+									type="text"
+									value={formData.CNIC || ""}
+									readOnly
+									className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-600 cursor-not-allowed"
+								/>
+							</div>
+						)}
 
 						<div>
 							<label className="block text-sm font-medium text-gray-700 mb-1">Approval Status</label>

@@ -73,10 +73,6 @@ export const ROUTE_PERMISSION_MAP: Record<string, string> = {
 	"/dashboard/feasibility-approval": "view",
 	"/dashboard/feasibility-approval/view": "view",
 	
-	// Family Approval CRC
-	"/dashboard/family-approval-crc": "view",
-	"/dashboard/family-approval-crc/add": "add",
-	
 	// Settings
 	"/dashboard/settings": "view",
 	"/dashboard/settings/edit": "edit",

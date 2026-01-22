@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Save, AlertCircle } from "lucide-react";
+import { ArrowLeft, Save, AlertCircle, Eye, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 type BusinessTrade = {
@@ -234,6 +234,9 @@ function FDPEconomicContent() {
 	const [maxEconomicSupportAmount, setMaxEconomicSupportAmount] = useState<number>(500000); // Fixed at PKR 500,000
 	const [alreadyDefinedEconomicSupport, setAlreadyDefinedEconomicSupport] = useState<number>(0);
 	const [availableEconomicSupport, setAvailableEconomicSupport] = useState<number>(0);
+	const [showViewModal, setShowViewModal] = useState(false);
+	const [viewRecord, setViewRecord] = useState<any | null>(null);
+	const [familyInfo, setFamilyInfo] = useState<any | null>(null);
 
 	// Calculate age from DOB
 	const calculateAge = (dobMonth: string | null, dobYear: string | null): number => {
@@ -376,7 +379,7 @@ function FDPEconomicContent() {
 							const investment = parseFloat(study.InvestmentFromPEProgram) || 0;
 							return sum + investment;
 						}, 0);
-						setMemberFeasibilityLimit(totalFeasibilityInvestment > 0 ? totalFeasibilityInvestment : null);
+						setMemberFeasibilityLimit(totalFeasibilityInvestment > 0 ? Math.round(totalFeasibilityInvestment) : null);
 					}
 				}
 
@@ -395,7 +398,7 @@ function FDPEconomicContent() {
 								const investment = parseFloat(record.InvestmentFromPEProgram) || 0;
 								return sum + investment;
 							}, 0);
-							setTotalMemberPEInvestment(totalPEInvestment);
+							setTotalMemberPEInvestment(Math.round(totalPEInvestment));
 						}
 						
 						// If in edit mode with fdpEconomicId, load that specific record
@@ -413,19 +416,19 @@ function FDPEconomicContent() {
 								InterventionType: existing.InterventionType || "",
 								SubFieldOfInvestment: existing.SubFieldOfInvestment || "",
 								Trade: existing.Trade || "",
-								MainTrade: existing.MainTrade || "",
+								MainTrade: existing.FieldOfInvestment || existing.MainTrade || "", // Map FieldOfInvestment to MainTrade
 								SubTradeCode: existing.SubTradeCode || "",
 									SkillsDevelopmentCourse: existing.SkillsDevelopmentCourse || "",
 									Institution: existing.Institution || "",
-									InvestmentRequiredTotal: existing.InvestmentRequiredTotal || 0,
-									ContributionFromBeneficiary: existing.ContributionFromBeneficiary || 0,
-									InvestmentFromPEProgram: existing.InvestmentFromPEProgram || 0,
-									GrantAmount: existing.GrantAmount || 0,
-									LoanAmount: existing.LoanAmount || 0,
+									InvestmentRequiredTotal: Math.round(existing.InvestmentRequiredTotal || 0),
+									ContributionFromBeneficiary: Math.round(existing.ContributionFromBeneficiary || 0),
+									InvestmentFromPEProgram: Math.round(existing.InvestmentFromPEProgram || 0),
+									GrantAmount: Math.round(existing.GrantAmount || 0),
+									LoanAmount: Math.round(existing.LoanAmount || 0),
 									InvestmentValidationStatus: existing.InvestmentValidationStatus !== undefined ? existing.InvestmentValidationStatus : 0,
-									PlannedMonthlyIncome: existing.PlannedMonthlyIncome !== null && existing.PlannedMonthlyIncome !== undefined ? Math.ceil(existing.PlannedMonthlyIncome) : null,
-									CurrentMonthlyIncome: existing.CurrentMonthlyIncome || 0,
-									IncrementalMonthlyIncome: Math.ceil(existing.IncrementalMonthlyIncome || 0),
+									PlannedMonthlyIncome: existing.PlannedMonthlyIncome !== null && existing.PlannedMonthlyIncome !== undefined ? Math.round(existing.PlannedMonthlyIncome) : null,
+									CurrentMonthlyIncome: Math.round(existing.CurrentMonthlyIncome || 0),
+									IncrementalMonthlyIncome: Math.round(existing.IncrementalMonthlyIncome || 0),
 									FeasibilityID: existing.FeasibilityID?.toString() || "",
 									ApprovalStatus: "Pending", // Always set to Pending as it's read-only
 									ApprovalRemarks: existing.ApprovalRemarks || "",
@@ -507,9 +510,9 @@ function FDPEconomicContent() {
 
 	// Auto-calculate fields
 	useEffect(() => {
-		// Calculate Investment From PE Program
+		// Calculate Investment From PE Program (rounded)
 		const peInvestment = formData.InvestmentRequiredTotal - formData.ContributionFromBeneficiary;
-		setFormData(prev => ({ ...prev, InvestmentFromPEProgram: Math.max(0, peInvestment) }));
+		setFormData(prev => ({ ...prev, InvestmentFromPEProgram: Math.round(Math.max(0, peInvestment)) }));
 		
 		// Validate Grants + Loan = Investment Required from PE Program
 		const grantLoanTotal = formData.GrantAmount + formData.LoanAmount;
@@ -519,21 +522,21 @@ function FDPEconomicContent() {
 		if (formData.GrantAmount > peInvestmentRequired) {
 			setValidationErrors(prev => ({
 				...prev,
-				grantLoanValidation: `Grants (${formData.GrantAmount.toLocaleString()}) cannot exceed Investment Required from PE Program (${peInvestmentRequired.toLocaleString()})`
+				grantLoanValidation: `Grants (${Math.round(formData.GrantAmount).toLocaleString()}) cannot exceed Investment Required from PE Program (${Math.round(peInvestmentRequired).toLocaleString()})`
 			}));
 		}
 		// Check if Loan exceeds Investment Required from PE Program
 		else if (formData.LoanAmount > peInvestmentRequired) {
 			setValidationErrors(prev => ({
 				...prev,
-				grantLoanValidation: `Loan (${formData.LoanAmount.toLocaleString()}) cannot exceed Investment Required from PE Program (${peInvestmentRequired.toLocaleString()})`
+				grantLoanValidation: `Loan (${Math.round(formData.LoanAmount).toLocaleString()}) cannot exceed Investment Required from PE Program (${Math.round(peInvestmentRequired).toLocaleString()})`
 			}));
 		}
 		// Check if Grants + Loan equals Investment Required from PE Program
-		else if (Math.abs(grantLoanTotal - peInvestmentRequired) > 0.01) {
+		else if (Math.abs(Math.round(grantLoanTotal) - Math.round(peInvestmentRequired)) > 0) {
 			setValidationErrors(prev => ({
 				...prev,
-				grantLoanValidation: `Grants (${formData.GrantAmount.toLocaleString()}) + Loan (${formData.LoanAmount.toLocaleString()}) = ${grantLoanTotal.toLocaleString()} must equal Investment Required from PE Program (${peInvestmentRequired.toLocaleString()})`
+				grantLoanValidation: `Grants (${Math.round(formData.GrantAmount).toLocaleString()}) + Loan (${Math.round(formData.LoanAmount).toLocaleString()}) = ${Math.round(grantLoanTotal).toLocaleString()} must equal Investment Required from PE Program (${Math.round(peInvestmentRequired).toLocaleString()})`
 			}));
 		} else {
 			setValidationErrors(prev => {
@@ -546,11 +549,11 @@ function FDPEconomicContent() {
 		if (formData.FeasibilityID) {
 			const selectedFeasibility = feasibilityStudies.find(f => f.FDP_ID.toString() === formData.FeasibilityID);
 			if (selectedFeasibility && selectedFeasibility.InvestmentFromPEProgram !== null && selectedFeasibility.InvestmentFromPEProgram !== undefined) {
-				const calculatedPEInvestment = Math.max(0, peInvestment);
-				if (calculatedPEInvestment > selectedFeasibility.InvestmentFromPEProgram) {
+				const calculatedPEInvestment = Math.round(Math.max(0, peInvestment));
+				if (calculatedPEInvestment > Math.round(selectedFeasibility.InvestmentFromPEProgram)) {
 					setValidationErrors(prev => ({
 						...prev,
-						feasibilityInvestment: `Investment Required from PE Program (${calculatedPEInvestment.toLocaleString()}) cannot exceed Investment from PE Program in Feasibility Study (${selectedFeasibility.InvestmentFromPEProgram.toLocaleString()})`
+						feasibilityInvestment: `Investment Required from PE Program (${calculatedPEInvestment.toLocaleString()}) cannot exceed Investment from PE Program in Feasibility Study (${Math.round(selectedFeasibility.InvestmentFromPEProgram).toLocaleString()})`
 					}));
 				} else {
 					setValidationErrors(prev => {
@@ -563,17 +566,17 @@ function FDPEconomicContent() {
 		
 		// Validate total member-level PE Investment doesn't exceed feasibility limit
 		if (memberFeasibilityLimit !== null && memberFeasibilityLimit !== undefined) {
-			const calculatedPEInvestment = Math.max(0, peInvestment);
+			const calculatedPEInvestment = Math.round(Math.max(0, peInvestment));
 			// If editing, subtract the current record's investment from total
 			const currentRecordInvestment = isEditMode && selectedRecordId
-				? (fdpEconomicRecords.find(r => r.FDP_EconomicID === selectedRecordId)?.InvestmentFromPEProgram || 0)
+				? Math.round(fdpEconomicRecords.find(r => r.FDP_EconomicID === selectedRecordId)?.InvestmentFromPEProgram || 0)
 				: 0;
-			const adjustedTotal = totalMemberPEInvestment - currentRecordInvestment + calculatedPEInvestment;
+			const adjustedTotal = Math.round(totalMemberPEInvestment - currentRecordInvestment + calculatedPEInvestment);
 			
 			if (adjustedTotal > memberFeasibilityLimit) {
 				setValidationErrors(prev => ({
 					...prev,
-					memberLevelInvestment: `Total PE Investment for this member (${adjustedTotal.toLocaleString()}) cannot exceed the total Investment from PE Program defined in Feasibility Studies (${memberFeasibilityLimit.toLocaleString()}). Current total: ${(totalMemberPEInvestment - currentRecordInvestment).toLocaleString()}, Adding: ${calculatedPEInvestment.toLocaleString()}`
+					memberLevelInvestment: `Total PE Investment for this member (${adjustedTotal.toLocaleString()}) cannot exceed the total Investment from PE Program defined in Feasibility Studies (${Math.round(memberFeasibilityLimit).toLocaleString()}). Current total: ${Math.round(totalMemberPEInvestment - currentRecordInvestment).toLocaleString()}, Adding: ${calculatedPEInvestment.toLocaleString()}`
 				}));
 			} else {
 				setValidationErrors(prev => {
@@ -585,10 +588,10 @@ function FDPEconomicContent() {
 	}, [formData.InvestmentRequiredTotal, formData.ContributionFromBeneficiary, formData.FeasibilityID, feasibilityStudies, memberFeasibilityLimit, totalMemberPEInvestment, isEditMode, selectedRecordId, fdpEconomicRecords]);
 
 	useEffect(() => {
-		// Calculate Incremental Monthly Income (rounded up)
+		// Calculate Incremental Monthly Income (rounded)
 		const plannedIncome = formData.PlannedMonthlyIncome ?? 0;
 		const incremental = plannedIncome - formData.CurrentMonthlyIncome;
-		const roundedIncremental = Math.ceil(Math.max(0, incremental));
+		const roundedIncremental = Math.round(Math.max(0, incremental));
 		setFormData(prev => ({ ...prev, IncrementalMonthlyIncome: roundedIncremental }));
 	}, [formData.PlannedMonthlyIncome, formData.CurrentMonthlyIncome]);
 
@@ -597,7 +600,7 @@ function FDPEconomicContent() {
 		if (formData.LoanAmount > 0 && formData.LoanAmount < 50000) {
 			setFormData(prev => ({
 				...prev,
-				GrantAmount: prev.GrantAmount + prev.LoanAmount,
+				GrantAmount: Math.round(prev.GrantAmount + prev.LoanAmount),
 				LoanAmount: 0,
 			}));
 		}
@@ -605,13 +608,13 @@ function FDPEconomicContent() {
 
 	// Validate investment: Grant + Loan = PE Investment
 	const validateInvestment = (): boolean => {
-		const total = formData.GrantAmount + formData.LoanAmount;
-		const peInvestment = formData.InvestmentFromPEProgram;
+		const total = Math.round(formData.GrantAmount + formData.LoanAmount);
+		const peInvestment = Math.round(formData.InvestmentFromPEProgram);
 		
-		if (Math.abs(total - peInvestment) > 0.01) { // Allow small floating point differences
+		if (Math.abs(total - peInvestment) > 0) { // No tolerance needed since values are rounded
 			setValidationErrors(prev => ({
 				...prev,
-				investment: `Grant (${formData.GrantAmount.toLocaleString()}) + Loan (${formData.LoanAmount.toLocaleString()}) = ${total.toLocaleString()} must equal PE Program Investment (${peInvestment.toLocaleString()})`
+				investment: `Grant (${Math.round(formData.GrantAmount).toLocaleString()}) + Loan (${Math.round(formData.LoanAmount).toLocaleString()}) = ${total.toLocaleString()} must equal PE Program Investment (${peInvestment.toLocaleString()})`
 			}));
 			return false;
 		}
@@ -646,7 +649,7 @@ function FDPEconomicContent() {
 				BeneficiaryAge: age,
 				BeneficiaryGender: selectedMember.Gender || "",
 				BeneficiaryCurrentOccupation: selectedMember.Occupation || "",
-				CurrentMonthlyIncome: selectedMember.MonthlyIncome || 0,
+				CurrentMonthlyIncome: Math.round(selectedMember.MonthlyIncome || 0),
 			}));
 			
 			// Fetch feasibility studies for the new member
@@ -666,7 +669,7 @@ function FDPEconomicContent() {
 								const investment = parseFloat(study.InvestmentFromPEProgram) || 0;
 								return sum + investment;
 							}, 0);
-							setMemberFeasibilityLimit(totalFeasibilityInvestment > 0 ? totalFeasibilityInvestment : null);
+							setMemberFeasibilityLimit(totalFeasibilityInvestment > 0 ? Math.round(totalFeasibilityInvestment) : null);
 						}
 					});
 				
@@ -680,7 +683,7 @@ function FDPEconomicContent() {
 								const investment = parseFloat(record.InvestmentFromPEProgram) || 0;
 								return sum + investment;
 							}, 0);
-							setTotalMemberPEInvestment(totalPEInvestment);
+							setTotalMemberPEInvestment(Math.round(totalPEInvestment));
 						}
 					});
 			}
@@ -698,9 +701,9 @@ function FDPEconomicContent() {
 			setFormData(prev => ({
 				...prev,
 				FeasibilityID: feasibilityId,
-				InvestmentRequiredTotal: investmentRequired,
+				InvestmentRequiredTotal: Math.round(investmentRequired),
 				// Don't auto-populate PlannedMonthlyIncome - let user enter it manually
-				CurrentMonthlyIncome: selectedFeasibility.CurrentBaselineIncome || prev.CurrentMonthlyIncome,
+				CurrentMonthlyIncome: Math.round(selectedFeasibility.CurrentBaselineIncome || prev.CurrentMonthlyIncome),
 			}));
 			// Clear validation error when feasibility changes
 			if (validationErrors.feasibilityInvestment) {
@@ -737,9 +740,9 @@ function FDPEconomicContent() {
 				SubFieldOfInvestment: selectedFeasibility.SubField || prev.SubFieldOfInvestment,
 				SkillsDevelopmentCourse: selectedFeasibility.CourseTitle || prev.SkillsDevelopmentCourse,
 				Institution: selectedFeasibility.TrainingInstitution || prev.Institution,
-				InvestmentRequiredTotal: investmentRequired,
+				InvestmentRequiredTotal: Math.round(investmentRequired),
 				// Don't auto-populate PlannedMonthlyIncome - let user enter it manually
-				CurrentMonthlyIncome: selectedFeasibility.CurrentBaselineIncome || prev.CurrentMonthlyIncome,
+				CurrentMonthlyIncome: Math.round(selectedFeasibility.CurrentBaselineIncome || prev.CurrentMonthlyIncome),
 			}));
 		} else if (!feasibilityId) {
 			// Clear selection
@@ -761,22 +764,75 @@ function FDPEconomicContent() {
 		setSuccess(false);
 		setValidationErrors({});
 
-		// Validation
-		if (!formData.BeneficiaryID || !formData.InterventionType) {
-			setError("Please fill in all required fields");
+		// Validation - Check all required fields
+		const missingFields: string[] = [];
+		
+		if (!formData.BeneficiaryID || formData.BeneficiaryID.trim() === "") {
+			missingFields.push("Beneficiary ID");
+		}
+		
+		if (!formData.InterventionType || formData.InterventionType.trim() === "") {
+			missingFields.push("Type of Intervention");
+		}
+		
+		if (!formData.FeasibilityID || formData.FeasibilityID.trim() === "") {
+			missingFields.push("Link Approved Feasibility");
+		}
+		
+		if (formData.InvestmentRequiredTotal <= 0) {
+			missingFields.push("Investment Required (must be greater than 0 - please link a feasibility study)");
+		}
+		
+		if (formData.InvestmentFromPEProgram <= 0) {
+			missingFields.push("Investment Required from PE Program (must be greater than 0)");
+		}
+		
+		if (formData.PlannedMonthlyIncome === null || formData.PlannedMonthlyIncome === undefined || formData.PlannedMonthlyIncome <= 0) {
+			missingFields.push("Planned Income per Month (must be greater than 0)");
+		}
+		
+		// Validate Business-specific fields
+		if (formData.InterventionType === "Business") {
+			if (!formData.MainTrade || formData.MainTrade.trim() === "") {
+				missingFields.push("Main Trade");
+			}
+			if (!formData.SubFieldOfInvestment || formData.SubFieldOfInvestment.trim() === "") {
+				missingFields.push("Sub Trade");
+			}
+		}
+		
+		// Validate Employment-specific fields
+		if (formData.InterventionType === "Employment") {
+			if (!formData.SkillsDevelopmentCourse || formData.SkillsDevelopmentCourse.trim() === "") {
+				missingFields.push("Skills Development Course");
+			}
+			if (!formData.Institution || formData.Institution.trim() === "") {
+				missingFields.push("Institution");
+			}
+		}
+		
+		// Validate other intervention types
+		if (formData.InterventionType && formData.InterventionType !== "Business" && formData.InterventionType !== "Employment") {
+			if (!formData.Trade || formData.Trade.trim() === "") {
+				missingFields.push("Trade");
+			}
+		}
+		
+		if (missingFields.length > 0) {
+			setError(`Please fill in all required fields: ${missingFields.join(", ")}`);
 			return;
 		}
 
 		// Business Rule: If loan < 50,000, convert to grant (apply before validation)
-		let finalLoanAmount = formData.LoanAmount;
-		let finalGrantAmount = formData.GrantAmount;
+		let finalLoanAmount = Math.round(formData.LoanAmount);
+		let finalGrantAmount = Math.round(formData.GrantAmount);
 		if (formData.LoanAmount > 0 && formData.LoanAmount < 50000) {
-			finalGrantAmount = formData.GrantAmount + formData.LoanAmount;
+			finalGrantAmount = Math.round(formData.GrantAmount + formData.LoanAmount);
 			finalLoanAmount = 0;
 		}
 
 		// Validate Grants and Loan don't exceed Investment Required from PE Program
-		const peInvestment = formData.InvestmentFromPEProgram;
+		const peInvestment = Math.round(formData.InvestmentFromPEProgram);
 		if (finalGrantAmount > peInvestment) {
 			setError(`Grants (${finalGrantAmount.toLocaleString()}) cannot exceed Investment Required from PE Program (${peInvestment.toLocaleString()})`);
 			return;
@@ -786,9 +842,13 @@ function FDPEconomicContent() {
 			return;
 		}
 		
-		// Validate investment with converted values
+		// Validate investment with converted values (all rounded)
 		const total = finalGrantAmount + finalLoanAmount;
-		if (Math.abs(total - peInvestment) > 0.01) {
+		if (peInvestment <= 0) {
+			setError("Investment Required from PE Program must be greater than 0. Please select a feasibility study or enter investment details.");
+			return;
+		}
+		if (Math.abs(total - peInvestment) > 0) {
 			setError(`Grant (${finalGrantAmount.toLocaleString()}) + Loan (${finalLoanAmount.toLocaleString()}) = ${total.toLocaleString()} must equal Investment Required from PE Program (${peInvestment.toLocaleString()})`);
 			return;
 		}
@@ -803,8 +863,8 @@ function FDPEconomicContent() {
 		if (formData.FeasibilityID) {
 			const selectedFeasibility = feasibilityStudies.find(f => f.FDP_ID.toString() === formData.FeasibilityID);
 			if (selectedFeasibility && selectedFeasibility.InvestmentFromPEProgram !== null && selectedFeasibility.InvestmentFromPEProgram !== undefined) {
-				if (peInvestment > selectedFeasibility.InvestmentFromPEProgram) {
-					setError(`Investment Required from PE Program (${peInvestment.toLocaleString()}) cannot exceed Investment from PE Program in Feasibility Study (${selectedFeasibility.InvestmentFromPEProgram.toLocaleString()})`);
+				if (peInvestment > Math.round(selectedFeasibility.InvestmentFromPEProgram)) {
+					setError(`Investment Required from PE Program (${peInvestment.toLocaleString()}) cannot exceed Investment from PE Program in Feasibility Study (${Math.round(selectedFeasibility.InvestmentFromPEProgram).toLocaleString()})`);
 					return;
 				}
 			}
@@ -813,12 +873,12 @@ function FDPEconomicContent() {
 		// Validate total member-level PE Investment doesn't exceed feasibility limit
 		if (memberFeasibilityLimit !== null && memberFeasibilityLimit !== undefined) {
 			const currentRecordInvestment = isEditMode && selectedRecordId
-				? (fdpEconomicRecords.find(r => r.FDP_EconomicID === selectedRecordId)?.InvestmentFromPEProgram || 0)
+				? Math.round(fdpEconomicRecords.find(r => r.FDP_EconomicID === selectedRecordId)?.InvestmentFromPEProgram || 0)
 				: 0;
-			const adjustedTotal = totalMemberPEInvestment - currentRecordInvestment + peInvestment;
+			const adjustedTotal = Math.round(totalMemberPEInvestment - currentRecordInvestment + peInvestment);
 			
 			if (adjustedTotal > memberFeasibilityLimit) {
-				setError(`Total PE Investment for this member (${adjustedTotal.toLocaleString()}) cannot exceed the total Investment from PE Program defined in Feasibility Studies (${memberFeasibilityLimit.toLocaleString()}). Current total: ${(totalMemberPEInvestment - currentRecordInvestment).toLocaleString()}, Adding: ${peInvestment.toLocaleString()}`);
+				setError(`Total PE Investment for this member (${adjustedTotal.toLocaleString()}) cannot exceed the total Investment from PE Program defined in Feasibility Studies (${Math.round(memberFeasibilityLimit).toLocaleString()}). Current total: ${Math.round(totalMemberPEInvestment - currentRecordInvestment).toLocaleString()}, Adding: ${peInvestment.toLocaleString()}`);
 				return;
 			}
 		}
@@ -839,10 +899,15 @@ function FDPEconomicContent() {
 				},
 				body: JSON.stringify({
 					...formData,
-					PlannedMonthlyIncome: formData.PlannedMonthlyIncome !== null ? Math.ceil(formData.PlannedMonthlyIncome) : null,
-					IncrementalMonthlyIncome: Math.ceil(formData.IncrementalMonthlyIncome || 0),
-					GrantAmount: finalGrantAmount,
-					LoanAmount: finalLoanAmount,
+					FieldOfInvestment: formData.MainTrade || "", // Map MainTrade to FieldOfInvestment
+					InvestmentRequiredTotal: Math.round(formData.InvestmentRequiredTotal),
+					ContributionFromBeneficiary: Math.round(formData.ContributionFromBeneficiary),
+					InvestmentFromPEProgram: Math.round(formData.InvestmentFromPEProgram),
+					PlannedMonthlyIncome: formData.PlannedMonthlyIncome !== null ? Math.round(formData.PlannedMonthlyIncome) : null,
+					IncrementalMonthlyIncome: Math.round(formData.IncrementalMonthlyIncome || 0),
+					CurrentMonthlyIncome: Math.round(formData.CurrentMonthlyIncome),
+					GrantAmount: Math.round(finalGrantAmount),
+					LoanAmount: Math.round(finalLoanAmount),
 					InvestmentValidationStatus: 1, // 1 = Valid, 0 = Invalid
 					CreatedBy: userProfile?.username || userProfile?.email || "System",
 					UpdatedBy: userProfile?.username || userProfile?.email || "System",
@@ -867,7 +932,7 @@ function FDPEconomicContent() {
 								const investment = parseFloat(record.InvestmentFromPEProgram) || 0;
 								return sum + investment;
 							}, 0);
-							setTotalMemberPEInvestment(totalPEInvestment);
+							setTotalMemberPEInvestment(Math.round(totalPEInvestment));
 						}
 					}
 				}
@@ -909,7 +974,8 @@ function FDPEconomicContent() {
 	};
 
 	const formatCurrency = (value: number): string => {
-		return `Rs. ${value.toLocaleString()}`;
+		const roundedValue = Math.round(value);
+		return `Rs. ${roundedValue.toLocaleString()}`;
 	};
 
 	const formatPercent = (value: number): string => {
@@ -1042,32 +1108,55 @@ function FDPEconomicContent() {
 											</span>
 										</td>
 										<td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-											{(() => {
-												const isApproved = record.ApprovalStatus && (
-													(record.ApprovalStatus.toString().trim().toLowerCase() === "accepted") ||
-													(record.ApprovalStatus.toString().trim().toLowerCase() === "approved") ||
-													(record.ApprovalStatus.toString().trim().toLowerCase().includes("approve"))
-												);
-												
-												if (isApproved) {
-													return (
-														<span className="text-gray-400 text-xs italic">Cannot edit approved record</span>
+											<div className="flex items-center gap-2">
+												<button
+													type="button"
+													onClick={async () => {
+														setViewRecord(record);
+														// Fetch family information
+														try {
+															const basicInfoResponse = await fetch(`/api/baseline-applications/basic-info?formNumber=${encodeURIComponent(formNumber || "")}`);
+															const basicInfoResult = await basicInfoResponse.json();
+															if (basicInfoResult.success && basicInfoResult.data) {
+																setFamilyInfo(basicInfoResult.data);
+															}
+														} catch (err) {
+															console.error("Error fetching family info:", err);
+														}
+														setShowViewModal(true);
+													}}
+													className="text-blue-600 hover:text-blue-800"
+													title="View"
+												>
+													<Eye className="h-4 w-4" />
+												</button>
+												{(() => {
+													const isApproved = record.ApprovalStatus && (
+														(record.ApprovalStatus.toString().trim().toLowerCase() === "accepted") ||
+														(record.ApprovalStatus.toString().trim().toLowerCase() === "approved") ||
+														(record.ApprovalStatus.toString().trim().toLowerCase().includes("approve"))
 													);
-												}
-												
-												return (
-													<button
-														type="button"
-														onClick={() => {
-															setSelectedRecordId(record.FDP_EconomicID);
-															router.push(`/dashboard/family-development-plan/fdp-economic?formNumber=${encodeURIComponent(formNumber || "")}&memberNo=${encodeURIComponent(memberNo || "")}&memberName=${encodeURIComponent(memberName || "")}&fdpEconomicId=${record.FDP_EconomicID}`);
-														}}
-														className="text-[#0b4d2b] hover:text-[#0a3d22] mr-3"
-													>
-														Edit
-													</button>
-												);
-											})()}
+													
+													if (isApproved) {
+														return (
+															<span className="text-gray-400 text-xs italic">Cannot edit</span>
+														);
+													}
+													
+													return (
+														<button
+															type="button"
+															onClick={() => {
+																setSelectedRecordId(record.FDP_EconomicID);
+																router.push(`/dashboard/family-development-plan/fdp-economic?formNumber=${encodeURIComponent(formNumber || "")}&memberNo=${encodeURIComponent(memberNo || "")}&memberName=${encodeURIComponent(memberName || "")}&fdpEconomicId=${record.FDP_EconomicID}`);
+															}}
+															className="text-[#0b4d2b] hover:text-[#0a3d22]"
+														>
+															Edit
+														</button>
+													);
+												})()}
+											</div>
 										</td>
 									</tr>
 								))}
@@ -1255,11 +1344,12 @@ function FDPEconomicContent() {
 						</div>
 						<div>
 							<label className="block text-sm font-medium text-gray-700 mb-2">
-								Link Approved Feasibility
+								Link Approved Feasibility <span className="text-red-500">*</span>
 							</label>
 							<select
 								value={selectedFeasibilityId}
 								onChange={(e) => handleApprovedFeasibilityChange(e.target.value)}
+								required
 								className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
 							>
 								<option value="">Select Approved Feasibility</option>
@@ -1313,26 +1403,31 @@ function FDPEconomicContent() {
 						</div>
 						{formData.InterventionType === "Business" ? (
 							<>
-								<div>
-									<label className="block text-sm font-medium text-gray-700 mb-2">Main Trade</label>
-									<select
-										value={formData.MainTrade}
-										onChange={(e) => {
-											handleChange("MainTrade", e.target.value);
-											// Clear Sub Trade when Main Trade changes
-											handleChange("SubFieldOfInvestment", "");
-											handleChange("SubTradeCode", "");
-										}}
-										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-									>
-										<option value="">Select Main Trade</option>
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-2">
+									Main Trade <span className="text-red-500">*</span>
+								</label>
+								<select
+									value={formData.MainTrade}
+									onChange={(e) => {
+										handleChange("MainTrade", e.target.value);
+										// Clear Sub Trade when Main Trade changes
+										handleChange("SubFieldOfInvestment", "");
+										handleChange("SubTradeCode", "");
+									}}
+									required
+									className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+								>
+									<option value="">Select Main Trade</option>
 										{Array.from(new Set(BUSINESS_TRADES.map(t => t.mainTrade))).map(mainTrade => (
 											<option key={mainTrade} value={mainTrade}>{mainTrade}</option>
 										))}
 									</select>
 								</div>
 								<div>
-									<label className="block text-sm font-medium text-gray-700 mb-2">Sub Trade</label>
+									<label className="block text-sm font-medium text-gray-700 mb-2">
+										Sub Trade <span className="text-red-500">*</span>
+									</label>
 									<select
 										value={formData.SubFieldOfInvestment}
 										onChange={(e) => {
@@ -1343,6 +1438,7 @@ function FDPEconomicContent() {
 											handleChange("SubFieldOfInvestment", selectedSubTrade);
 											handleChange("SubTradeCode", selectedTrade?.code || "");
 										}}
+										required
 										disabled={!formData.MainTrade}
 										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
 									>
@@ -1381,12 +1477,15 @@ function FDPEconomicContent() {
 						) : (
 							<>
 								<div>
-									<label className="block text-sm font-medium text-gray-700 mb-2">Trade</label>
+									<label className="block text-sm font-medium text-gray-700 mb-2">
+										Trade <span className="text-red-500">*</span>
+									</label>
 									<input
 										type="text"
 										value={formData.Trade}
 										onChange={(e) => handleChange("Trade", e.target.value)}
 										readOnly={!!selectedFeasibilityId}
+										required
 										className={`w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${selectedFeasibilityId ? 'bg-gray-100 cursor-not-allowed' : ''}`}
 										placeholder="Enter trade"
 									/>
@@ -1407,23 +1506,29 @@ function FDPEconomicContent() {
 						{formData.InterventionType === "Employment" && (
 							<>
 								<div>
-									<label className="block text-sm font-medium text-gray-700 mb-2">Skills Development Course</label>
+									<label className="block text-sm font-medium text-gray-700 mb-2">
+										Skills Development Course <span className="text-red-500">*</span>
+									</label>
 									<input
 										type="text"
 										value={formData.SkillsDevelopmentCourse}
 										onChange={(e) => handleChange("SkillsDevelopmentCourse", e.target.value)}
 										readOnly={!!selectedFeasibilityId}
+										required
 										className={`w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${selectedFeasibilityId ? 'bg-gray-100 cursor-not-allowed' : ''}`}
 										placeholder="Enter course name"
 									/>
 								</div>
 								<div>
-									<label className="block text-sm font-medium text-gray-700 mb-2">Institution</label>
+									<label className="block text-sm font-medium text-gray-700 mb-2">
+										Institution <span className="text-red-500">*</span>
+									</label>
 									<input
 										type="text"
 										value={formData.Institution}
 										onChange={(e) => handleChange("Institution", e.target.value)}
 										readOnly={!!selectedFeasibilityId}
+										required
 										className={`w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${selectedFeasibilityId ? 'bg-gray-100 cursor-not-allowed' : ''}`}
 										placeholder="Enter institution name"
 									/>
@@ -1456,7 +1561,7 @@ function FDPEconomicContent() {
 									
 									return (
 										<p className="mt-1 text-xs text-gray-500">
-											From Feasibility ({selectedFeasibility.PlanCategory === "SKILLS" ? "Skills Development" : "Economic"}): Investment Required (PKR) = {formatCurrency(investmentRequired)}, Investment from PE Program = {formatCurrency(selectedFeasibility.InvestmentFromPEProgram || 0)}
+											From Feasibility ({selectedFeasibility.PlanCategory === "SKILLS" ? "Skills Development" : "Economic"}): Investment Required (PKR) = {formatCurrency(Math.round(investmentRequired))}, Investment from PE Program = {formatCurrency(Math.round(selectedFeasibility.InvestmentFromPEProgram || 0))}
 										</p>
 									);
 								})()}
@@ -1490,14 +1595,14 @@ function FDPEconomicContent() {
 								)}
 								{formData.FeasibilityID && !validationErrors.feasibilityInvestment && (
 									<p className="mt-1 text-xs text-gray-500">
-										Max from Feasibility: {formatCurrency(feasibilityStudies.find(f => f.FDP_ID.toString() === formData.FeasibilityID)?.InvestmentFromPEProgram || 0)}
+										Max from Feasibility: {formatCurrency(Math.round(feasibilityStudies.find(f => f.FDP_ID.toString() === formData.FeasibilityID)?.InvestmentFromPEProgram || 0))}
 									</p>
 								)}
 								{memberFeasibilityLimit !== null && (
 									<p className="mt-1 text-xs text-gray-500">
-										Member-level limit: {formatCurrency(memberFeasibilityLimit)} | 
-										Current total: {formatCurrency(totalMemberPEInvestment - (isEditMode && selectedRecordId ? (fdpEconomicRecords.find(r => r.FDP_EconomicID === selectedRecordId)?.InvestmentFromPEProgram || 0) : 0))} | 
-										After {isEditMode ? "update" : "adding"}: {formatCurrency((totalMemberPEInvestment - (isEditMode && selectedRecordId ? (fdpEconomicRecords.find(r => r.FDP_EconomicID === selectedRecordId)?.InvestmentFromPEProgram || 0) : 0)) + formData.InvestmentFromPEProgram)}
+										Member-level limit: {formatCurrency(Math.round(memberFeasibilityLimit))} | 
+										Current total: {formatCurrency(Math.round(totalMemberPEInvestment - (isEditMode && selectedRecordId ? (fdpEconomicRecords.find(r => r.FDP_EconomicID === selectedRecordId)?.InvestmentFromPEProgram || 0) : 0)))} | 
+										After {isEditMode ? "update" : "adding"}: {formatCurrency(Math.round((totalMemberPEInvestment - (isEditMode && selectedRecordId ? (fdpEconomicRecords.find(r => r.FDP_EconomicID === selectedRecordId)?.InvestmentFromPEProgram || 0) : 0)) + formData.InvestmentFromPEProgram))}
 									</p>
 								)}
 							</div>
@@ -1506,7 +1611,14 @@ function FDPEconomicContent() {
 								<input
 									type="number"
 									value={formData.GrantAmount || ""}
-									onChange={(e) => handleChange("GrantAmount", parseFloat(e.target.value) || 0)}
+									onChange={(e) => {
+										const value = parseFloat(e.target.value) || 0;
+										handleChange("GrantAmount", Math.round(value));
+									}}
+									onBlur={(e) => {
+										const value = parseFloat(e.target.value) || 0;
+										handleChange("GrantAmount", Math.round(value));
+									}}
 									className={`w-full rounded-md border px-4 py-2 text-sm focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${
 										validationErrors.grantLoanValidation 
 											? "border-red-300 focus:border-red-500" 
@@ -1514,7 +1626,7 @@ function FDPEconomicContent() {
 									}`}
 									placeholder="0"
 									min="0"
-									step="0.01"
+									step="1"
 								/>
 							</div>
 							<div>
@@ -1524,9 +1636,13 @@ function FDPEconomicContent() {
 									value={formData.LoanAmount || ""}
 									onChange={(e) => {
 										const value = e.target.value === "" ? 0 : parseFloat(e.target.value) || 0;
-										handleChange("LoanAmount", value);
+										handleChange("LoanAmount", Math.round(value));
 									}}
-									onBlur={handleLoanBlur}
+									onBlur={(e) => {
+										const value = e.target.value === "" ? 0 : parseFloat(e.target.value) || 0;
+										handleChange("LoanAmount", Math.round(value));
+										handleLoanBlur();
+									}}
 									className={`w-full rounded-md border px-4 py-2 text-sm focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${
 										validationErrors.grantLoanValidation 
 											? "border-red-300 focus:border-red-500" 
@@ -1534,7 +1650,7 @@ function FDPEconomicContent() {
 									}`}
 									placeholder="0"
 									min="0"
-									step="0.01"
+									step="1"
 								/>
 								{formData.LoanAmount > 0 && formData.LoanAmount < 50000 && (
 									<p className="mt-1 text-xs text-yellow-600">Loan amount &lt; PKR 50,000 will be automatically converted to Grant when you leave this field</p>
@@ -1548,37 +1664,40 @@ function FDPEconomicContent() {
 							{!validationErrors.grantLoanValidation && formData.GrantAmount + formData.LoanAmount > 0 && (
 								<div className="col-span-2">
 									<p className="text-sm text-green-600">
-										✓ Grants ({formData.GrantAmount.toLocaleString()}) + Loan ({formData.LoanAmount.toLocaleString()}) = {(formData.GrantAmount + formData.LoanAmount).toLocaleString()} matches Investment Required from PE Program ({formData.InvestmentFromPEProgram.toLocaleString()})
+										✓ Grants ({Math.round(formData.GrantAmount).toLocaleString()}) + Loan ({Math.round(formData.LoanAmount).toLocaleString()}) = {Math.round(formData.GrantAmount + formData.LoanAmount).toLocaleString()} matches Investment Required from PE Program ({Math.round(formData.InvestmentFromPEProgram).toLocaleString()})
 									</p>
 								</div>
 							)}
 							<div>
-								<label className="block text-sm font-medium text-gray-700 mb-2">Planned Income per Month (Avg. of 12 Months)</label>
+								<label className="block text-sm font-medium text-gray-700 mb-2">
+									Planned Income per Month (Avg. of 12 Months) <span className="text-red-500">*</span>
+								</label>
 								<input
 									type="number"
 									value={formData.PlannedMonthlyIncome ?? ""}
 									onChange={(e) => {
 										const value = e.target.value === "" ? null : (parseFloat(e.target.value) || 0);
 										if (value !== null) {
-											// Round up the value
-											const roundedValue = Math.ceil(value);
+											// Round the value
+											const roundedValue = Math.round(value);
 											handleChange("PlannedMonthlyIncome", roundedValue);
 										} else {
 											handleChange("PlannedMonthlyIncome", null);
 										}
 									}}
 									onBlur={(e) => {
-										// Ensure value is rounded up on blur as well
+										// Ensure value is rounded on blur as well
 										const value = e.target.value === "" ? null : (parseFloat(e.target.value) || 0);
-										if (value !== null && value !== Math.ceil(value)) {
-											handleChange("PlannedMonthlyIncome", Math.ceil(value));
+										if (value !== null && value !== Math.round(value)) {
+											handleChange("PlannedMonthlyIncome", Math.round(value));
 										} else if (value === null) {
 											handleChange("PlannedMonthlyIncome", null);
 										}
 									}}
+									required
 									className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
 									placeholder=""
-									min="0"
+									min="1"
 									step="1"
 								/>
 							</div>
@@ -1595,7 +1714,7 @@ function FDPEconomicContent() {
 								<label className="block text-sm font-medium text-gray-700 mb-2">Incremental Planned Income per Month</label>
 								<input
 									type="text"
-									value={formatCurrency(Math.ceil(formData.IncrementalMonthlyIncome || 0))}
+									value={formatCurrency(Math.round(formData.IncrementalMonthlyIncome || 0))}
 									readOnly
 									className="w-full rounded-md border border-gray-300 bg-gray-100 px-4 py-2 text-sm text-gray-600 cursor-not-allowed"
 								/>
@@ -1665,6 +1784,227 @@ function FDPEconomicContent() {
 					</button>
 				</div>
 				</form>
+			)}
+
+			{/* View Modal */}
+			{showViewModal && viewRecord && (
+				<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+					<div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+						{/* Modal Header */}
+						<div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+							<h2 className="text-2xl font-bold text-gray-900">View Economic Development Record</h2>
+							<button
+								type="button"
+								onClick={() => {
+									setShowViewModal(false);
+									setViewRecord(null);
+									setFamilyInfo(null);
+								}}
+								className="text-gray-400 hover:text-gray-600"
+							>
+								<X className="h-6 w-6" />
+							</button>
+						</div>
+
+						{/* Modal Body */}
+						<div className="p-6 space-y-6">
+							{/* Family Information */}
+							{familyInfo && (
+								<div className="bg-gray-50 rounded-lg p-6">
+									<h3 className="text-lg font-semibold text-gray-900 mb-4">Family Information</h3>
+									<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+										<div>
+											<label className="block text-sm font-medium text-gray-700 mb-1">Form Number</label>
+											<p className="text-sm text-gray-900">{familyInfo.FormNumber || "N/A"}</p>
+										</div>
+										<div>
+											<label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+											<p className="text-sm text-gray-900">{familyInfo.Full_Name || "N/A"}</p>
+										</div>
+										<div>
+											<label className="block text-sm font-medium text-gray-700 mb-1">CNIC Number</label>
+											<p className="text-sm text-gray-900">{familyInfo.CNICNumber || "N/A"}</p>
+										</div>
+										<div>
+											<label className="block text-sm font-medium text-gray-700 mb-1">Regional Community</label>
+											<p className="text-sm text-gray-900">{familyInfo.RegionalCommunity || "N/A"}</p>
+										</div>
+										<div>
+											<label className="block text-sm font-medium text-gray-700 mb-1">Local Community</label>
+											<p className="text-sm text-gray-900">{familyInfo.LocalCommunity || "N/A"}</p>
+										</div>
+										{baselineData && (
+											<>
+												<div>
+													<label className="block text-sm font-medium text-gray-700 mb-1">Baseline Family Income</label>
+													<p className="text-sm text-gray-900">{formatCurrency(baselineData.BaselineFamilyIncome)}</p>
+												</div>
+												<div>
+													<label className="block text-sm font-medium text-gray-700 mb-1">Family Members Count</label>
+													<p className="text-sm text-gray-900">{baselineData.FamilyMembersCount || 0}</p>
+												</div>
+											</>
+										)}
+									</div>
+								</div>
+							)}
+
+							{/* Economic Data */}
+							<div className="bg-white rounded-lg border border-gray-200 p-6">
+								<h3 className="text-lg font-semibold text-gray-900 mb-4">Economic Development Data</h3>
+								<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+									<div>
+										<label className="block text-sm font-medium text-gray-700 mb-1">FDP Economic ID</label>
+										<p className="text-sm text-gray-900">{viewRecord.FDP_EconomicID || "N/A"}</p>
+									</div>
+									<div>
+										<label className="block text-sm font-medium text-gray-700 mb-1">Form Number</label>
+										<p className="text-sm text-gray-900">{viewRecord.FormNumber || "N/A"}</p>
+									</div>
+									<div>
+										<label className="block text-sm font-medium text-gray-700 mb-1">Beneficiary ID</label>
+										<p className="text-sm text-gray-900">{viewRecord.BeneficiaryID || "N/A"}</p>
+									</div>
+									<div>
+										<label className="block text-sm font-medium text-gray-700 mb-1">Beneficiary Name</label>
+										<p className="text-sm text-gray-900">{viewRecord.BeneficiaryName || "N/A"}</p>
+									</div>
+									<div>
+										<label className="block text-sm font-medium text-gray-700 mb-1">Beneficiary Age</label>
+										<p className="text-sm text-gray-900">{viewRecord.BeneficiaryAge || "N/A"}</p>
+									</div>
+									<div>
+										<label className="block text-sm font-medium text-gray-700 mb-1">Beneficiary Gender</label>
+										<p className="text-sm text-gray-900">{viewRecord.BeneficiaryGender || "N/A"}</p>
+									</div>
+									<div>
+										<label className="block text-sm font-medium text-gray-700 mb-1">Beneficiary Current Occupation</label>
+										<p className="text-sm text-gray-900">{viewRecord.BeneficiaryCurrentOccupation || "N/A"}</p>
+									</div>
+									<div>
+										<label className="block text-sm font-medium text-gray-700 mb-1">Intervention Type</label>
+										<p className="text-sm text-gray-900">{viewRecord.InterventionType || "N/A"}</p>
+									</div>
+									<div>
+										<label className="block text-sm font-medium text-gray-700 mb-1">Field Of Investment</label>
+										<p className="text-sm text-gray-900">{viewRecord.FieldOfInvestment || "N/A"}</p>
+									</div>
+									<div>
+										<label className="block text-sm font-medium text-gray-700 mb-1">Sub Field Of Investment</label>
+										<p className="text-sm text-gray-900">{viewRecord.SubFieldOfInvestment || "N/A"}</p>
+									</div>
+									<div>
+										<label className="block text-sm font-medium text-gray-700 mb-1">Trade</label>
+										<p className="text-sm text-gray-900">{viewRecord.Trade || "N/A"}</p>
+									</div>
+									<div>
+										<label className="block text-sm font-medium text-gray-700 mb-1">Skills Development Course</label>
+										<p className="text-sm text-gray-900">{viewRecord.SkillsDevelopmentCourse || "N/A"}</p>
+									</div>
+									<div>
+										<label className="block text-sm font-medium text-gray-700 mb-1">Institution</label>
+										<p className="text-sm text-gray-900">{viewRecord.Institution || "N/A"}</p>
+									</div>
+									<div>
+										<label className="block text-sm font-medium text-gray-700 mb-1">Investment Required Total</label>
+										<p className="text-sm text-gray-900">{viewRecord.InvestmentRequiredTotal ? formatCurrency(parseFloat(viewRecord.InvestmentRequiredTotal)) : "N/A"}</p>
+									</div>
+									<div>
+										<label className="block text-sm font-medium text-gray-700 mb-1">Contribution From Beneficiary</label>
+										<p className="text-sm text-gray-900">{viewRecord.ContributionFromBeneficiary ? formatCurrency(parseFloat(viewRecord.ContributionFromBeneficiary)) : "N/A"}</p>
+									</div>
+									<div>
+										<label className="block text-sm font-medium text-gray-700 mb-1">Investment From PE Program</label>
+										<p className="text-sm text-gray-900">{viewRecord.InvestmentFromPEProgram ? formatCurrency(parseFloat(viewRecord.InvestmentFromPEProgram)) : "N/A"}</p>
+									</div>
+									<div>
+										<label className="block text-sm font-medium text-gray-700 mb-1">Grant Amount</label>
+										<p className="text-sm text-gray-900">{viewRecord.GrantAmount ? formatCurrency(parseFloat(viewRecord.GrantAmount)) : "N/A"}</p>
+									</div>
+									<div>
+										<label className="block text-sm font-medium text-gray-700 mb-1">Loan Amount</label>
+										<p className="text-sm text-gray-900">{viewRecord.LoanAmount ? formatCurrency(parseFloat(viewRecord.LoanAmount)) : "N/A"}</p>
+									</div>
+									<div>
+										<label className="block text-sm font-medium text-gray-700 mb-1">Investment Validation Status</label>
+										<p className="text-sm text-gray-900">
+											<span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+												viewRecord.InvestmentValidationStatus === 1 ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+											}`}>
+												{viewRecord.InvestmentValidationStatus === 1 ? "Valid" : "Invalid"}
+											</span>
+										</p>
+									</div>
+									<div>
+										<label className="block text-sm font-medium text-gray-700 mb-1">Planned Monthly Income</label>
+										<p className="text-sm text-gray-900">{viewRecord.PlannedMonthlyIncome ? formatCurrency(parseFloat(viewRecord.PlannedMonthlyIncome)) : "N/A"}</p>
+									</div>
+									<div>
+										<label className="block text-sm font-medium text-gray-700 mb-1">Current Monthly Income</label>
+										<p className="text-sm text-gray-900">{viewRecord.CurrentMonthlyIncome ? formatCurrency(parseFloat(viewRecord.CurrentMonthlyIncome)) : "N/A"}</p>
+									</div>
+									<div>
+										<label className="block text-sm font-medium text-gray-700 mb-1">Incremental Monthly Income</label>
+										<p className="text-sm text-gray-900">{viewRecord.IncrementalMonthlyIncome ? formatCurrency(parseFloat(viewRecord.IncrementalMonthlyIncome)) : "N/A"}</p>
+									</div>
+									<div>
+										<label className="block text-sm font-medium text-gray-700 mb-1">Feasibility ID</label>
+										<p className="text-sm text-gray-900">{viewRecord.FeasibilityID || "N/A"}</p>
+									</div>
+									<div>
+										<label className="block text-sm font-medium text-gray-700 mb-1">Approval Status</label>
+										<p className="text-sm text-gray-900">
+											<span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+												viewRecord.ApprovalStatus === "Approved" ? "bg-green-100 text-green-800" :
+												viewRecord.ApprovalStatus === "Rejected" ? "bg-red-100 text-red-800" :
+												"bg-yellow-100 text-yellow-800"
+											}`}>
+												{viewRecord.ApprovalStatus || "Pending"}
+											</span>
+										</p>
+									</div>
+									{viewRecord.ApprovalDate && (
+										<div>
+											<label className="block text-sm font-medium text-gray-700 mb-1">Approval Date</label>
+											<p className="text-sm text-gray-900">{new Date(viewRecord.ApprovalDate).toLocaleDateString()}</p>
+										</div>
+									)}
+									{viewRecord.ApprovalRemarks && (
+										<div className="md:col-span-2">
+											<label className="block text-sm font-medium text-gray-700 mb-1">Approval Remarks</label>
+											<p className="text-sm text-gray-900">{viewRecord.ApprovalRemarks}</p>
+										</div>
+									)}
+									<div>
+										<label className="block text-sm font-medium text-gray-700 mb-1">Created By</label>
+										<p className="text-sm text-gray-900">{viewRecord.CreatedBy || "N/A"}</p>
+									</div>
+									{viewRecord.CreatedAt && (
+										<div>
+											<label className="block text-sm font-medium text-gray-700 mb-1">Created At</label>
+											<p className="text-sm text-gray-900">{new Date(viewRecord.CreatedAt).toLocaleString()}</p>
+										</div>
+									)}
+								</div>
+							</div>
+						</div>
+
+						{/* Modal Footer */}
+						<div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex justify-end">
+							<button
+								type="button"
+								onClick={() => {
+									setShowViewModal(false);
+									setViewRecord(null);
+									setFamilyInfo(null);
+								}}
+								className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+							>
+								Close
+							</button>
+						</div>
+					</div>
+				</div>
 			)}
 		</div>
 	);

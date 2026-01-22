@@ -180,10 +180,6 @@ function ViewBankAccountContent() {
 								<p className="text-sm text-gray-900">{basicInfo.CNICNumber || "N/A"}</p>
 							</div>
 							<div>
-								<label className="block text-sm font-medium text-gray-700 mb-1">Mother Tongue</label>
-								<p className="text-sm text-gray-900">{basicInfo.MotherTongue || "N/A"}</p>
-							</div>
-							<div>
 								<label className="block text-sm font-medium text-gray-700 mb-1">Regional Community</label>
 								<p className="text-sm text-gray-900">{basicInfo.RegionalCommunity || "N/A"}</p>
 							</div>

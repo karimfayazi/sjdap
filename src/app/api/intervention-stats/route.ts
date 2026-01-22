@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPeDb } from "@/lib/db";
-import { checkSuperUserFromDb } from "@/lib/auth-server-utils";
+import { getPeDb, getDb } from "@/lib/db";
+import { isSuperAdmin } from "@/lib/rbac-utils";
+import sql from "mssql";
 
 export const maxDuration = 120;
 
@@ -23,41 +24,67 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		// Check if user is Super User
-		const isSuperUser = await checkSuperUserFromDb(userId);
+		// Get user type and check if Super Admin
+		const userPool = await getDb();
+		const userRequest = userPool.request();
+		userRequest.input("user_id", userId);
+		userRequest.input("email_address", userId);
+		const userResult = await userRequest.query(
+			"SELECT TOP(1) [UserType], [UserId], [email_address], [UserFullName] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
+		);
 
-		// Get user's full name to match with SubmittedBy (only needed if not Super User)
-		let userFullName: string | null = null;
-		
-		if (!isSuperUser) {
-			try {
-				const userPool = await getPeDb();
-				const userRequest = userPool.request();
-				userRequest.input("user_id", userId);
-				userRequest.input("email_address", userId);
-				const userResult = await userRequest.query(
-					"SELECT TOP(1) [UserFullName] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
-				);
-
-				const user = userResult.recordset?.[0];
-				if (user && user.UserFullName) {
-					userFullName = user.UserFullName;
-				}
-			} catch (userError) {
-				console.error("Error fetching user full name:", userError);
-				// Continue without user filter - will show all stats
-			}
+		const user = userResult.recordset?.[0];
+		if (!user) {
+			return NextResponse.json(
+				{ success: false, message: "User not found" },
+				{ status: 404 }
+			);
 		}
 
+		const userType = user.UserType ? String(user.UserType).trim() : null;
+		const userFullName = user.UserFullName || null;
+		const isSuperAdminUser = await isSuperAdmin(userId);
+		const isEDO = userType && userType.toUpperCase() === "EDO";
+		const isRegionalAM = userType && userType.toUpperCase() === "REGIONAL AM";
+		const isEditor = userType && userType.toLowerCase() === "editor";
+
 		// Fetch Intervention statistics from PE_Interventions
-		// Super Users see all interventions, others see only their own (matching SubmittedBy with UserFullName)
 		const pool = await getPeDb();
 		const sqlRequest = pool.request();
 		(sqlRequest as any).timeout = 120000;
+		sqlRequest.input("userId", userId);
 
-		// Build query based on user's SQL structure
-		// Simple query matching: SELECT [InterventionID], [FormNumber], [ApprovalStatus] FROM [SJDA_Users].[dbo].[PE_Interventions]
-		let query = `
+		// Build query based on user type
+		let regionalCouncilFilter = "";
+		
+		if (isSuperAdminUser) {
+			// Super Admin: Show all data (no filter)
+			regionalCouncilFilter = "";
+		} else if (isEditor && userFullName) {
+			// Editor: Filter by SubmittedBy matching user's full name
+			regionalCouncilFilter = `AND b.[SubmittedBy] = @userFullName`;
+			sqlRequest.input("userFullName", sql.NVarChar, userFullName);
+		} else if (isEDO) {
+			// EDO: Filter by regional councils assigned to user
+			regionalCouncilFilter = `
+				AND EXISTS (
+					SELECT 1
+					FROM [SJDA_Users].[dbo].[PE_User_RegionalCouncilAccess] ura
+					INNER JOIN [SJDA_Users].[dbo].[LU_RegionalCouncil] rc
+						ON ura.[RegionalCouncilId] = rc.[RegionalCouncilId]
+					WHERE ura.[UserId] = @userId
+						AND rc.[RegionalCouncilName] = b.[RegionalCommunity]
+				)
+			`;
+		} else if (isRegionalAM) {
+			// Regional AM: Show all families (no filter)
+			regionalCouncilFilter = "";
+		} else {
+			// Other users: Show all data (fallback)
+			regionalCouncilFilter = "";
+		}
+
+		const query = `
 			SELECT 
 				COUNT(*) as TotalInterventions,
 				SUM(CASE 
@@ -76,16 +103,10 @@ export async function GET(request: NextRequest) {
 					ELSE 0 
 				END) as RejectedInterventions
 			FROM [SJDA_Users].[dbo].[PE_Interventions] i
+			LEFT JOIN [SJDA_Users].[dbo].[PE_Application_BasicInfo] b 
+				ON i.[FormNumber] = b.[FormNumber]
+			WHERE 1=1 ${regionalCouncilFilter}
 		`;
-
-		// Add join and filter for non-Super Users
-		if (!isSuperUser && userFullName) {
-			query += `
-			INNER JOIN [SJDA_Users].[dbo].[PE_Application_BasicInfo] app ON i.[FormNumber] = app.[FormNumber]
-			WHERE app.[SubmittedBy] = @userFullName
-			`;
-			sqlRequest.input("userFullName", userFullName);
-		}
 
 		const result = await sqlRequest.query(query);
 		const stats = result.recordset[0] || {

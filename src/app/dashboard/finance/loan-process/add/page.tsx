@@ -182,11 +182,15 @@ export default function AddLoanRecordPage() {
         const userHasLoanAccess = checkLoanAccess(accessLoansValue);
 
         // Also check if user is admin, super user, or Super Admin by UserType (has full access)
-        const isAdmin = userProfile?.username && userProfile.username.toLowerCase() === 'admin';
+        const isAdmin = userProfile?.username != null && String(userProfile.username).toLowerCase() === 'admin';
         const supperUserValue = userProfile?.supper_user;
         const accessLevel = userProfile?.access_level;
         const isSuperAdminByType = accessLevel && typeof accessLevel === 'string' && accessLevel.trim() === 'Super Admin';
         const userIsSuperUser = isAdmin || isSuperUser(supperUserValue) || isSuperAdminByType;
+
+        // Check if user is "Finance and Administration" (should have access)
+        const normalizedAccessLevel = (accessLevel || '').trim().toUpperCase();
+        const isFinanceAndAdmin = normalizedAccessLevel === 'FINANCE AND ADMINISTRATION';
 
         // Debug logging
         if (typeof window !== "undefined") {
@@ -195,11 +199,13 @@ export default function AddLoanRecordPage() {
                 access_loans: accessLoansValue,
                 hasLoanAccess: userHasLoanAccess,
                 isSuperUser: userIsSuperUser,
-                willGrantAccess: userHasLoanAccess || userIsSuperUser
+                isFinanceAndAdmin: isFinanceAndAdmin,
+                accessLevel: accessLevel,
+                willGrantAccess: userHasLoanAccess || userIsSuperUser || isFinanceAndAdmin
             });
         }
 
-        if (!userHasLoanAccess && !userIsSuperUser) {
+        if (!userHasLoanAccess && !userIsSuperUser && !isFinanceAndAdmin) {
             setHasAccess(false);
             // DO NOT redirect - user requested to stay on access denied page
         } else {

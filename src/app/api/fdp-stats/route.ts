@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPeDb } from "@/lib/db";
+import { getPeDb, getDb } from "@/lib/db";
 import sql from "mssql";
-import { checkSuperUserFromDb } from "@/lib/auth-server-utils";
+import { isSuperAdmin } from "@/lib/rbac-utils";
 
 export const maxDuration = 120;
 
@@ -24,121 +24,106 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		// Check if user is Super User
-		const isSuperUser = await checkSuperUserFromDb(userId);
+		// Get user type and check if Super Admin
+		const userPool = await getDb();
+		const userRequest = userPool.request();
+		userRequest.input("user_id", userId);
+		userRequest.input("email_address", userId);
+		const userResult = await userRequest.query(
+			"SELECT TOP(1) [UserType], [UserId], [email_address], [UserFullName] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
+		);
 
-		// Get user's full name to match with SubmittedBy (only needed if not Super User)
-		let userFullName: string | null = null;
-		let userName: string | null = null;
-		
-		if (!isSuperUser) {
-			const userPool = await getPeDb();
-			const userResult = await userPool
-				.request()
-				.input("user_id", userId)
-				.input("email_address", userId)
-				.query(
-					"SELECT TOP(1) [UserFullName], [UserId], [email_address] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
-				);
-
-			const user = userResult.recordset?.[0];
-			if (!user) {
-				return NextResponse.json(
-					{ success: false, message: "User not found" },
-					{ status: 404 }
-				);
-			}
-
-			userFullName = user.UserFullName;
-			userName = user.UserId || user.email_address;
+		const user = userResult.recordset?.[0];
+		if (!user) {
+			return NextResponse.json(
+				{ success: false, message: "User not found" },
+				{ status: 404 }
+			);
 		}
 
+		const userType = user.UserType ? String(user.UserType).trim() : null;
+		const userFullName = user.UserFullName || null;
+		const isSuperAdminUser = await isSuperAdmin(userId);
+		const isEDO = userType && userType.toUpperCase() === "EDO";
+		const isRegionalAM = userType && userType.toUpperCase() === "REGIONAL AM";
+		const isEditor = userType && userType.toLowerCase() === "editor";
+
 		// Fetch Family Development Plan statistics
-		// Count unique families from all FDP tables
-		// Super Users see all families, others see only their own
 		const pool = await getPeDb();
 		const sqlRequest = pool.request();
 		(sqlRequest as any).timeout = 120000;
+		sqlRequest.input("userId", userId);
 
-		let submittedByFilter = "";
-		if (!isSuperUser && (userFullName || userName)) {
-			if (userFullName && userName) {
-				submittedByFilter = "AND (app.[SubmittedBy] = @userFullName OR app.[SubmittedBy] = @userName)";
-				sqlRequest.input("userFullName", userFullName);
-				sqlRequest.input("userName", userName);
-			} else if (userFullName) {
-				submittedByFilter = "AND app.[SubmittedBy] = @userFullName";
-				sqlRequest.input("userFullName", userFullName);
-			} else if (userName) {
-				submittedByFilter = "AND app.[SubmittedBy] = @userName";
-				sqlRequest.input("userName", userName);
-			}
+		// Get total families from baseline stats (using same logic as baseline-stats API)
+		let baselineWhereClause = "";
+		if (isSuperAdminUser) {
+			baselineWhereClause = "";
+		} else if (isEditor && userFullName) {
+			baselineWhereClause = `WHERE app.[SubmittedBy] = @userFullName`;
+			sqlRequest.input("userFullName", sql.NVarChar, userFullName);
+		} else if (isEDO) {
+			baselineWhereClause = `
+				WHERE EXISTS (
+					SELECT 1
+					FROM [SJDA_Users].[dbo].[PE_User_RegionalCouncilAccess] ura
+					INNER JOIN [SJDA_Users].[dbo].[LU_RegionalCouncil] rc
+						ON ura.[RegionalCouncilId] = rc.[RegionalCouncilId]
+					WHERE ura.[UserId] = @userId
+						AND rc.[RegionalCouncilName] = app.[RegionalCommunity]
+				)
+			`;
+		} else if (isRegionalAM) {
+			baselineWhereClause = "";
+		} else {
+			baselineWhereClause = "";
+		}
+
+		// Get approval counts from Approval_Log where ModuleName='FDP'
+		// Filter by ActionBy matching logged-in user's username (if not super admin)
+		let approvalLogFilter = "";
+		if (!isSuperAdminUser && userFullName) {
+			approvalLogFilter = `AND al.[ActionBy] = @userFullName`;
 		}
 
 		const query = `
-			WITH AllFDPRecords AS (
-				-- Health Support
-				SELECT [FormNumber] as FormNumber, [ApprovalStatus]
-				FROM [SJDA_Users].[dbo].[PE_FDP_HealthSupport]
-				WHERE [IsActive] = 1
-				
-				UNION ALL
-				
-				-- Food Support
-				SELECT [FormNumber] as FormNumber, [ApprovalStatus]
-				FROM [SJDA_Users].[dbo].[PE_FDP_FoodSupport]
-				WHERE [IsActive] = 1
-				
-				UNION ALL
-				
-				-- Education Support
-				SELECT [FormNumber] as FormNumber, [ApprovalStatus]
-				FROM [SJDA_Users].[dbo].[PE_FDP_SocialEducation]
-				WHERE [IsActive] = 1
-				
-				UNION ALL
-				
-				-- Housing Support
-				SELECT [FormNumber] as FormNumber, [ApprovalStatus]
-				FROM [SJDA_Users].[dbo].[PE_FDP_HabitatSupport]
-				WHERE [IsActive] = 1
-				
-				UNION ALL
-				
-				-- Economic Support
-				SELECT [FormNumber] as FormNumber, [ApprovalStatus]
-				FROM [SJDA_Users].[dbo].[PE_FDP_Economic]
-				WHERE [IsActive] = 1
+			-- Get total families from baseline
+			WITH BaselineFamilies AS (
+				SELECT COUNT(*) as TotalFamilies
+				FROM [SJDA_Users].[dbo].[PE_Application_BasicInfo] app
+				${baselineWhereClause}
 			),
-			FamilyStatus AS (
-				SELECT DISTINCT 
-					r1.FormNumber,
-					CASE 
-						WHEN EXISTS (
-							SELECT 1 FROM AllFDPRecords r2 
-							WHERE r2.FormNumber = r1.FormNumber 
-							AND (LOWER(LTRIM(RTRIM(r2.[ApprovalStatus]))) LIKE '%approve%' 
-								OR LOWER(LTRIM(RTRIM(r2.[ApprovalStatus]))) = 'approved' 
-								OR LOWER(LTRIM(RTRIM(r2.[ApprovalStatus]))) = 'complete')
-						) THEN 'Approved'
-						WHEN EXISTS (
-							SELECT 1 FROM AllFDPRecords r2 
-							WHERE r2.FormNumber = r1.FormNumber 
-							AND (LOWER(LTRIM(RTRIM(r2.[ApprovalStatus]))) LIKE '%reject%' 
-								OR LOWER(LTRIM(RTRIM(r2.[ApprovalStatus]))) = 'rejected')
-						) THEN 'Rejected'
-						ELSE 'Pending'
-					END as ApprovalStatus
-				FROM AllFDPRecords r1
-				INNER JOIN [SJDA_Users].[dbo].[PE_Application_BasicInfo] app ON r1.FormNumber = app.[FormNumber]
-				WHERE 1=1 ${submittedByFilter}
+			-- Get approval counts from Approval_Log
+			ApprovalLogStats AS (
+				SELECT 
+					COUNT(DISTINCT CASE 
+						WHEN LTRIM(RTRIM(al.[ActionLevel])) = 'Approved' 
+						THEN al.[FormNumber] 
+						ELSE NULL 
+					END) as ApprovedFamilies,
+					COUNT(DISTINCT CASE 
+						WHEN al.[ActionLevel] IS NULL 
+							OR LTRIM(RTRIM(al.[ActionLevel])) = '' 
+							OR (LTRIM(RTRIM(al.[ActionLevel])) != 'Approved' AND LTRIM(RTRIM(al.[ActionLevel])) != 'Rejected')
+						THEN al.[FormNumber] 
+						ELSE NULL 
+					END) as PendingFamilies,
+					COUNT(DISTINCT CASE 
+						WHEN LTRIM(RTRIM(al.[ActionLevel])) = 'Rejected' 
+						THEN al.[FormNumber] 
+						ELSE NULL 
+					END) as RejectedFamilies
+				FROM [SJDA_Users].[dbo].[Approval_Log] al
+				WHERE al.[ModuleName] = 'FDP'
+					AND al.[FormNumber] IS NOT NULL
+					${approvalLogFilter}
 			)
 			SELECT 
-				COUNT(*) as TotalFamilies,
-				SUM(CASE WHEN ApprovalStatus = 'Pending' THEN 1 ELSE 0 END) as PendingFamilies,
-				SUM(CASE WHEN ApprovalStatus = 'Approved' THEN 1 ELSE 0 END) as ApprovedFamilies,
-				SUM(CASE WHEN ApprovalStatus = 'Rejected' THEN 1 ELSE 0 END) as RejectedFamilies
-			FROM FamilyStatus
+				bf.TotalFamilies,
+				COALESCE(als.ApprovedFamilies, 0) as ApprovedFamilies,
+				COALESCE(als.PendingFamilies, 0) as PendingFamilies,
+				COALESCE(als.RejectedFamilies, 0) as RejectedFamilies
+			FROM BaselineFamilies bf
+			CROSS JOIN ApprovalLogStats als
 		`;
 
 		const result = await sqlRequest.query(query);

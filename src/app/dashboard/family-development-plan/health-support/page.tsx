@@ -755,7 +755,7 @@ function HealthSupportContent() {
 										type="number"
 										step="0.01"
 										min="0"
-										value={formData.HealthMonthlyFamilyContribution > 0 ? formData.HealthMonthlyFamilyContribution : ""}
+										value={formData.HealthMonthlyFamilyContribution || 0}
 										onChange={(e) => {
 											const inputValue = e.target.value;
 											if (inputValue === "") {

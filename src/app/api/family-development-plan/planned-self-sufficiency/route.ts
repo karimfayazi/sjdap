@@ -134,34 +134,60 @@ export async function GET(request: NextRequest) {
 
 		const baselineIncomeLevel = calculatePovertyLevel(baselinePerCapita, areaType);
 
-		// Fetch all FDP Economic Development interventions
+		// Fetch approved ECONOMIC interventions only
 		const economicQuery = `
 			SELECT 
 				[FDP_EconomicID],
 				[InvestmentFromPEProgram],
 				[IncrementalMonthlyIncome],
 				[InterventionType],
-				[ApprovalStatus]
+				[ApprovalStatus],
+				[ApprovalDate],
+				[CreatedAt]
 			FROM [SJDA_Users].[dbo].[PE_FDP_EconomicDevelopment]
 			WHERE [FormNumber] = @FormNumber
 				AND [IsActive] = 1
-				AND [ApprovalStatus] = 'Approved'
-			ORDER BY [FDP_EconomicID] ASC
+				AND UPPER(LTRIM(RTRIM([InterventionType]))) = 'ECONOMIC'
+				AND UPPER(LTRIM(RTRIM([ApprovalStatus]))) = 'APPROVED'
+			ORDER BY 
+				CASE WHEN [ApprovalDate] IS NOT NULL THEN [ApprovalDate] ELSE '1900-01-01' END ASC,
+				CASE WHEN [CreatedAt] IS NOT NULL THEN [CreatedAt] ELSE '1900-01-01' END ASC,
+				[FDP_EconomicID] ASC
 		`;
 
 		const economicResult = await sqlRequest.query(economicQuery);
 		const economicInterventions = economicResult.recordset || [];
 
-		// Build interventions array
-		const interventions = economicInterventions.map((intervention: any, index: number) => ({
-			InterventionNumber: index + 1,
-			Investment: intervention.InvestmentFromPEProgram || 0,
-			IncrementalIncome: intervention.IncrementalMonthlyIncome || 0,
-			IncrementalIncomePerCapita: totalMembers > 0 
-				? (intervention.IncrementalMonthlyIncome || 0) / totalMembers 
-				: 0,
-			InterventionType: intervention.InterventionType || "Economic",
-		}));
+		// Take only first 4 approved economic interventions and map to slots 1-4
+		const approvedEconomicInterventions = economicInterventions.slice(0, 4);
+
+		// Build interventions array with incremental income mapped to slots
+		const interventions = approvedEconomicInterventions.map((intervention: any, index: number) => {
+			const incrementalIncome = intervention.IncrementalMonthlyIncome != null 
+				? (typeof intervention.IncrementalMonthlyIncome === 'number' ? intervention.IncrementalMonthlyIncome : parseFloat(intervention.IncrementalMonthlyIncome) || 0)
+				: 0;
+			
+			return {
+				InterventionNumber: index + 1,
+				Investment: intervention.InvestmentFromPEProgram || 0,
+				IncrementalIncome: incrementalIncome,
+				IncrementalIncomePerCapita: totalMembers > 0 
+					? incrementalIncome / totalMembers 
+					: 0,
+				InterventionType: intervention.InterventionType || "Economic",
+			};
+		});
+
+		// Fill remaining slots (up to 4) with zero values if needed
+		while (interventions.length < 4) {
+			interventions.push({
+				InterventionNumber: interventions.length + 1,
+				Investment: 0,
+				IncrementalIncome: 0,
+				IncrementalIncomePerCapita: 0,
+				InterventionType: "Economic",
+			});
+		}
 
 		// Return data
 		return NextResponse.json({

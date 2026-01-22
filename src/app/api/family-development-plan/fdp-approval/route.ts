@@ -244,9 +244,9 @@ export async function POST(request: NextRequest) {
 			const logRequest = new sql.Request(transaction);
 			logRequest.input("ModuleName", sql.NVarChar, "FDP");
 			logRequest.input("RecordID", sql.VarChar, recordId.toString());
-			logRequest.input("ActionLevel", sql.VarChar, "CRC");
+			logRequest.input("ActionLevel", sql.VarChar, "Approval");
 			logRequest.input("ActionBy", sql.NVarChar, userFullName);
-			logRequest.input("ActionType", sql.VarChar, actionType);
+			logRequest.input("ActionType", sql.VarChar, "Approval");
 			logRequest.input("Remarks", sql.NVarChar, approvalRemarks || null);
 			logRequest.input("FormNumber", sql.VarChar, formNumber);
 

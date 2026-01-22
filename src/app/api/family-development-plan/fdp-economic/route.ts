@@ -1,21 +1,44 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPeDb } from "@/lib/db";
+import { getPeDb, getDb } from "@/lib/db";
 import sql from "mssql";
+import { getUserIdFromNextRequest } from "@/lib/auth";
 
 export const maxDuration = 120;
 
 export async function POST(request: NextRequest) {
 	try {
+		// Get userId from auth cookie
+		const userId = getUserIdFromNextRequest(request);
+		
+		if (!userId) {
+			return NextResponse.json(
+				{
+					success: false,
+					message: "Not authenticated",
+				},
+				{ status: 401 }
+			);
+		}
+
+		// Get user's full name (username) for CreatedBy
+		const userPool = await getDb();
+		const userResult = await userPool
+			.request()
+			.input("user_id", userId)
+			.input("email_address", userId)
+			.query(
+				"SELECT TOP(1) [UserFullName] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
+			);
+
+		const user = userResult.recordset?.[0];
+		const userFullName = user?.UserFullName || userId;
+
 		const body = await request.json();
 		const pool = await getPeDb();
 		const sqlRequest = pool.request();
 
 		// Input parameters
 		sqlRequest.input("FormNumber", sql.VarChar, body.FormNumber);
-		sqlRequest.input("BaselineFamilyIncome", sql.Decimal(18, 2), body.BaselineFamilyIncome || 0);
-		sqlRequest.input("FamilyMembersCount", sql.Int, body.FamilyMembersCount || 0);
-		sqlRequest.input("SelfSufficiencyIncomePerCapita", sql.Decimal(18, 2), body.SelfSufficiencyIncomePerCapita || 0);
-		sqlRequest.input("BaselinePovertyLevel", sql.NVarChar, body.BaselinePovertyLevel || "");
 		sqlRequest.input("BeneficiaryID", sql.VarChar, body.BeneficiaryID);
 		sqlRequest.input("BeneficiaryName", sql.NVarChar, body.BeneficiaryName || "");
 		sqlRequest.input("BeneficiaryAge", sql.Int, body.BeneficiaryAge || 0);
@@ -41,13 +64,12 @@ export async function POST(request: NextRequest) {
 		sqlRequest.input("FeasibilityID", sql.Int, body.FeasibilityID ? parseInt(body.FeasibilityID) : null);
 		sqlRequest.input("ApprovalStatus", sql.NVarChar, body.ApprovalStatus || "Pending");
 		sqlRequest.input("ApprovalRemarks", sql.NVarChar, body.ApprovalRemarks || "");
-		sqlRequest.input("CreatedBy", sql.VarChar, body.CreatedBy || "System");
+		sqlRequest.input("CreatedBy", sql.VarChar, userFullName);
 
 		const insertQuery = `
 			INSERT INTO [SJDA_Users].[dbo].[PE_FDP_EconomicDevelopment]
 			(
-				[FormNumber], [BaselineFamilyIncome], [FamilyMembersCount],
-				[SelfSufficiencyIncomePerCapita], [BaselinePovertyLevel],
+				[FormNumber],
 				[BeneficiaryID], [BeneficiaryName], [BeneficiaryAge], [BeneficiaryGender],
 				[BeneficiaryCurrentOccupation], [InterventionType], [FieldOfInvestment],
 				[SubFieldOfInvestment], [Trade], [SkillsDevelopmentCourse], [Institution],
@@ -59,8 +81,7 @@ export async function POST(request: NextRequest) {
 			)
 			VALUES
 			(
-				@FormNumber, @BaselineFamilyIncome, @FamilyMembersCount,
-				@SelfSufficiencyIncomePerCapita, @BaselinePovertyLevel,
+				@FormNumber,
 				@BeneficiaryID, @BeneficiaryName, @BeneficiaryAge, @BeneficiaryGender,
 				@BeneficiaryCurrentOccupation, @InterventionType, @FieldOfInvestment,
 				@SubFieldOfInvestment, @Trade, @SkillsDevelopmentCourse, @Institution,
@@ -111,7 +132,16 @@ export async function GET(request: NextRequest) {
 		const sqlRequest = pool.request();
 
 		let query = `
-			SELECT *
+			SELECT 
+				[FDP_EconomicID], [FormNumber],
+				[BeneficiaryID], [BeneficiaryName], [BeneficiaryAge], [BeneficiaryGender],
+				[BeneficiaryCurrentOccupation], [InterventionType], [FieldOfInvestment],
+				[SubFieldOfInvestment], [Trade], [SkillsDevelopmentCourse], [Institution],
+				[InvestmentRequiredTotal], [ContributionFromBeneficiary], [InvestmentFromPEProgram],
+				[GrantAmount], [LoanAmount], [InvestmentValidationStatus],
+				[PlannedMonthlyIncome], [CurrentMonthlyIncome], [IncrementalMonthlyIncome],
+				[FeasibilityID], [ApprovalStatus], [ApprovalRemarks],
+				[CreatedBy], [CreatedAt], [UpdatedBy], [UpdatedAt], [IsActive]
 			FROM [SJDA_Users].[dbo].[PE_FDP_EconomicDevelopment]
 			WHERE [IsActive] = 1
 		`;
@@ -158,6 +188,32 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
 	try {
+		// Get userId from auth cookie
+		const userId = getUserIdFromNextRequest(request);
+		
+		if (!userId) {
+			return NextResponse.json(
+				{
+					success: false,
+					message: "Not authenticated",
+				},
+				{ status: 401 }
+			);
+		}
+
+		// Get user's full name (username) for UpdatedBy
+		const userPool = await getDb();
+		const userResult = await userPool
+			.request()
+			.input("user_id", userId)
+			.input("email_address", userId)
+			.query(
+				"SELECT TOP(1) [UserFullName] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
+			);
+
+		const user = userResult.recordset?.[0];
+		const userFullName = user?.UserFullName || userId;
+
 		const { searchParams } = new URL(request.url);
 		const fdpEconomicId = searchParams.get("fdpEconomicId");
 
@@ -201,10 +257,6 @@ export async function PUT(request: NextRequest) {
 
 		const sqlRequest = pool.request();
 		sqlRequest.input("FDP_EconomicID", sql.Int, parseInt(fdpEconomicId));
-		sqlRequest.input("BaselineFamilyIncome", sql.Decimal(18, 2), body.BaselineFamilyIncome || 0);
-		sqlRequest.input("FamilyMembersCount", sql.Int, body.FamilyMembersCount || 0);
-		sqlRequest.input("SelfSufficiencyIncomePerCapita", sql.Decimal(18, 2), body.SelfSufficiencyIncomePerCapita || 0);
-		sqlRequest.input("BaselinePovertyLevel", sql.NVarChar, body.BaselinePovertyLevel || "");
 		sqlRequest.input("BeneficiaryID", sql.VarChar, body.BeneficiaryID);
 		sqlRequest.input("BeneficiaryName", sql.NVarChar, body.BeneficiaryName || "");
 		sqlRequest.input("BeneficiaryAge", sql.Int, body.BeneficiaryAge || 0);
@@ -230,15 +282,11 @@ export async function PUT(request: NextRequest) {
 		sqlRequest.input("FeasibilityID", sql.Int, body.FeasibilityID ? parseInt(body.FeasibilityID) : null);
 		sqlRequest.input("ApprovalStatus", sql.NVarChar, body.ApprovalStatus || "Pending");
 		sqlRequest.input("ApprovalRemarks", sql.NVarChar, body.ApprovalRemarks || "");
-		sqlRequest.input("UpdatedBy", sql.VarChar, body.UpdatedBy || "System");
+		sqlRequest.input("UpdatedBy", sql.VarChar, userFullName);
 
 		const updateQuery = `
 			UPDATE [SJDA_Users].[dbo].[PE_FDP_EconomicDevelopment]
 			SET
-				[BaselineFamilyIncome] = @BaselineFamilyIncome,
-				[FamilyMembersCount] = @FamilyMembersCount,
-				[SelfSufficiencyIncomePerCapita] = @SelfSufficiencyIncomePerCapita,
-				[BaselinePovertyLevel] = @BaselinePovertyLevel,
 				[BeneficiaryID] = @BeneficiaryID,
 				[BeneficiaryName] = @BeneficiaryName,
 				[BeneficiaryAge] = @BeneficiaryAge,

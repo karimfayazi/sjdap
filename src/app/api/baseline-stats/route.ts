@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPeDb } from "@/lib/db";
-import { checkSuperUserFromDb } from "@/lib/auth-server-utils";
+import { getPeDb, getDb } from "@/lib/db";
+import { isSuperAdmin } from "@/lib/rbac-utils";
+import sql from "mssql";
 
 export const maxDuration = 120;
 
@@ -23,63 +24,85 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		// Check if user is Super User
-		const isSuperUser = await checkSuperUserFromDb(userId);
+		// Get user type and check if Super Admin
+		const userPool = await getDb();
+		const userRequest = userPool.request();
+		userRequest.input("user_id", userId);
+		userRequest.input("email_address", userId);
+		const userResult = await userRequest.query(
+			"SELECT TOP(1) [UserType], [UserId], [email_address], [UserFullName] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
+		);
 
-		// Get user's full name to match with SubmittedBy (only needed if not Super User)
-		let userFullName: string | null = null;
-		
-		if (!isSuperUser) {
-			try {
-				const userPool = await getPeDb();
-				const userRequest = userPool.request();
-				userRequest.input("user_id", userId);
-				userRequest.input("email_address", userId);
-				const userResult = await userRequest.query(
-					"SELECT TOP(1) [UserFullName] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
-				);
-
-				const user = userResult.recordset?.[0];
-				if (user && user.UserFullName) {
-					userFullName = user.UserFullName;
-				}
-			} catch (userError) {
-				console.error("Error fetching user full name:", userError);
-				// Continue without user filter - will show all stats
-			}
+		const user = userResult.recordset?.[0];
+		if (!user) {
+			return NextResponse.json(
+				{ success: false, message: "User not found" },
+				{ status: 404 }
+			);
 		}
 
+		const userType = user.UserType ? String(user.UserType).trim() : null;
+		const userFullName = user.UserFullName || null;
+		const isSuperAdminUser = await isSuperAdmin(userId);
+		const isEDO = userType && userType.toUpperCase() === "EDO";
+		const isRegionalAM = userType && userType.toUpperCase() === "REGIONAL AM";
+		const isEditor = userType && userType.toLowerCase() === "editor";
+
 		// Fetch baseline statistics
-		// Super Users see all families, others see only their own (matching SubmittedBy with UserFullName)
 		const pool = await getPeDb();
 		const sqlRequest = pool.request();
 		(sqlRequest as any).timeout = 120000;
+		sqlRequest.input("userId", userId);
 
+		// Build WHERE clause based on user type
 		let whereClause = "";
-		if (!isSuperUser && userFullName) {
-			whereClause = "WHERE [SubmittedBy] = @userFullName";
-			sqlRequest.input("userFullName", userFullName);
+		
+		if (isSuperAdminUser) {
+			// Super Admin: Show all data (no filter)
+			whereClause = "";
+		} else if (isEditor && userFullName) {
+			// Editor: Filter by SubmittedBy matching user's full name
+			whereClause = `WHERE app.[SubmittedBy] = @userFullName`;
+			sqlRequest.input("userFullName", sql.NVarChar, userFullName);
+		} else if (isEDO) {
+			// EDO: Filter by regional councils assigned to user
+			whereClause = `
+				WHERE EXISTS (
+					SELECT 1
+					FROM [SJDA_Users].[dbo].[PE_User_RegionalCouncilAccess] ura
+					INNER JOIN [SJDA_Users].[dbo].[LU_RegionalCouncil] rc
+						ON ura.[RegionalCouncilId] = rc.[RegionalCouncilId]
+					WHERE ura.[UserId] = @userId
+						AND rc.[RegionalCouncilName] = app.[RegionalCommunity]
+				)
+			`;
+		} else if (isRegionalAM) {
+			// Regional AM: Show all families (no filter)
+			whereClause = "";
+		} else {
+			// Other users: Show all data (fallback)
+			whereClause = "";
 		}
 
 		const query = `
 			SELECT 
 				COUNT(*) as TotalFamilies,
 				SUM(CASE 
-					WHEN [ApprovalStatus] IS NULL OR LOWER(LTRIM(RTRIM([ApprovalStatus]))) = '' OR LOWER(LTRIM(RTRIM([ApprovalStatus]))) = 'pending' 
+					WHEN app.[ApprovalStatus] IS NULL OR LOWER(LTRIM(RTRIM(app.[ApprovalStatus]))) = '' OR LOWER(LTRIM(RTRIM(app.[ApprovalStatus]))) = 'pending' 
 					THEN 1 
 					ELSE 0 
 				END) as PendingFamilies,
 				SUM(CASE 
-					WHEN LOWER(LTRIM(RTRIM([ApprovalStatus]))) LIKE '%approve%' OR LOWER(LTRIM(RTRIM([ApprovalStatus]))) = 'approved' OR LOWER(LTRIM(RTRIM([ApprovalStatus]))) = 'complete'
+					WHEN LOWER(LTRIM(RTRIM(app.[ApprovalStatus]))) LIKE '%approve%' OR LOWER(LTRIM(RTRIM(app.[ApprovalStatus]))) = 'approved' OR LOWER(LTRIM(RTRIM(app.[ApprovalStatus]))) = 'complete'
 					THEN 1 
 					ELSE 0 
 				END) as ApprovedFamilies,
 				SUM(CASE 
-					WHEN LOWER(LTRIM(RTRIM([ApprovalStatus]))) LIKE '%reject%' OR LOWER(LTRIM(RTRIM([ApprovalStatus]))) = 'rejected'
+					WHEN LOWER(LTRIM(RTRIM(app.[ApprovalStatus]))) LIKE '%reject%' OR LOWER(LTRIM(RTRIM(app.[ApprovalStatus]))) = 'rejected'
 					THEN 1 
 					ELSE 0 
 				END) as RejectedFamilies
-			FROM [SJDA_Users].[dbo].[PE_Application_BasicInfo]
+			FROM [SJDA_Users].[dbo].[PE_Application_BasicInfo] app
 			${whereClause}
 		`;
 

@@ -757,7 +757,7 @@ function FamilyDevelopmentPlanPageContent() {
 										<thead className="bg-gradient-to-r from-gray-700 to-gray-800">
 											<tr>
 												<th className="px-3 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
-													Member No
+													Beneficiary ID
 												</th>
 												<th className="px-3 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
 													Full Name
@@ -784,8 +784,9 @@ function FamilyDevelopmentPlanPageContent() {
 										</thead>
 										<tbody className="bg-white divide-y divide-gray-100">
 											{familyMembers.map((member, index) => {
-												// Check if this is the first member (Self, -01)
-												const isSelf = member.MemberNo?.endsWith("-01") || member.Relationship?.toLowerCase() === "self";
+												// Check if this is the Self member by Relationship
+												const rel = String(member?.Relationship ?? "").trim().toLowerCase();
+												const isSelf = rel === "self";
 												
 												// Calculate age from Date of Birth
 												const age = calculateAge(member.DOBMonth, member.DOBYear);
@@ -798,7 +799,7 @@ function FamilyDevelopmentPlanPageContent() {
 													<tr key={index} className="hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-indigo-50/50 transition-all duration-150 border-b border-gray-100">
 														<td className="px-3 py-3 whitespace-nowrap">
 															<span className="text-xs font-semibold text-[#0b4d2b] bg-[#0b4d2b]/10 px-2 py-1 rounded-md">
-																{member.MemberNo || "-"}
+																{member.BeneficiaryID || "-"}
 															</span>
 														</td>
 														<td className="px-3 py-3 whitespace-nowrap">
@@ -846,7 +847,7 @@ function FamilyDevelopmentPlanPageContent() {
 																			// Navigate to Feasibility Plan page
 																			const params = new URLSearchParams({
 																				formNumber: selectedFormNumber || "",
-																				memberNo: member.MemberNo || "",
+																				memberNo: member.BeneficiaryID || "",
 																			});
 																			if (member.FullName) {
 																				params.append("memberName", member.FullName);
@@ -866,7 +867,7 @@ function FamilyDevelopmentPlanPageContent() {
 																			// Navigate to FDP Economic page
 																			const params = new URLSearchParams({
 																				formNumber: selectedFormNumber || "",
-																				memberNo: member.MemberNo || "",
+																				memberNo: member.BeneficiaryID || "",
 																			});
 																			if (member.FullName) {
 																				params.append("memberName", member.FullName);
@@ -886,7 +887,7 @@ function FamilyDevelopmentPlanPageContent() {
 																			// Navigate to Education Support page
 																			const params = new URLSearchParams({
 																				formNumber: selectedFormNumber || "",
-																				memberNo: member.MemberNo || "",
+																				memberNo: member.BeneficiaryID || "",
 																			});
 																			if (member.FullName) {
 																				params.append("memberName", member.FullName);
@@ -904,7 +905,7 @@ function FamilyDevelopmentPlanPageContent() {
 																				// Navigate to Health Support page
 																				const params = new URLSearchParams({
 																					formNumber: selectedFormNumber || "",
-																					memberNo: member.MemberNo || "",
+																					memberNo: member.BeneficiaryID || "",
 																				});
 																				if (member.FullName) {
 																					params.append("memberName", member.FullName);
@@ -922,10 +923,10 @@ function FamilyDevelopmentPlanPageContent() {
 																				{(selectedFamilyAreaType === "Urban" || selectedFamilyAreaType === "Peri-Urban") && (
 																					<button
 																						onClick={() => {
-																							// Navigate to Housing Support page (family level, only for -01, Urban/Peri-Urban)
+																							// Navigate to Housing Support page (family level, only for Self, Urban/Peri-Urban)
 																							const params = new URLSearchParams({
 																								formNumber: selectedFormNumber || "",
-																								memberNo: member.MemberNo || "",
+																								memberNo: member.BeneficiaryID || "",
 																							});
 																							if (member.FullName) {
 																								params.append("memberName", member.FullName);
@@ -942,10 +943,10 @@ function FamilyDevelopmentPlanPageContent() {
 																				{(selectedFamilyIncomeLevel === "Level -3" || selectedFamilyIncomeLevel === "Level -4") && (
 																					<button
 																						onClick={() => {
-																							// Navigate to Food Support page (family level, only for -01, Poverty Levels -3 and -4)
+																							// Navigate to Food Support page (family level, only for Self, Poverty Levels -3 and -4)
 																							const params = new URLSearchParams({
 																								formNumber: selectedFormNumber || "",
-																								memberNo: member.MemberNo || "",
+																								memberNo: member.BeneficiaryID || "",
 																							});
 																							if (member.FullName) {
 																								params.append("memberName", member.FullName);

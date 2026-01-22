@@ -310,7 +310,6 @@ export async function GET(request: NextRequest) {
 			Dashboard: hasRouteInSection('/dashboard'),
 			PowerBI: false, // Not implemented yet
 			Family_Development_Plan: hasRouteInSection('/dashboard/family-development-plan'),
-			Family_Approval_CRC: hasRouteInSection('/dashboard/family-approval-crc'),
 			Family_Income: hasRouteInSection('/dashboard/family-income'),
 			ROP: hasRouteInSection('/dashboard/rops'),
 			Setting: hasRouteInSection('/dashboard/settings'),

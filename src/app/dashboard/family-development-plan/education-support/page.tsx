@@ -71,7 +71,7 @@ type EducationSupportFormData = {
 };
 
 type FamilyMember = {
-	MemberNo: string;
+	BeneficiaryID: string | null;
 	FullName: string;
 	Gender: string;
 	DOBMonth: string | null;
@@ -395,6 +395,7 @@ function EducationSupportContent() {
 
 					setFormData(prev => ({
 						...prev,
+						FamilyID: formNumber || prev.FamilyID, // Ensure FamilyID is set from formNumber
 						BaselineFamilyIncome: data.BaselineFamilyIncome,
 						FamilyMembersCount: data.FamilyMembersCount,
 						FamilyPerCapitaIncome: perCapitaIncome,
@@ -415,12 +416,12 @@ function EducationSupportContent() {
 					
 					// If memberNo is provided, find and set beneficiary info
 					if (memberNo) {
-						const selectedMember = members.find((m: FamilyMember) => m.MemberNo === memberNo);
+						const selectedMember = members.find((m: FamilyMember) => m.BeneficiaryID === memberNo);
 						if (selectedMember) {
 							const age = calculateAge(selectedMember.DOBMonth, selectedMember.DOBYear);
 							setFormData(prev => ({
 								...prev,
-								BeneficiaryID: selectedMember.MemberNo,
+								BeneficiaryID: selectedMember.BeneficiaryID || "",
 								BeneficiaryName: selectedMember.FullName,
 								BeneficiaryAge: age,
 								BeneficiaryGender: selectedMember.Gender || "",
@@ -446,7 +447,7 @@ function EducationSupportContent() {
 								
 								// Get beneficiary info from family members if not in existing record
 								const beneficiaryId = existing.BeneficiaryID || memberNo;
-								const selectedMember = familyMembers.find((m: FamilyMember) => m.MemberNo === beneficiaryId);
+								const selectedMember = familyMembers.find((m: FamilyMember) => m.BeneficiaryID === beneficiaryId);
 								const calculatedAge = selectedMember ? calculateAge(selectedMember.DOBMonth, selectedMember.DOBYear) : 0;
 								const memberGender = selectedMember?.Gender || "";
 								
@@ -513,12 +514,12 @@ function EducationSupportContent() {
 	};
 
 	const handleBeneficiaryChange = (memberNo: string) => {
-		const selectedMember = familyMembers.find(m => m.MemberNo === memberNo);
+		const selectedMember = familyMembers.find(m => m.BeneficiaryID === memberNo);
 		if (selectedMember) {
 			const age = calculateAge(selectedMember.DOBMonth, selectedMember.DOBYear);
 			setFormData(prev => ({
 				...prev,
-				BeneficiaryID: selectedMember.MemberNo,
+				BeneficiaryID: selectedMember.BeneficiaryID || "",
 				BeneficiaryName: selectedMember.FullName,
 				BeneficiaryAge: age,
 				BeneficiaryGender: selectedMember.Gender || "",
@@ -529,7 +530,7 @@ function EducationSupportContent() {
 	// Update Age and Gender when BeneficiaryID changes or family members are loaded
 	useEffect(() => {
 		if (formData.BeneficiaryID && familyMembers.length > 0) {
-			const selectedMember = familyMembers.find(m => m.MemberNo === formData.BeneficiaryID);
+			const selectedMember = familyMembers.find(m => m.BeneficiaryID === formData.BeneficiaryID);
 			if (selectedMember) {
 				const age = calculateAge(selectedMember.DOBMonth, selectedMember.DOBYear);
 				const gender = selectedMember.Gender || "";
@@ -551,6 +552,13 @@ function EducationSupportContent() {
 		e.preventDefault();
 		setError(null);
 		setSuccess(false);
+
+		// Validation - Check FormNumber
+		const formNumberValue = formData.FamilyID || formNumber || "";
+		if (!formNumberValue || formNumberValue.trim() === "") {
+			setError("Form Number is required. Please ensure you're accessing this page with a valid form number.");
+			return;
+		}
 
 		// Validation
 		if (!formData.BeneficiaryID || !formData.EducationInterventionType) {
@@ -629,6 +637,7 @@ function EducationSupportContent() {
 				},
 				body: JSON.stringify({
 					...formData,
+					FormNumber: formNumberValue, // Map FamilyID to FormNumber for API
 					EducationInterventionType: interventionType, // Use validated and trimmed value
 					CreatedBy: userProfile?.username || userProfile?.email || "System",
 					UpdatedBy: userProfile?.username || userProfile?.email || "System",

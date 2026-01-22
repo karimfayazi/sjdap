@@ -57,6 +57,12 @@ export async function GET(request: NextRequest) {
 
 		const membersResult = await sqlRequest.query(membersQuery);
 		const members = membersResult.recordset || [];
+		
+		// Find the Self member by Relationship
+		const selfMember = members.find((m: any) => {
+			const rel = String(m?.Relationship ?? "").trim().toLowerCase();
+			return rel === "self";
+		});
 
 		// Fetch interventions for each member
 		const interventions: Record<string, {
@@ -66,25 +72,32 @@ export async function GET(request: NextRequest) {
 			habitat: boolean;
 		}> = {};
 
+		// Fetch PE Investment Amount for each member from Economic Development
+		const peInvestmentAmounts: Record<string, number> = {};
+
 		// Get beneficiary IDs for checking interventions
 		const memberNos = members.map((m: any) => m.BeneficiaryID).filter(Boolean);
 		
-		// Check Economic Development (by BeneficiaryID)
+		// Check Economic Development (by BeneficiaryID) and get PE Investment Amount
 		let economicMemberNos = new Set<string>();
 		if (memberNos.length > 0) {
 			// Use parameterized query with table variable approach
 			const economicRequest = pool.request();
 			const memberNosParam = memberNos.map((m: string) => m.replace(/'/g, "''")).join("','");
 			const economicQuery = `
-				SELECT DISTINCT [BeneficiaryID]
+				SELECT 
+					[BeneficiaryID],
+					SUM(CAST([InvestmentFromPEProgram] AS DECIMAL(18, 2))) as TotalPEInvestment
 				FROM [SJDA_Users].[dbo].[PE_FDP_EconomicDevelopment]
 				WHERE [IsActive] = 1
 					AND [BeneficiaryID] IN ('${memberNosParam}')
+				GROUP BY [BeneficiaryID]
 			`;
 			const economicResult = await economicRequest.query(economicQuery);
-			economicMemberNos = new Set(
-				(economicResult.recordset || []).map((r: any) => r.BeneficiaryID)
-			);
+			(economicResult.recordset || []).forEach((r: any) => {
+				economicMemberNos.add(r.BeneficiaryID);
+				peInvestmentAmounts[r.BeneficiaryID] = parseFloat(r.TotalPEInvestment) || 0;
+			});
 		}
 
 		// Check Social Education (by BeneficiaryID)
@@ -104,14 +117,10 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		// Check Food Support - only for the first member ending with "-01"
-		// Find the first member that ends with "-01"
-		const firstMemberWith01 = memberNos.find((m: string) => {
-			return m && m.endsWith("-01");
-		});
-
+		// Check Food Support - only for the Self member
+		const selfMemberId = selfMember?.BeneficiaryID;
 		let foodMemberNos = new Set<string>();
-		if (firstMemberWith01) {
+		if (selfMemberId) {
 			const foodRequest = pool.request();
 			foodRequest.input("FormNo", sql.VarChar, formNumber);
 			const foodQuery = `
@@ -123,15 +132,15 @@ export async function GET(request: NextRequest) {
 			const foodResult = await foodRequest.query(foodQuery);
 			const hasFoodSupport = (foodResult.recordset || []).length > 0;
 			
-			// Only add the first member ending with "-01" if food support exists
+			// Only add the Self member if food support exists
 			if (hasFoodSupport) {
-				foodMemberNos.add(firstMemberWith01);
+				foodMemberNos.add(selfMemberId);
 			}
 		}
 
-		// Check Habitat Support - only for the first member ending with "-01"
+		// Check Habitat Support - only for the Self member
 		let habitatMemberNos = new Set<string>();
-		if (firstMemberWith01) {
+		if (selfMemberId) {
 			const habitatRequest = pool.request();
 			habitatRequest.input("FormNo", sql.VarChar, formNumber);
 			const habitatQuery = `
@@ -143,9 +152,9 @@ export async function GET(request: NextRequest) {
 			const habitatResult = await habitatRequest.query(habitatQuery);
 			const hasHabitatSupport = (habitatResult.recordset || []).length > 0;
 			
-			// Only add the first member ending with "-01" if habitat support exists
+			// Only add the Self member if habitat support exists
 			if (hasHabitatSupport) {
-				habitatMemberNos.add(firstMemberWith01);
+				habitatMemberNos.add(selfMemberId);
 			}
 		}
 
@@ -161,9 +170,15 @@ export async function GET(request: NextRequest) {
 			};
 		});
 
+		// Add PE Investment Amount to each member
+		const membersWithPEInvestment = members.map((member: any) => ({
+			...member,
+			PEInvestmentAmount: peInvestmentAmounts[member.BeneficiaryID] || 0,
+		}));
+
 		return NextResponse.json({
 			success: true,
-			members,
+			members: membersWithPEInvestment,
 			interventions,
 		});
 	} catch (error) {

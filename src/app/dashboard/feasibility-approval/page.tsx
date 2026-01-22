@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, XCircle, Clock, AlertCircle, Download, Eye, FileText } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, AlertCircle, Download, Eye, FileText, Users, FileCheck } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 type FeasibilityApprovalData = {
 	FDP_ID: number;
@@ -53,6 +54,95 @@ type FeasibilityApprovalData = {
 	CNICNumber: string | null;
 	RegionalCommunity: string | null;
 	LocalCommunity: string | null;
+};
+
+// TypeScript types for grouped data
+type FamilySummary = {
+	formNumber: string;
+	fullName: string;
+	cnicNumber: string;
+	regionalCommunity: string;
+	localCommunity: string;
+};
+
+type FeasibilityRecord = {
+	fdpId: number;
+	submittedAt: string | null;
+	submittedBy: string;
+	approvalStatus: string | null;
+	totalCost: number;
+	familyContribution: number;
+	peContribution: number;
+	remarks: string | null;
+	// Include all original fields for detail view
+	[key: string]: any;
+};
+
+type GroupedFamilyFeasibility = {
+	family: FamilySummary;
+	feasibilityRecords: FeasibilityRecord[];
+};
+
+// Helper function to normalize user type
+const normalizeUserType = (v?: string | null): string => {
+	return (v || "").toString().trim().toUpperCase();
+};
+
+// Helper function to group records by FormNumber (client-side fallback)
+const groupRecordsByFormNumber = (records: FeasibilityApprovalData[]): GroupedFamilyFeasibility[] => {
+	const grouped: Record<string, GroupedFamilyFeasibility> = {};
+
+	records.forEach((record) => {
+		const formNumber = (record.FormNumber || "").trim();
+		if (!formNumber) return;
+
+		if (!grouped[formNumber]) {
+			grouped[formNumber] = {
+				family: {
+					formNumber: formNumber,
+					fullName: record.ApplicationFullName || "N/A",
+					cnicNumber: record.CNICNumber || "N/A",
+					regionalCommunity: record.RegionalCommunity || "N/A",
+					localCommunity: record.LocalCommunity || "N/A",
+				},
+				feasibilityRecords: [],
+			};
+		}
+
+		const totalCost = record.TotalInvestmentRequired != null ? Number(record.TotalInvestmentRequired) : 0;
+		const peContribution = record.InvestmentFromPEProgram != null ? Number(record.InvestmentFromPEProgram) : 0;
+		const familyContribution = totalCost - peContribution;
+
+		// Calculate PE-Support based on PlanCategory
+		const planCategory = (record.PlanCategory || "").trim().toUpperCase();
+		let peSupport = 0;
+		if (planCategory === "ECONOMIC") {
+			peSupport = peContribution;
+		} else if (planCategory === "SKILLS") {
+			peSupport = record.CostPerParticipant != null ? Number(record.CostPerParticipant) : 0;
+		}
+
+		grouped[formNumber].feasibilityRecords.push({
+			fdpId: record.FDP_ID,
+			formNumber: record.FormNumber || null,
+			memberId: record.MemberID || null,
+			memberName: record.MemberName || null,
+			planCategory: record.PlanCategory || null,
+			feasibilityType: record.FeasibilityType || null,
+			peSupport: peSupport,
+			approvalStatus: record.ApprovalStatus || null,
+			createdBy: record.CreatedBy || "N/A",
+			submittedAt: record.SystemDate || null,
+			submittedBy: record.CreatedBy || "N/A",
+			totalCost: totalCost,
+			familyContribution: familyContribution,
+			peContribution: peContribution,
+			remarks: record.ApprovalRemarks || null,
+			...record,
+		});
+	});
+
+	return Object.values(grouped);
 };
 
 const getStatusStyle = (rawStatus: string | null | undefined) => {
@@ -106,19 +196,25 @@ const getStatusStyle = (rawStatus: string | null | undefined) => {
 
 export default function FeasibilityApprovalPage() {
 	const router = useRouter();
+	const { userProfile } = useAuth();
 	const [records, setRecords] = useState<FeasibilityApprovalData[]>([]);
+	const [groupedFamilies, setGroupedFamilies] = useState<GroupedFamilyFeasibility[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 
 	// Filters
-	const [familyIdFilter, setFamilyIdFilter] = useState("");
+	const [formNumberFilter, setFormNumberFilter] = useState("");
+	const [fullNameFilter, setFullNameFilter] = useState("");
+	const [cnicFilter, setCnicFilter] = useState("");
 	const [memberNameFilter, setMemberNameFilter] = useState("");
 	const [planCategoryFilter, setPlanCategoryFilter] = useState("");
 	const [feasibilityTypeFilter, setFeasibilityTypeFilter] = useState("");
 	const [approvalStatusFilter, setApprovalStatusFilter] = useState("");
 
 	// Applied filters
-	const [appliedFamilyIdFilter, setAppliedFamilyIdFilter] = useState("");
+	const [appliedFormNumberFilter, setAppliedFormNumberFilter] = useState("");
+	const [appliedFullNameFilter, setAppliedFullNameFilter] = useState("");
+	const [appliedCnicFilter, setAppliedCnicFilter] = useState("");
 	const [appliedMemberNameFilter, setAppliedMemberNameFilter] = useState("");
 	const [appliedPlanCategoryFilter, setAppliedPlanCategoryFilter] = useState("");
 	const [appliedFeasibilityTypeFilter, setAppliedFeasibilityTypeFilter] = useState("");
@@ -138,6 +234,55 @@ export default function FeasibilityApprovalPage() {
 	const [approvalLogs, setApprovalLogs] = useState<any[]>([]);
 	const [loadingLogs, setLoadingLogs] = useState(false);
 	const [logError, setLogError] = useState<string | null>(null);
+	
+	// Overall stats from database
+	const [overallStats, setOverallStats] = useState({
+		families: 0,
+		feasibility: 0,
+		pending: 0,
+		approved: 0,
+		rejected: 0,
+	});
+	const [statsLoading, setStatsLoading] = useState(true);
+	const [statsError, setStatsError] = useState<string | null>(null);
+
+	// Fetch overall stats
+	useEffect(() => {
+		const fetchStats = async () => {
+			try {
+				setStatsLoading(true);
+				setStatsError(null);
+				const response = await fetch("/api/feasibility-stats");
+				const result = await response.json();
+				
+				if (result.success) {
+					setOverallStats({
+						families: result.families || 0,
+						feasibility: result.feasibility || 0,
+						pending: result.pending || 0,
+						approved: result.approved || 0,
+						rejected: result.rejected || 0,
+					});
+				} else {
+					setOverallStats({
+						families: result.families || 0,
+						feasibility: result.feasibility || 0,
+						pending: result.pending || 0,
+						approved: result.approved || 0,
+						rejected: result.rejected || 0,
+					});
+					setStatsError(result.message || "Unable to load stats");
+				}
+			} catch (err) {
+				console.error("Error fetching feasibility stats:", err);
+				setStatsError("Unable to load stats");
+			} finally {
+				setStatsLoading(false);
+			}
+		};
+
+		fetchStats();
+	}, []);
 
 	useEffect(() => {
 		const abortController = new AbortController();
@@ -231,6 +376,14 @@ export default function FeasibilityApprovalPage() {
 
 				if (parsedBody?.success) {
 					setRecords(parsedBody.records || []);
+					// Use grouped data if available, otherwise fall back to grouping on client
+					if (parsedBody.groupedFamilies && Array.isArray(parsedBody.groupedFamilies)) {
+						setGroupedFamilies(parsedBody.groupedFamilies);
+					} else {
+						// Fallback: group on client side
+						const grouped = groupRecordsByFormNumber(parsedBody.records || []);
+						setGroupedFamilies(grouped);
+					}
 				} else {
 					setError(parsedBody?.message || "Failed to load feasibility approval data");
 				}
@@ -254,82 +407,94 @@ export default function FeasibilityApprovalPage() {
 		};
 	}, []);
 
+	// Get unique values for dropdowns from all records
+	const allFeasibilityRecords = groupedFamilies.flatMap(f => f.feasibilityRecords);
 	const uniquePlanCategories = Array.from(
-		new Set(records.map((r) => r.PlanCategory).filter(Boolean))
+		new Set(allFeasibilityRecords.map((r) => r.PlanCategory).filter(Boolean))
 	) as string[];
 	const uniqueFeasibilityTypes = Array.from(
-		new Set(records.map((r) => r.FeasibilityType).filter(Boolean))
+		new Set(allFeasibilityRecords.map((r) => r.FeasibilityType).filter(Boolean))
 	) as string[];
 	const uniqueApprovalStatuses = Array.from(
-		new Set(records.map((r) => r.ApprovalStatus).filter(Boolean))
+		new Set(allFeasibilityRecords.map((r) => r.approvalStatus).filter(Boolean))
 	) as string[];
 
-	const filteredRecords = records.filter((row) => {
-		const matchesFamilyId =
-			!appliedFamilyIdFilter ||
-			(row.FamilyID || "").toLowerCase().includes(appliedFamilyIdFilter.toLowerCase());
-		const matchesMemberName =
-			!appliedMemberNameFilter ||
-			(row.MemberName || "").toLowerCase().includes(appliedMemberNameFilter.toLowerCase());
-		const matchesPlanCategory =
-			!appliedPlanCategoryFilter ||
-			(row.PlanCategory || "").toLowerCase() === appliedPlanCategoryFilter.toLowerCase();
-		const matchesFeasibilityType =
-			!appliedFeasibilityTypeFilter ||
-			(row.FeasibilityType || "").toLowerCase() === appliedFeasibilityTypeFilter.toLowerCase();
-		const matchesApprovalStatus =
-			!appliedApprovalStatusFilter ||
-			(row.ApprovalStatus || "").toLowerCase() === appliedApprovalStatusFilter.toLowerCase();
+	// Filter groupedFamilies based on applied filters
+	const filteredGroupedFamilies = groupedFamilies
+		.map((groupedFamily) => {
+			// Filter family level
+			const matchesFormNumber =
+				!appliedFormNumberFilter ||
+				(groupedFamily.family.formNumber || "")
+					.toLowerCase()
+					.includes(appliedFormNumberFilter.toLowerCase());
+			const matchesFullName =
+				!appliedFullNameFilter ||
+				(groupedFamily.family.fullName || "")
+					.toLowerCase()
+					.includes(appliedFullNameFilter.toLowerCase());
+			const matchesCnic =
+				!appliedCnicFilter ||
+				(groupedFamily.family.cnicNumber || "")
+					.toLowerCase()
+					.includes(appliedCnicFilter.toLowerCase());
 
-		return (
-			matchesFamilyId &&
-			matchesMemberName &&
-			matchesPlanCategory &&
-			matchesFeasibilityType &&
-			matchesApprovalStatus
-		);
-	});
+			// Filter feasibility records within this family
+			const filteredFeasibilityRecords = groupedFamily.feasibilityRecords.filter((record) => {
+				const matchesMemberName =
+					!appliedMemberNameFilter ||
+					(record.MemberName || "")
+						.toLowerCase()
+						.includes(appliedMemberNameFilter.toLowerCase());
+				const matchesPlanCategory =
+					!appliedPlanCategoryFilter ||
+					(record.PlanCategory || "")
+						.toLowerCase()
+						=== appliedPlanCategoryFilter.toLowerCase();
+				const matchesFeasibilityType =
+					!appliedFeasibilityTypeFilter ||
+					(record.FeasibilityType || "")
+						.toLowerCase()
+						=== appliedFeasibilityTypeFilter.toLowerCase();
+				const matchesApprovalStatus =
+					!appliedApprovalStatusFilter ||
+					(record.approvalStatus || "")
+						.toLowerCase()
+						=== appliedApprovalStatusFilter.toLowerCase();
 
-	// Group records by FamilyID
-	const groupedByFamily = filteredRecords.reduce((acc, record) => {
-		const familyId = record.FamilyID || "Unknown";
-		if (!acc[familyId]) {
-			acc[familyId] = {
-				familyId: familyId,
-				formNumber: record.FormNumber || familyId,
-				applicationFullName: record.ApplicationFullName || "N/A",
-				cnicNumber: record.CNICNumber || "N/A",
-				regionalCommunity: record.RegionalCommunity || "N/A",
-				localCommunity: record.LocalCommunity || "N/A",
-				records: [],
-			};
-		}
-		acc[familyId].records.push(record);
-		return acc;
-	}, {} as Record<string, {
-		familyId: string;
-		formNumber: string;
-		applicationFullName: string;
-		cnicNumber: string;
-		regionalCommunity: string;
-		localCommunity: string;
-		records: FeasibilityApprovalData[];
-	}>);
+				return (
+					matchesMemberName &&
+					matchesPlanCategory &&
+					matchesFeasibilityType &&
+					matchesApprovalStatus
+				);
+			});
 
-	const familyGroups = Object.values(groupedByFamily);
+			// Only include family if it matches family filters AND has at least one matching feasibility record
+			if (matchesFormNumber && matchesFullName && matchesCnic && filteredFeasibilityRecords.length > 0) {
+				return {
+					...groupedFamily,
+					feasibilityRecords: filteredFeasibilityRecords,
+				};
+			}
 
-	// Stats
-	const totalPlans = records.length;
-	const totalApproved = records.filter((row) => {
-		const s = (row.ApprovalStatus || "").toString().trim().toLowerCase();
+			return null;
+		})
+		.filter((f): f is GroupedFamilyFeasibility => f !== null);
+
+	// Stats - calculate from filtered grouped families
+	const filteredFeasibilityRecords = filteredGroupedFamilies.flatMap(f => f.feasibilityRecords);
+	const totalPlans = filteredFeasibilityRecords.length;
+	const totalApproved = filteredFeasibilityRecords.filter((record) => {
+		const s = (record.approvalStatus || "").toString().trim().toLowerCase();
 		return s.includes("approve") || s === "approved" || s === "complete";
 	}).length;
-	const totalPending = records.filter((row) => {
-		const s = (row.ApprovalStatus || "").toString().trim().toLowerCase();
+	const totalPending = filteredFeasibilityRecords.filter((record) => {
+		const s = (record.approvalStatus || "").toString().trim().toLowerCase();
 		return !s || s === "pending" || s.includes("pending");
 	}).length;
-	const totalRejected = records.filter((row) => {
-		const s = (row.ApprovalStatus || "").toString().trim().toLowerCase();
+	const totalRejected = filteredFeasibilityRecords.filter((record) => {
+		const s = (record.approvalStatus || "").toString().trim().toLowerCase();
 		return s.includes("reject") || s.includes("rejected");
 	}).length;
 
@@ -337,59 +502,63 @@ export default function FeasibilityApprovalPage() {
 		try {
 			const headers = [
 				"FDP_ID",
-				"FamilyID",
+				"FormNumber",
+				"FullName",
+				"CNICNumber",
+				"RegionalCommunity",
+				"LocalCommunity",
 				"MemberID",
 				"MemberName",
 				"PlanCategory",
 				"FeasibilityType",
-				"TotalInvestmentRequired",
-				"InvestmentFromPEProgram",
+				"TotalCost",
+				"FamilyContribution",
+				"PEContribution",
 				"ApprovalStatus",
-				"ApprovalRemarks",
-				"FormNumber",
-				"ApplicationFullName",
-				"CNICNumber",
-				"RegionalCommunity",
-				"LocalCommunity",
+				"Remarks",
+				"SubmittedAt",
+				"SubmittedBy",
 			];
 
 			const csvRows: string[] = [];
 			csvRows.push(headers.join(","));
 
-			filteredRecords.forEach((row) => {
-				const dataRow = [
-					row.FDP_ID?.toString() || "N/A",
-					row.FamilyID || "N/A",
-					row.MemberID || "N/A",
-					row.MemberName || "N/A",
-					row.PlanCategory || "N/A",
-					row.FeasibilityType || "N/A",
-					row.TotalInvestmentRequired != null
-						? row.TotalInvestmentRequired.toString()
-						: "N/A",
-					row.InvestmentFromPEProgram != null
-						? row.InvestmentFromPEProgram.toString()
-						: "N/A",
-					row.ApprovalStatus || "N/A",
-					row.ApprovalRemarks || "N/A",
-					row.FormNumber || "N/A",
-					row.ApplicationFullName || "N/A",
-					row.CNICNumber || "N/A",
-					row.RegionalCommunity || "N/A",
-					row.LocalCommunity || "N/A",
-				];
+			filteredGroupedFamilies.forEach((groupedFamily) => {
+				groupedFamily.feasibilityRecords.forEach((record) => {
+					const dataRow = [
+						record.fdpId?.toString() || "N/A",
+						groupedFamily.family.formNumber || "N/A",
+						groupedFamily.family.fullName || "N/A",
+						groupedFamily.family.cnicNumber || "N/A",
+						groupedFamily.family.regionalCommunity || "N/A",
+						groupedFamily.family.localCommunity || "N/A",
+						record.MemberID || "N/A",
+						record.MemberName || "N/A",
+						record.PlanCategory || "N/A",
+						record.FeasibilityType || "N/A",
+						record.totalCost > 0 ? record.totalCost.toString() : "N/A",
+						record.familyContribution > 0 ? record.familyContribution.toString() : "N/A",
+						record.peContribution > 0 ? record.peContribution.toString() : "N/A",
+						record.approvalStatus || "N/A",
+						record.remarks || "N/A",
+						record.submittedAt
+							? new Date(record.submittedAt).toLocaleDateString("en-US")
+							: "N/A",
+						record.submittedBy || "N/A",
+					];
 
-				const escaped = dataRow
-					.map((cell) => {
-						const str = String(cell);
-						if (str.includes(",") || str.includes('"') || str.includes("\n")) {
-							return `"${str.replace(/"/g, '""')}"`;
-						}
-						return str;
-					})
-					.join(",");
+					const escaped = dataRow
+						.map((cell) => {
+							const str = String(cell);
+							if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+								return `"${str.replace(/"/g, '""')}"`;
+							}
+							return str;
+						})
+						.join(",");
 
-				csvRows.push(escaped);
+					csvRows.push(escaped);
+				});
 			});
 
 			const csvContent = csvRows.join("\n");
@@ -413,13 +582,17 @@ export default function FeasibilityApprovalPage() {
 	};
 
 	const handleResetFilters = () => {
-		setFamilyIdFilter("");
+		setFormNumberFilter("");
+		setFullNameFilter("");
+		setCnicFilter("");
 		setMemberNameFilter("");
 		setPlanCategoryFilter("");
 		setFeasibilityTypeFilter("");
 		setApprovalStatusFilter("");
 
-		setAppliedFamilyIdFilter("");
+		setAppliedFormNumberFilter("");
+		setAppliedFullNameFilter("");
+		setAppliedCnicFilter("");
 		setAppliedMemberNameFilter("");
 		setAppliedPlanCategoryFilter("");
 		setAppliedFeasibilityTypeFilter("");
@@ -580,12 +753,12 @@ export default function FeasibilityApprovalPage() {
 					</div>
 					<div className="flex items-center gap-3">
 						<span className="text-sm text-gray-500">
-							{records.length > 0 ? `Records: ${records.length}` : ""}
+							{filteredFeasibilityRecords.length > 0 ? `Records: ${filteredFeasibilityRecords.length}` : ""}
 						</span>
 						<button
 							type="button"
 							onClick={exportToCsv}
-							disabled={filteredRecords.length === 0}
+							disabled={filteredGroupedFamilies.length === 0}
 							className="inline-flex items-center gap-1 rounded-md bg-[#0b4d2b] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#0a3d22] disabled:opacity-60"
 						>
 							<Download className="h-3.5 w-3.5" />
@@ -611,35 +784,81 @@ export default function FeasibilityApprovalPage() {
 
 				{!loading && !error && (
 					<>
-						{/* Summary Cards */}
-						<div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-							<div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-								<p className="text-xs font-medium text-gray-600">Total Feasibilities</p>
-								<p className="mt-1 text-2xl font-bold text-gray-900">{totalPlans}</p>
+						{/* Overall Stats Cards */}
+						<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+							<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+								<div className="flex items-center justify-between">
+									<div>
+										<p className="text-sm text-gray-600 mb-1"># of Families</p>
+										<p className="text-2xl font-bold text-gray-900">{overallStats.families}</p>
+									</div>
+									<Users className="h-5 w-5 text-gray-400" />
+								</div>
 							</div>
-							<div className="rounded-lg border border-amber-200 bg-amber-50 p-4 shadow-sm">
-								<p className="text-xs font-medium text-amber-700">Pending</p>
-								<p className="mt-1 text-2xl font-bold text-amber-900">{totalPending}</p>
+							<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+								<div className="flex items-center justify-between">
+									<div>
+										<p className="text-sm text-gray-600 mb-1"># of Feasibility</p>
+										<p className="text-2xl font-bold text-gray-900">{overallStats.feasibility}</p>
+									</div>
+									<FileCheck className="h-5 w-5 text-gray-400" />
+								</div>
 							</div>
-							<div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
-								<p className="text-xs font-medium text-emerald-700">Approval</p>
-								<p className="mt-1 text-2xl font-bold text-emerald-900">{totalApproved}</p>
+							<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+								<div className="flex items-center justify-between">
+									<div>
+										<p className="text-sm text-gray-600 mb-1"># of Pending Feasibility</p>
+										<p className="text-2xl font-bold text-gray-900">{overallStats.pending}</p>
+									</div>
+									<Clock className="h-5 w-5 text-amber-500" />
+								</div>
 							</div>
-							<div className="rounded-lg border border-red-200 bg-red-50 p-4 shadow-sm">
-								<p className="text-xs font-medium text-red-700">Rejected</p>
-								<p className="mt-1 text-2xl font-bold text-red-900">{totalRejected}</p>
+							<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+								<div className="flex items-center justify-between">
+									<div>
+										<p className="text-sm text-gray-600 mb-1"># of Approved Feasibility</p>
+										<p className="text-2xl font-bold text-gray-900">{overallStats.approved}</p>
+									</div>
+									<CheckCircle2 className="h-5 w-5 text-green-500" />
+								</div>
+							</div>
+							<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+								<div className="flex items-center justify-between">
+									<div>
+										<p className="text-sm text-gray-600 mb-1"># of Rejected Feasibility</p>
+										<p className="text-2xl font-bold text-gray-900">{overallStats.rejected}</p>
+									</div>
+									<XCircle className="h-5 w-5 text-red-500" />
+								</div>
 							</div>
 						</div>
+						{statsError && (
+							<div className="text-xs text-gray-500 text-center">{statsError}</div>
+						)}
 
 						<div className="mt-4 bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
 							{/* Filters */}
 							<div className="border-b border-gray-200 bg-gray-50 px-4 py-3">
-								<div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+								<div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-3">
 									<input
 										type="text"
-										placeholder="Family ID"
-										value={familyIdFilter}
-										onChange={(e) => setFamilyIdFilter(e.target.value)}
+										placeholder="Form Number"
+										value={formNumberFilter}
+										onChange={(e) => setFormNumberFilter(e.target.value)}
+										className="rounded-md border border-gray-300 px-3 py-2 text-xs focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+									/>
+									<input
+										type="text"
+										placeholder="Full Name"
+										value={fullNameFilter}
+										onChange={(e) => setFullNameFilter(e.target.value)}
+										className="rounded-md border border-gray-300 px-3 py-2 text-xs focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+									/>
+									<input
+										type="text"
+										placeholder="CNIC Number"
+										value={cnicFilter}
+										onChange={(e) => setCnicFilter(e.target.value)}
 										className="rounded-md border border-gray-300 px-3 py-2 text-xs focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
 									/>
 									<input
@@ -690,7 +909,9 @@ export default function FeasibilityApprovalPage() {
 									<button
 										type="button"
 										onClick={() => {
-											setAppliedFamilyIdFilter(familyIdFilter);
+											setAppliedFormNumberFilter(formNumberFilter);
+											setAppliedFullNameFilter(fullNameFilter);
+											setAppliedCnicFilter(cnicFilter);
 											setAppliedMemberNameFilter(memberNameFilter);
 											setAppliedPlanCategoryFilter(planCategoryFilter);
 											setAppliedFeasibilityTypeFilter(feasibilityTypeFilter);
@@ -711,137 +932,225 @@ export default function FeasibilityApprovalPage() {
 							</div>
 
 							<div className="overflow-x-auto max-h-[600px]">
-								{familyGroups.length === 0 ? (
+								{filteredGroupedFamilies.length === 0 ? (
 									<div className="p-6 text-center text-gray-500">
 										No feasibility records found.
 									</div>
 								) : (
 									<div className="space-y-6">
-										{familyGroups.map((familyGroup) => (
-											<div key={familyGroup.familyId} className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+										{filteredGroupedFamilies.map((groupedFamily) => (
+											<div key={groupedFamily.family.formNumber} className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
 												{/* Family Information Header */}
-												<div className="bg-[#0b4d2b] px-6 py-4">
-													<div className="flex items-center justify-between">
-														<div className="flex-1">
-															<h3 className="text-lg font-semibold text-white mb-2">
-																Family ID: {familyGroup.familyId}
-															</h3>
-															<div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-white/90">
-																<div>
-																	<span className="font-medium">Form Number:</span> {familyGroup.formNumber}
-																</div>
-																<div>
-																	<span className="font-medium">Name:</span> {familyGroup.applicationFullName}
-																</div>
-																<div>
-																	<span className="font-medium">CNIC:</span> {familyGroup.cnicNumber}
-																</div>
-																<div>
-																	<span className="font-medium">Regional:</span> {familyGroup.regionalCommunity}
-																</div>
-																<div>
-																	<span className="font-medium">Local:</span> {familyGroup.localCommunity}
-																</div>
-																<div>
-																	<span className="font-medium">Feasibility Records:</span> {familyGroup.records.length}
-																</div>
-															</div>
+												<div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
+													<div className="flex items-center justify-between mb-4">
+														<div>
+															<h2 className="text-xl font-bold text-gray-900 mb-1">Family Information</h2>
+															<p className="text-sm font-semibold text-gray-700">
+																<span className="text-gray-500">Household Head Name:</span>{" "}
+																{groupedFamily.family.formNumber || "N/A"} - {groupedFamily.family.fullName || "N/A"}
+															</p>
 														</div>
-														<div className="ml-4">
-															<button
-																type="button"
-																onClick={() => router.push(`/dashboard/approval-section/family-development-plan-approval?formNumber=${encodeURIComponent(familyGroup.familyId)}`)}
-																className="inline-flex items-center gap-2 px-4 py-2 bg-white text-[#0b4d2b] rounded-md hover:bg-gray-100 transition-colors font-medium"
-															>
-																<Eye className="h-4 w-4" />
-																View FDP Approval
-															</button>
+														{(() => {
+															const userType = normalizeUserType(userProfile?.access_level);
+															// Hide button for EDO user type
+															if (userType === "EDO") {
+																return null;
+															}
+															return (
+																<button
+																	type="button"
+																	onClick={() => router.push(`/dashboard/approval-section/family-development-plan-approval?formNumber=${encodeURIComponent(groupedFamily.family.formNumber)}`)}
+																	className="inline-flex items-center gap-2 px-4 py-2 bg-[#0b4d2b] text-white rounded-md hover:bg-[#0a3d22] transition-colors font-medium"
+																>
+																	<Eye className="h-4 w-4" />
+																	View FDP Approval
+																</button>
+															);
+														})()}
+													</div>
+													<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+														<div className="bg-white rounded-md border border-gray-200 p-3">
+															<p className="text-xs font-medium text-gray-500 mb-1">CNIC Number</p>
+															<p className="text-sm font-semibold text-gray-900">{groupedFamily.family.cnicNumber || "N/A"}</p>
+														</div>
+														<div className="bg-white rounded-md border border-gray-200 p-3">
+															<p className="text-xs font-medium text-gray-500 mb-1">Regional Community</p>
+															<p className="text-sm font-semibold text-gray-900">{groupedFamily.family.regionalCommunity || "N/A"}</p>
+														</div>
+														<div className="bg-white rounded-md border border-gray-200 p-3">
+															<p className="text-xs font-medium text-gray-500 mb-1">Local Community</p>
+															<p className="text-sm font-semibold text-gray-900">{groupedFamily.family.localCommunity || "N/A"}</p>
+														</div>
+														<div className="bg-white rounded-md border border-gray-200 p-3">
+															<p className="text-xs font-medium text-gray-500 mb-1">Total Feasibility Plans</p>
+															<p className="text-sm font-semibold text-gray-900">{groupedFamily.feasibilityRecords.length}</p>
 														</div>
 													</div>
 												</div>
 
-												{/* Member Feasibility Records */}
-												<div className="overflow-x-auto">
-													<table className="min-w-full divide-y divide-gray-200 text-sm">
-														<thead className="bg-gray-50">
-															<tr>
-																<th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
-																	FDP ID
-																</th>
-																<th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
-																	Member Name
-																</th>
-																<th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
-																	Plan Category
-																</th>
-																<th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
-																	Feasibility Type
-																</th>
-																<th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
-																	Total Investment
-																</th>
-																<th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
-																	Investment from PE
-																</th>
-																<th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
-																	Status
-																</th>
-																<th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
-																	Actions
-																</th>
-															</tr>
-														</thead>
-														<tbody className="bg-white divide-y divide-gray-200">
-															{familyGroup.records.map((row, idx) => {
-																const statusStyle = getStatusStyle(row.ApprovalStatus);
-																const StatusIcon = statusStyle.icon;
-																return (
-																	<tr key={row.FDP_ID || idx} className="hover:bg-gray-50">
-																		<td className="px-3 py-2 whitespace-nowrap text-gray-900">
-																			{row.FDP_ID || "N/A"}
-																		</td>
-																		<td className="px-3 py-2 whitespace-nowrap text-gray-900">
-																			{row.MemberName || "N/A"}
-																		</td>
-																		<td className="px-3 py-2 whitespace-nowrap text-gray-900">
-																			{row.PlanCategory || "N/A"}
-																		</td>
-																		<td className="px-3 py-2 whitespace-nowrap text-gray-900">
-																			{row.FeasibilityType || "N/A"}
-																		</td>
-																		<td className="px-3 py-2 whitespace-nowrap text-gray-900">
-																			{row.TotalInvestmentRequired != null
-																				? row.TotalInvestmentRequired.toLocaleString()
-																				: "N/A"}
-																		</td>
-																		<td className="px-3 py-2 whitespace-nowrap text-gray-900">
-																			{row.InvestmentFromPEProgram != null
-																				? row.InvestmentFromPEProgram.toLocaleString()
-																				: "N/A"}
-																		</td>
-																		<td className="px-3 py-2 whitespace-nowrap">
-																			<span
-																				className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${statusStyle.className}`}
-																			>
-																				<StatusIcon className="h-3 w-3" />
-																				{statusStyle.label}
-																			</span>
-																		</td>
-																		<td className="px-3 py-2 whitespace-nowrap">
-																			<button
-																				type="button"
-																				onClick={() => handleViewRow(row)}
-																				className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100"
-																			>
-																				<Eye className="h-3 w-3" />
-																				View
-																			</button>
+												{/* Feasibility Plans GridView */}
+												<div className="px-6 py-4">
+													<h3 className="text-lg font-semibold text-gray-900 mb-4">Feasibility Plans</h3>
+													<div className="overflow-x-auto">
+														<table className="min-w-full divide-y divide-gray-200 text-sm">
+															<thead className="bg-gray-50">
+																<tr>
+																	<th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
+																		FDP ID
+																	</th>
+																	<th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
+																		Form Number
+																	</th>
+																	<th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
+																		Member ID
+																	</th>
+																	<th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
+																		Member Name
+																	</th>
+																	<th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
+																		Plan Category
+																	</th>
+																	<th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
+																		Feasibility Type
+																	</th>
+																	<th className="px-3 py-2 text-right font-medium text-gray-500 uppercase tracking-wider">
+																		PE-Support
+																	</th>
+																	<th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
+																		Approval Status
+																	</th>
+																	<th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
+																		Created By
+																	</th>
+																	<th className="px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
+																		Actions
+																	</th>
+																</tr>
+															</thead>
+															<tbody className="bg-white divide-y divide-gray-200">
+																{groupedFamily.feasibilityRecords.length === 0 ? (
+																	<tr>
+																		<td colSpan={10} className="px-3 py-4 text-center text-gray-500">
+																			No feasibility records found for this family.
 																		</td>
 																	</tr>
-																);
-															})}
-														</tbody>
-													</table>
+																) : (
+																	groupedFamily.feasibilityRecords.map((record, idx) => {
+																		const statusStyle = getStatusStyle(record.approvalStatus);
+																		const StatusIcon = statusStyle.icon;
+																		
+																		// Calculate PE-Support based on PlanCategory
+																		const planCategory = (record.planCategory || record.PlanCategory || "").trim().toUpperCase();
+																		let peSupport = 0;
+																		if (planCategory === "ECONOMIC") {
+																			peSupport = record.peContribution || record.InvestmentFromPEProgram || 0;
+																		} else if (planCategory === "SKILLS") {
+																			peSupport = record.peSupport || record.CostPerParticipant || 0;
+																		} else {
+																			// Fallback to peSupport if available
+																			peSupport = record.peSupport || 0;
+																		}
+
+																		// Convert record back to FeasibilityApprovalData format for handleViewRow
+																		const rowData: FeasibilityApprovalData = {
+																			FDP_ID: record.fdpId || record.FDP_ID,
+																			FamilyID: null,
+																			MemberID: record.memberId || record.MemberID || null,
+																			MemberName: record.memberName || record.MemberName || null,
+																			PlanCategory: record.planCategory || record.PlanCategory || null,
+																			CurrentBaselineIncome: record.CurrentBaselineIncome || null,
+																			FeasibilityType: record.feasibilityType || record.FeasibilityType || null,
+																			InvestmentRationale: record.InvestmentRationale || null,
+																			MarketBusinessAnalysis: record.MarketBusinessAnalysis || null,
+																			TotalSalesRevenue: record.TotalSalesRevenue || null,
+																			TotalDirectCosts: record.TotalDirectCosts || null,
+																			DirectCostPercentage: null,
+																			TotalIndirectCosts: record.TotalIndirectCosts || null,
+																			TotalCosts: null,
+																			MonthlyProfitLoss: null,
+																			NetProfitLoss: record.NetProfitLoss || null,
+																			TotalInvestmentRequired: record.totalCost || record.TotalInvestmentRequired || null,
+																			InvestmentFromPEProgram: record.peContribution || record.InvestmentFromPEProgram || null,
+																			SubField: record.SubField || null,
+																			Trade: record.Trade || null,
+																			TrainingInstitution: record.TrainingInstitution || null,
+																			InstitutionType: record.InstitutionType || null,
+																			InstitutionCertifiedBy: record.InstitutionCertifiedBy || null,
+																			CourseTitle: record.CourseTitle || null,
+																			CourseDeliveryType: record.CourseDeliveryType || null,
+																			HoursOfInstruction: record.HoursOfInstruction || null,
+																			DurationWeeks: record.DurationWeeks || null,
+																			StartDate: record.StartDate || null,
+																			EndDate: record.EndDate || null,
+																			CostPerParticipant: record.CostPerParticipant || null,
+																			ExpectedStartingSalary: record.ExpectedStartingSalary || null,
+																			FeasibilityPdfPath: record.FeasibilityPdfPath || null,
+																			ApprovalStatus: record.approvalStatus || record.ApprovalStatus || null,
+																			ApprovalRemarks: record.remarks || record.ApprovalRemarks || null,
+																			SystemDate: record.submittedAt || record.SystemDate || null,
+																			CreatedBy: record.createdBy || record.submittedBy || record.CreatedBy || null,
+																			MemberNo: null,
+																			MemberFormNo: record.MemberFormNo || null,
+																			MemberFullName: record.MemberFullName || null,
+																			MemberBFormOrCNIC: record.MemberBFormOrCNIC || null,
+																			MemberGender: record.MemberGender || null,
+																			FormNumber: record.formNumber || record.FormNumber || groupedFamily.family.formNumber,
+																			ApplicationFullName: groupedFamily.family.fullName,
+																			CNICNumber: groupedFamily.family.cnicNumber,
+																			RegionalCommunity: groupedFamily.family.regionalCommunity,
+																			LocalCommunity: groupedFamily.family.localCommunity,
+																		};
+																		return (
+																			<tr key={record.fdpId || record.FDP_ID || idx} className="hover:bg-gray-50">
+																				<td className="px-3 py-2 whitespace-nowrap text-gray-900">
+																					{record.fdpId || record.FDP_ID || "N/A"}
+																				</td>
+																				<td className="px-3 py-2 whitespace-nowrap text-gray-900">
+																					{record.formNumber || record.FormNumber || groupedFamily.family.formNumber || "N/A"}
+																				</td>
+																				<td className="px-3 py-2 whitespace-nowrap text-gray-900">
+																					{record.memberId || record.MemberID || "N/A"}
+																				</td>
+																				<td className="px-3 py-2 whitespace-nowrap text-gray-900">
+																					{record.memberName || record.MemberName || "N/A"}
+																				</td>
+																				<td className="px-3 py-2 whitespace-nowrap text-gray-900">
+																					{record.planCategory || record.PlanCategory || "N/A"}
+																				</td>
+																				<td className="px-3 py-2 whitespace-nowrap text-gray-900">
+																					{record.feasibilityType || record.FeasibilityType || "N/A"}
+																				</td>
+																				<td className="px-3 py-2 whitespace-nowrap text-gray-900 text-right">
+																					{peSupport > 0 ? peSupport.toLocaleString() : "N/A"}
+																				</td>
+																				<td className="px-3 py-2 whitespace-nowrap">
+																					<span
+																						className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${statusStyle.className}`}
+																					>
+																						<StatusIcon className="h-3 w-3" />
+																						{statusStyle.label}
+																					</span>
+																				</td>
+																				<td className="px-3 py-2 whitespace-nowrap text-gray-900">
+																					{record.createdBy || record.submittedBy || record.CreatedBy || "N/A"}
+																				</td>
+																				<td className="px-3 py-2 whitespace-nowrap">
+																					<button
+																						type="button"
+																						onClick={() => handleViewRow(rowData)}
+																						className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100"
+																					>
+																						<Eye className="h-3 w-3" />
+																						View
+																					</button>
+																				</td>
+																			</tr>
+																		);
+																	})
+																)}
+															</tbody>
+														</table>
+													</div>
 												</div>
 											</div>
 										))}
@@ -1015,7 +1324,7 @@ export default function FeasibilityApprovalPage() {
 													<p className="font-medium text-gray-700">Investment from PE Program</p>
 													<p className="text-gray-900">
 														{detailRecord.InvestmentFromPEProgram != null
-															? detailRecord.InvestmentFromPEProgram.toLocaleString()
+															? Math.round(detailRecord.InvestmentFromPEProgram).toLocaleString()
 															: "N/A"}
 													</p>
 												</div>

@@ -48,23 +48,14 @@ export async function GET(request: NextRequest) {
 				[InterventionStatus],
 				[InterventionCategory],
 				[SubCategory],
-				[FrameworkDimensions],
 				[MainIntervention],
 				[InterventionType],
 				[FinancialCategory],
-				[Frequency],
-				[FrequencyUnit],
-				[Amount],
 				[TotalAmount],
 				[InterventionStartDate],
 				[InterventionEndDate],
 				[Remarks],
 				[MemberID],
-				[MainTrade],
-				[SubTrades],
-				[SpecialtyTrade],
-				[CNIC],
-				[AmountType],
 				[ApprovalStatus],
 				[CreatedBy],
 				[CreatedAt]
@@ -135,23 +126,14 @@ export async function POST(request: NextRequest) {
 			InterventionStatus,
 			InterventionCategory,
 			SubCategory,
-			FrameworkDimensions,
 			MainIntervention,
 			InterventionType,
 			FinancialCategory,
-			Frequency,
-			FrequencyUnit,
-			Amount,
 			TotalAmount,
 			InterventionStartDate,
 			InterventionEndDate,
 			Remarks,
 			MemberID,
-			MainTrade,
-			SubTrades,
-			SpecialtyTrade,
-			CNIC,
-			AmountType,
 			ApprovalStatus,
 		} = body;
 
@@ -171,39 +153,26 @@ export async function POST(request: NextRequest) {
 		sqlRequest.input("InterventionStatus", sql.NVarChar, InterventionStatus || null);
 		sqlRequest.input("InterventionCategory", sql.NVarChar, InterventionCategory || null);
 		sqlRequest.input("SubCategory", sql.NVarChar, SubCategory || null);
-		sqlRequest.input("FrameworkDimensions", sql.NVarChar, FrameworkDimensions || null);
 		sqlRequest.input("MainIntervention", sql.NVarChar, MainIntervention || null);
 		sqlRequest.input("InterventionType", sql.NVarChar, InterventionType || null);
 		sqlRequest.input("FinancialCategory", sql.NVarChar, FinancialCategory || null);
-		sqlRequest.input("Frequency", sql.Int, Frequency || null);
-		sqlRequest.input("FrequencyUnit", sql.NVarChar, FrequencyUnit || null);
-		sqlRequest.input("Amount", sql.Decimal(18, 2), Amount || null);
 		sqlRequest.input("TotalAmount", sql.Decimal(18, 2), TotalAmount || null);
 		sqlRequest.input("InterventionStartDate", sql.DateTime, InterventionStartDate || null);
 		sqlRequest.input("InterventionEndDate", sql.DateTime, InterventionEndDate || null);
 		sqlRequest.input("Remarks", sql.NVarChar, Remarks || null);
 		sqlRequest.input("MemberID", sql.VarChar, MemberID || null);
-		sqlRequest.input("MainTrade", sql.NVarChar, MainTrade || null);
-		sqlRequest.input("SubTrades", sql.NVarChar, SubTrades || null);
-		sqlRequest.input("SpecialtyTrade", sql.NVarChar, SpecialtyTrade || null);
-		sqlRequest.input("CNIC", sql.VarChar, CNIC || null);
-		sqlRequest.input("AmountType", sql.NVarChar, AmountType || null);
 		sqlRequest.input("ApprovalStatus", sql.NVarChar, ApprovalStatus || null);
 		sqlRequest.input("CreatedBy", sql.NVarChar, userFullName);
 
 		const insertQuery = `
 			INSERT INTO [SJDA_Users].[dbo].[PE_Interventions]
 			([FormNumber], [Section], [InterventionStatus], [InterventionCategory], [SubCategory],
-			 [FrameworkDimensions], [MainIntervention], [InterventionType], [FinancialCategory],
-			 [Frequency], [FrequencyUnit], [Amount], [TotalAmount], [InterventionStartDate],
-			 [InterventionEndDate], [Remarks], [MemberID], [MainTrade], [SubTrades], [SpecialtyTrade],
-			 [CNIC], [AmountType], [ApprovalStatus], [CreatedBy], [CreatedAt])
+			 [MainIntervention], [InterventionType], [FinancialCategory], [TotalAmount],
+			 [InterventionStartDate], [InterventionEndDate], [Remarks], [MemberID], [ApprovalStatus], [CreatedBy], [CreatedAt])
 			VALUES
 			(@FormNumber, @Section, @InterventionStatus, @InterventionCategory, @SubCategory,
-			 @FrameworkDimensions, @MainIntervention, @InterventionType, @FinancialCategory,
-			 @Frequency, @FrequencyUnit, @Amount, @TotalAmount, @InterventionStartDate,
-			 @InterventionEndDate, @Remarks, @MemberID, @MainTrade, @SubTrades, @SpecialtyTrade,
-			 @CNIC, @AmountType, @ApprovalStatus, @CreatedBy, GETDATE())
+			 @MainIntervention, @InterventionType, @FinancialCategory, @TotalAmount,
+			 @InterventionStartDate, @InterventionEndDate, @Remarks, @MemberID, @ApprovalStatus, @CreatedBy, GETDATE())
 		`;
 
 		await sqlRequest.query(insertQuery);

@@ -249,8 +249,13 @@ export default function BankAccountApprovalPage() {
 														</button>
 														<button
 															onClick={() => handleEdit(account.BankNo)}
-															className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors"
-															title="Edit/Approve"
+															disabled={account.ApprovalStatus?.toUpperCase() === "APPROVED"}
+															className={`p-1.5 rounded transition-colors ${
+																account.ApprovalStatus?.toUpperCase() === "APPROVED"
+																	? "text-gray-400 cursor-not-allowed opacity-50"
+																	: "text-green-600 hover:bg-green-50"
+															}`}
+															title={account.ApprovalStatus?.toUpperCase() === "APPROVED" ? "Cannot edit - Already approved" : "Edit/Approve"}
 														>
 															<Edit2 className="h-4 w-4" />
 														</button>

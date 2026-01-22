@@ -34,8 +34,10 @@ export async function GET(request: NextRequest) {
 			const record = result.recordset[0];
 			let mentor = null;
 			let submittedAt = null;
+			let fdpApprovedDate = null;
+			let fdpDevelopmentDate = null;
 			
-			// If Form_Number exists, fetch Mentor and SubmittedAt from PE_Application_BasicInfo
+			// If Form_Number exists, fetch Mentor, SubmittedAt, and dates
 			if (record.Form_Number) {
 				const basicInfoRequest = pool.request();
 				basicInfoRequest.input("FormNumber", sql.VarChar, record.Form_Number);
@@ -50,6 +52,37 @@ export async function GET(request: NextRequest) {
 				const basicInfoResult = await basicInfoRequest.query(basicInfoQuery);
 				mentor = basicInfoResult.recordset?.[0]?.SubmittedBy || null;
 				submittedAt = basicInfoResult.recordset?.[0]?.SubmittedAt || null;
+
+				// Fetch FDP Approved Date from Approval_Log
+				try {
+					const approvalDateQuery = `
+						SELECT TOP 1 [ActionAt]
+						FROM [SJDA_Users].[dbo].[Approval_Log]
+						WHERE [ModuleName] = 'FDP' 
+							AND [ActionLevel] = 'Approved' 
+							AND [FormNumber] = @FormNumber
+						ORDER BY [LogID] DESC
+					`;
+					const approvalDateResult = await basicInfoRequest.query(approvalDateQuery);
+					fdpApprovedDate = approvalDateResult.recordset?.[0]?.ActionAt || null;
+				} catch (err) {
+					console.error("Error fetching FDP Approved Date:", err);
+				}
+
+				// Fetch FDP Development Date from PE_CRC_Family_Status (most recent record)
+				try {
+					const developmentDateQuery = `
+						SELECT TOP 1 [FDP_Development_Date]
+						FROM [SJDA_Users].[dbo].[PE_CRC_Family_Status]
+						WHERE [Form_Number] = @FormNumber
+							AND [FDP_Development_Date] IS NOT NULL
+						ORDER BY [Family_Status_Id] DESC
+					`;
+					const developmentDateResult = await basicInfoRequest.query(developmentDateQuery);
+					fdpDevelopmentDate = developmentDateResult.recordset?.[0]?.FDP_Development_Date || null;
+				} catch (err) {
+					console.error("Error fetching FDP Development Date:", err);
+				}
 			}
 
 			return NextResponse.json({
@@ -57,6 +90,8 @@ export async function GET(request: NextRequest) {
 				data: record,
 				mentor: mentor,
 				submittedAt: submittedAt,
+				fdpApprovedDate: fdpApprovedDate,
+				fdpDevelopmentDate: fdpDevelopmentDate,
 			});
 		} else if (formNumber) {
 			// Fetch record(s) by Form Number and also get Mentor and SubmittedAt from PE_Application_BasicInfo
@@ -75,6 +110,39 @@ export async function GET(request: NextRequest) {
 			const mentor = basicInfoResult.recordset?.[0]?.SubmittedBy || null;
 			const submittedAt = basicInfoResult.recordset?.[0]?.SubmittedAt || null;
 			
+			// Fetch FDP Approved Date from Approval_Log
+			let fdpApprovedDate = null;
+			try {
+				const approvalDateQuery = `
+					SELECT TOP 1 [ActionAt]
+					FROM [SJDA_Users].[dbo].[Approval_Log]
+					WHERE [ModuleName] = 'FDP' 
+						AND [ActionLevel] = 'Approved' 
+						AND [FormNumber] = @FormNumber
+					ORDER BY [LogID] DESC
+				`;
+				const approvalDateResult = await sqlRequest.query(approvalDateQuery);
+				fdpApprovedDate = approvalDateResult.recordset?.[0]?.ActionAt || null;
+			} catch (err) {
+				console.error("Error fetching FDP Approved Date:", err);
+			}
+
+			// Fetch FDP Development Date from PE_CRC_Family_Status (most recent record)
+			let fdpDevelopmentDate = null;
+			try {
+				const developmentDateQuery = `
+					SELECT TOP 1 [FDP_Development_Date]
+					FROM [SJDA_Users].[dbo].[PE_CRC_Family_Status]
+					WHERE [Form_Number] = @FormNumber
+						AND [FDP_Development_Date] IS NOT NULL
+					ORDER BY [Family_Status_Id] DESC
+				`;
+				const developmentDateResult = await sqlRequest.query(developmentDateQuery);
+				fdpDevelopmentDate = developmentDateResult.recordset?.[0]?.FDP_Development_Date || null;
+			} catch (err) {
+				console.error("Error fetching FDP Development Date:", err);
+			}
+			
 			// Fetch CRC Family Status records
 			const query = `
 				SELECT *
@@ -89,6 +157,8 @@ export async function GET(request: NextRequest) {
 				data: result.recordset || [],
 				mentor: mentor,
 				submittedAt: submittedAt,
+				fdpApprovedDate: fdpApprovedDate,
+				fdpDevelopmentDate: fdpDevelopmentDate,
 			});
 		} else {
 			return NextResponse.json(
@@ -123,26 +193,19 @@ export async function POST(request: NextRequest) {
 		const pool = await getPeDb();
 		const sqlRequest = pool.request();
 
-		// Get user information for User_Name
+		// Get login username from auth cookie for User_Name
 		let userName = null;
 		try {
 			const authCookie = request.cookies.get("auth");
 			if (authCookie && authCookie.value) {
 				const userId = authCookie.value.split(":")[1];
 				if (userId) {
-					const userPool = await getDb();
-					const userResult = await userPool
-						.request()
-						.input("user_id", userId)
-						.query(
-							"SELECT TOP(1) [UserId], [email_address] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
-						);
-					const user = userResult.recordset?.[0];
-					userName = user?.UserId || user?.email_address || userId;
+					// Use the login username directly from the cookie
+					userName = userId;
 				}
 			}
 		} catch (userError) {
-			console.error("Error fetching user info:", userError);
+			console.error("Error getting login username:", userError);
 		}
 
 		// Prepare parameters
@@ -260,26 +323,19 @@ export async function PUT(request: NextRequest) {
 		const pool = await getPeDb();
 		const sqlRequest = pool.request();
 
-		// Get user information for User_Name
+		// Get login username from auth cookie for User_Name
 		let userName = null;
 		try {
 			const authCookie = request.cookies.get("auth");
 			if (authCookie && authCookie.value) {
 				const userId = authCookie.value.split(":")[1];
 				if (userId) {
-					const userPool = await getDb();
-					const userResult = await userPool
-						.request()
-						.input("user_id", userId)
-						.query(
-							"SELECT TOP(1) [UserId], [email_address] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
-						);
-					const user = userResult.recordset?.[0];
-					userName = user?.UserId || user?.email_address || userId;
+					// Use the login username directly from the cookie
+					userName = userId;
 				}
 			}
 		} catch (userError) {
-			console.error("Error fetching user info:", userError);
+			console.error("Error getting login username:", userError);
 		}
 
 		// Prepare parameters

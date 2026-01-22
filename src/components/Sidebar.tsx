@@ -69,7 +69,6 @@ const getAllNavigationGroups = (): NavGroup[] => {
 			items: [
 				{ label: "Baseline", href: "/dashboard/baseline-qol", icon: BarChart3 },
 				{ label: "Family Development Plan", href: "/dashboard/family-development-plan", icon: FileText },
-				{ label: "Family Approval Form", href: "/dashboard/family-approval-crc", icon: CheckCircle },
 				{ label: "Actual Intervention", href: "/dashboard/actual-intervention", icon: Activity },
 				{ label: "ROPs", href: "/dashboard/rops", icon: FileBarChart },
 				{ label: "Family Income", href: "/dashboard/family-income", icon: DollarSign },
@@ -195,7 +194,7 @@ const getVisibleNavGroups = (allGroups: NavGroup[], userType: string | null | un
 		return visibleGroups;
 	}
 	
-	// If userType is "Finance and Administration" - Dashboard + Finance group + Bank Information + Approval Section (Bank Account Approval only) + Logout
+	// If userType is "Finance and Administration" - Dashboard + Finance group (without Bank Information) + Approval Section (Bank Account Approval only) + Logout
 	if (normalizedUserType === "FINANCE AND ADMINISTRATION") {
 		const dashboardGroup = findDashboardGroup();
 		const logoutItem = findLogoutItem();
@@ -206,6 +205,12 @@ const getVisibleNavGroups = (allGroups: NavGroup[], userType: string | null | un
 				item.label === "Finance" || item.label === "Bank Information"
 			)
 		);
+		
+		// Filter out Bank Information item from Finance group
+		const filteredFinanceGroup = financeGroup ? {
+			...financeGroup,
+			items: financeGroup.items.filter(item => item.label !== "Bank Information")
+		} : null;
 		
 		// Find "Approval Section" item and extract only "Bank Account Approval" subItem
 		const approvalSectionGroup = allGroups.find(group => 
@@ -225,9 +230,9 @@ const getVisibleNavGroups = (allGroups: NavGroup[], userType: string | null | un
 			visibleGroups.push(dashboardGroup);
 		}
 		
-		// Add Finance group (contains Finance and Bank Information)
-		if (financeGroup) {
-			visibleGroups.push(financeGroup);
+		// Add Finance group (without Bank Information)
+		if (filteredFinanceGroup && filteredFinanceGroup.items.length > 0) {
+			visibleGroups.push(filteredFinanceGroup);
 		}
 		
 		// Add Approval Section with only Bank Account Approval

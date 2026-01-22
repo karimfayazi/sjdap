@@ -43,6 +43,8 @@ function EditBankAccountContent() {
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [success, setSuccess] = useState(false);
+	
+	const isApproved = bankInfo?.ApprovalStatus?.toUpperCase() === "APPROVED";
 
 	useEffect(() => {
 		if (!bankNo) {
@@ -81,6 +83,12 @@ function EditBankAccountContent() {
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
 
+		// Prevent submission if already approved
+		if (isApproved) {
+			setError("This record is already approved and cannot be edited");
+			return;
+		}
+
 		// Validation
 		if (!approvalStatus || (approvalStatus !== "APPROVED" && approvalStatus !== "REJECTED")) {
 			setError("Please select an approval status (APPROVED or REJECTED)");
@@ -114,11 +122,40 @@ function EditBankAccountContent() {
 
 			if (!response.ok) {
 				const errorMessage = data.message || `Server error: ${response.status} ${response.statusText}`;
+				
+				// If record is already approved, refresh the data to update UI
+				if (errorMessage.toLowerCase().includes("approved") || errorMessage.toLowerCase().includes("locked")) {
+					// Refresh bank info to get latest status
+					const refreshResponse = await fetch(`/api/approval/bank-accounts/${bankNo}`);
+					const refreshData = await refreshResponse.json();
+					if (refreshData.success && refreshData.bankInformation) {
+						setBankInfo(refreshData.bankInformation);
+						setApprovalStatus(refreshData.bankInformation.ApprovalStatus || "");
+					}
+					setError("This record has already been approved and is locked. The form is now read-only.");
+					return;
+				}
+				
 				throw new Error(errorMessage);
 			}
 
 			if (!data.success) {
-				throw new Error(data.message || "Failed to update approval status");
+				const errorMessage = data.message || "Failed to update approval status";
+				
+				// If record is already approved, refresh the data to update UI
+				if (errorMessage.toLowerCase().includes("approved") || errorMessage.toLowerCase().includes("locked")) {
+					// Refresh bank info to get latest status
+					const refreshResponse = await fetch(`/api/approval/bank-accounts/${bankNo}`);
+					const refreshData = await refreshResponse.json();
+					if (refreshData.success && refreshData.bankInformation) {
+						setBankInfo(refreshData.bankInformation);
+						setApprovalStatus(refreshData.bankInformation.ApprovalStatus || "");
+					}
+					setError("This record has already been approved and is locked. The form is now read-only.");
+					return;
+				}
+				
+				throw new Error(errorMessage);
 			}
 
 			setSuccess(true);
@@ -127,7 +164,25 @@ function EditBankAccountContent() {
 			}, 1500);
 		} catch (err: any) {
 			console.error("Error updating approval status:", err);
-			setError(err.message || "Failed to update approval status");
+			const errorMessage = err.message || "Failed to update approval status";
+			
+			// Check if error is about approval/locked status
+			if (errorMessage.toLowerCase().includes("approved") || errorMessage.toLowerCase().includes("locked")) {
+				// Refresh bank info to get latest status
+				try {
+					const refreshResponse = await fetch(`/api/approval/bank-accounts/${bankNo}`);
+					const refreshData = await refreshResponse.json();
+					if (refreshData.success && refreshData.bankInformation) {
+						setBankInfo(refreshData.bankInformation);
+						setApprovalStatus(refreshData.bankInformation.ApprovalStatus || "");
+					}
+				} catch (refreshError) {
+					console.error("Error refreshing bank info:", refreshError);
+				}
+				setError("This record has already been approved and is locked. The form is now read-only.");
+			} else {
+				setError(errorMessage);
+			}
 		} finally {
 			setSaving(false);
 		}
@@ -203,6 +258,15 @@ function EditBankAccountContent() {
 				{error && (
 					<div className="bg-red-50 border border-red-200 rounded-lg p-4">
 						<p className="text-red-800 font-medium">Error: {error}</p>
+					</div>
+				)}
+
+				{/* Already Approved Warning */}
+				{isApproved && (
+					<div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+						<p className="text-yellow-800 font-medium">
+							⚠️ This bank account has already been approved. The form is now read-only and cannot be edited.
+						</p>
 					</div>
 				)}
 
@@ -326,9 +390,10 @@ function EditBankAccountContent() {
 												value="APPROVED"
 												checked={approvalStatus === "APPROVED"}
 												onChange={(e) => setApprovalStatus(e.target.value)}
-												className="mr-2 text-green-600 focus:ring-green-500"
+												disabled={isApproved}
+												className="mr-2 text-green-600 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
 											/>
-											<span className="text-sm text-gray-700">APPROVED</span>
+											<span className={`text-sm ${isApproved ? 'text-gray-500' : 'text-gray-700'}`}>APPROVED</span>
 										</label>
 										<label className="flex items-center">
 											<input
@@ -337,9 +402,10 @@ function EditBankAccountContent() {
 												value="REJECTED"
 												checked={approvalStatus === "REJECTED"}
 												onChange={(e) => setApprovalStatus(e.target.value)}
-												className="mr-2 text-red-600 focus:ring-red-500"
+												disabled={isApproved}
+												className="mr-2 text-red-600 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
 											/>
-											<span className="text-sm text-gray-700">REJECTED</span>
+											<span className={`text-sm ${isApproved ? 'text-gray-500' : 'text-gray-700'}`}>REJECTED</span>
 										</label>
 									</div>
 								</div>
@@ -351,8 +417,11 @@ function EditBankAccountContent() {
 									<textarea
 										value={remarks}
 										onChange={(e) => setRemarks(e.target.value)}
+										disabled={isApproved}
 										rows={4}
-										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+										className={`w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${
+											isApproved ? 'bg-gray-50 cursor-not-allowed' : ''
+										}`}
 										placeholder="Enter approval remarks..."
 									/>
 								</div>
@@ -371,7 +440,7 @@ function EditBankAccountContent() {
 							</button>
 							<button
 								type="submit"
-								disabled={saving}
+								disabled={saving || isApproved}
 								className="px-6 py-2 bg-[#0b4d2b] text-white rounded-md hover:bg-[#0a3d22] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
 							>
 								{saving ? (

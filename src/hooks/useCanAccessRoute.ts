@@ -46,7 +46,6 @@ export function canAccessRoute(userProfile: UserProfile | null, route: string, l
 		'/dashboard': 'Dashboard',
 		'/dashboard/baseline-qol': 'BaselineQOL',
 		'/dashboard/family-development-plan': 'Family_Development_Plan',
-		'/dashboard/family-approval-crc': 'Family_Approval_CRC',
 		'/dashboard/family-income': 'Family_Income',
 		'/dashboard/rops': 'ROP',
 		'/dashboard/actual-intervention': 'ActualIntervention',

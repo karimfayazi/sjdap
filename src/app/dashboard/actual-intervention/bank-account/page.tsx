@@ -90,6 +90,7 @@ function BankAccountContent() {
 	const [accountNoError, setAccountNoError] = useState<string | null>(null);
 	const [chequeImage, setChequeImage] = useState<File | null>(null);
 	const [chequeImagePreview, setChequeImagePreview] = useState<string | null>(null);
+	const [memberNotFound, setMemberNotFound] = useState(false);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const [formData, setFormData] = useState({
 		formNumber: formNumber,
@@ -130,14 +131,32 @@ function BankAccountContent() {
 			}
 
 			// Fetch member information if memberId is provided
-			if (memberId && formNumber) {
-				const memberResponse = await fetch(`/api/actual-intervention/members?formNumber=${encodeURIComponent(formNumber)}`);
+			if (memberId) {
+				const memberResponse = await fetch(`/api/actual-intervention/member-by-id?memberId=${encodeURIComponent(memberId)}`);
 				const memberData = await memberResponse.json();
 
-				if (memberData.success && memberData.members) {
-					const foundMember = memberData.members.find((m: FamilyMember) => m.MemberNo === memberId);
-					if (foundMember) {
-						setMember(foundMember);
+				if (memberData.success) {
+					if (memberData.data) {
+						setMemberNotFound(false);
+						setFormData(prev => ({
+							...prev,
+							accountTitle: memberData.data.fullName || "",
+							cnic: memberData.data.cnic || "",
+						}));
+						// Also set member for display purposes
+						setMember({
+							MemberNo: memberId,
+							FullName: memberData.data.fullName || "",
+							BFormOrCNIC: memberData.data.cnic || "",
+							Relationship: "",
+							Gender: "",
+							DOBMonth: null,
+							DOBYear: null,
+							MonthlyIncome: null,
+						});
+					} else {
+						setMemberNotFound(true);
+						setMember(null);
 					}
 				}
 			}
@@ -153,16 +172,6 @@ function BankAccountContent() {
 		fetchBankAccount();
 	}, [formNumber, memberId]);
 
-	// Auto-populate form data when member is loaded
-	useEffect(() => {
-		if (member) {
-			setFormData(prev => ({
-				...prev,
-				cnic: member.BFormOrCNIC || "",
-				accountTitle: member.FullName || "",
-			}));
-		}
-	}, [member]);
 
 	// Update form data when formNumber or memberId changes
 	useEffect(() => {
@@ -407,18 +416,6 @@ function BankAccountContent() {
 							<p className="text-gray-500">B-Form/CNIC</p>
 							<p className="font-medium text-gray-900">{member.BFormOrCNIC || "N/A"}</p>
 						</div>
-						<div>
-							<p className="text-gray-500">Relationship</p>
-							<p className="font-medium text-gray-900">{member.Relationship || "N/A"}</p>
-						</div>
-						<div>
-							<p className="text-gray-500">Gender</p>
-							<p className="font-medium text-gray-900">{member.Gender || "N/A"}</p>
-						</div>
-						<div>
-							<p className="text-gray-500">Date of Birth</p>
-							<p className="font-medium text-gray-900">{formatDateOfBirth(member.DOBMonth, member.DOBYear)}</p>
-						</div>
 					</div>
 				</div>
 			)}
@@ -489,6 +486,9 @@ function BankAccountContent() {
 									className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm bg-gray-50 focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none cursor-not-allowed"
 									placeholder="Auto-filled from member name"
 								/>
+								{memberNotFound && (
+									<p className="mt-1 text-xs text-yellow-600">Member information not found</p>
+								)}
 							</div>
 
 							<div>
@@ -529,6 +529,9 @@ function BankAccountContent() {
 									className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-mono bg-gray-50 focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none cursor-not-allowed"
 									placeholder="Auto-filled from member data"
 								/>
+								{memberNotFound && (
+									<p className="mt-1 text-xs text-yellow-600">Member information not found</p>
+								)}
 							</div>
 
 							<div>
