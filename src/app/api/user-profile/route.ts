@@ -201,14 +201,14 @@ export async function GET(request: NextRequest) {
 		// Note: PE_User table has different structure, so we'll map available fields
 		// Check if UserType is 'Super Admin' or 'Admin' - Super Admin users have full access to all sections
 		const userType = (user.UserType && typeof user.UserType === 'string') ? user.UserType.trim() : '';
-		const isSuperAdmin = userType === 'Super Admin';
+		const isSuperAdminByType = userType === 'Super Admin';
 		const isAdminUserType = userType && userType.length > 0 ? userType.toLowerCase() === 'admin' : false;
 		const userIdentifier = user.UserId || user.email_address || '';
 		const isAdminByIdentifier = userIdentifier && typeof userIdentifier === 'string' && userIdentifier.toLowerCase() === 'admin';
-		const isAdmin = isSuperAdmin || isAdminUserType || isAdminByIdentifier;
+		const isAdmin = isSuperAdminByType || isAdminUserType || isAdminByIdentifier;
 		
 		// Debug logging for Super Admin detection
-		if (isSuperAdmin) {
+		if (isSuperAdminByType) {
 			console.log('[user-profile] === SUPER ADMIN DETECTED ===');
 			console.log('[user-profile] UserType:', userType);
 			console.log('[user-profile] Email:', user.email_address);

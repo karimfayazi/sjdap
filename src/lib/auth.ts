@@ -142,34 +142,50 @@ export function getUserIdFromRequest(request: Request): string | null {
 	}
 }
 
+import type { NextRequest } from "next/server";
+
 /**
  * Get userId from NextRequest cookies (Next.js App Router)
  * This is the recommended method for API routes
+ * 
+ * IMPORTANT: This function only runs at request-time, never at build-time.
+ * It safely handles missing cookies and returns null if not authenticated.
+ * 
+ * @param request - NextRequest object from Next.js API route handler
+ * @returns userId string if authenticated, null otherwise
  */
-export function getUserIdFromNextRequest(request: { cookies: { get: (name: string) => { value: string } | null } }): string | null {
+export function getUserIdFromNextRequest(request: NextRequest): string | null {
 	try {
 		const authCookie = request.cookies.get("auth");
 		
+		// Handle NextRequest.cookies.get() which returns RequestCookie | undefined
+		// RequestCookie has a value property, but it might be undefined
 		if (!authCookie || !authCookie.value) {
-			if (process.env.NODE_ENV === 'development') {
+			// Only log in development at runtime (not build time)
+			if (typeof process !== 'undefined' && process.env.NODE_ENV === 'development') {
 				console.log('[getUserIdFromNextRequest:SERVER] No auth cookie found');
 			}
 			return null;
 		}
 		
-		if (process.env.NODE_ENV === 'development') {
+		// Only log in development at runtime (not build time)
+		if (typeof process !== 'undefined' && process.env.NODE_ENV === 'development') {
 			console.log('[getUserIdFromNextRequest:SERVER] Raw cookie value:', authCookie.value);
 		}
 		
 		const userId = extractUserIdFromCookieValue(authCookie.value, 'SERVER');
 		
-		if (process.env.NODE_ENV === 'development') {
+		// Only log in development at runtime (not build time)
+		if (typeof process !== 'undefined' && process.env.NODE_ENV === 'development') {
 			console.log('[getUserIdFromNextRequest:SERVER] Final userId result:', userId);
 		}
 		
 		return userId;
 	} catch (error) {
-		console.error('[getUserIdFromNextRequest:SERVER] Error parsing cookie:', error);
+		// Only log errors at runtime (not build time)
+		if (typeof process !== 'undefined') {
+			console.error('[getUserIdFromNextRequest:SERVER] Error parsing cookie:', error);
+		}
 		return null;
 	}
 }
