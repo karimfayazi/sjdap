@@ -58,11 +58,12 @@ export default function BankAccountApprovalPage() {
 			const data = await response.json();
 
 			if (data.success) {
-				setBankAccounts(data.bankAccounts || []);
+				const bankAccounts: BankAccount[] = (data.bankAccounts || []) as BankAccount[];
+				setBankAccounts(bankAccounts);
 
 				// Extract unique values for filters
-				const uniqueStatuses = [...new Set(data.bankAccounts.map((ba: BankAccount) => ba.ApprovalStatus).filter(Boolean))];
-				const uniqueCommunities = [...new Set(data.bankAccounts.map((ba: BankAccount) => ba.RegionalCommunity).filter(Boolean))];
+				const uniqueStatuses: string[] = Array.from(new Set(bankAccounts.map((ba) => ba.ApprovalStatus).filter((v): v is string => Boolean(v))));
+				const uniqueCommunities: string[] = Array.from(new Set(bankAccounts.map((ba) => ba.RegionalCommunity).filter((v): v is string => Boolean(v))));
 
 				setApprovalStatuses(uniqueStatuses.sort());
 				setRegionalCommunities(uniqueCommunities.sort());
