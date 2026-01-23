@@ -8,10 +8,25 @@ import { useAuth } from "@/hooks/useAuth";
 import { hasRouteAccess, hasFullAccess } from "@/lib/auth-utils";
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
-	const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+	// Initialize sidebar state from localStorage (default to expanded if not set)
+	const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+		// Only access localStorage on client-side
+		if (typeof window !== "undefined") {
+			const stored = localStorage.getItem("sidebarCollapsed");
+			return stored === "1"; // "1" means collapsed, "0" or missing means expanded
+		}
+		return false; // Default to expanded for SSR
+	});
 	const router = useRouter();
 	const pathname = usePathname();
 	const { user, userProfile, loading } = useAuth();
+
+	// Save sidebar state to localStorage whenever it changes
+	useEffect(() => {
+		if (typeof window !== "undefined") {
+			localStorage.setItem("sidebarCollapsed", sidebarCollapsed ? "1" : "0");
+		}
+	}, [sidebarCollapsed]);
 
 	// Check if username is null and redirect to login
 	useEffect(() => {
