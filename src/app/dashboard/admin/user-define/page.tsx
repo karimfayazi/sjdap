@@ -92,9 +92,9 @@ export default function UserDefinePage() {
 				setUsers(data.users || []);
 				
 				// Extract unique values for dropdowns
-				const uniqueUserTypes = [...new Set(data.users.map((u: User) => u.UserType).filter(Boolean))];
-				const uniqueAccessScopes = [...new Set(data.users.map((u: User) => u.AccessScope).filter(Boolean))];
-				const uniqueRegionalCouncils = [...new Set(data.users.map((u: User) => u.Regional_Council).filter(Boolean))];
+				const uniqueUserTypes: string[] = [...new Set(data.users.map((u: User) => u.UserType).filter((v): v is string => Boolean(v)))];
+				const uniqueAccessScopes: string[] = [...new Set(data.users.map((u: User) => u.AccessScope).filter((v): v is string => Boolean(v)))];
+				const uniqueRegionalCouncils: string[] = [...new Set(data.users.map((u: User) => u.Regional_Council).filter((v): v is string => Boolean(v)))];
 				
 				setUserTypes(uniqueUserTypes.sort());
 				setAccessScopes(uniqueAccessScopes.sort());
