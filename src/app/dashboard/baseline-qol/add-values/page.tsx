@@ -494,9 +494,12 @@ function AddValuesPageContent() {
 							</tr>
 						</thead>
 						<tbody className="bg-white divide-y divide-gray-200">
-								{familyMembers.map((member, index) => (
+								{familyMembers.map((member, index) => {
+									// Extract member number from BeneficiaryID (format: PE-{FormNo}-{MemberNumber})
+									const memberNo = member.BeneficiaryID ? member.BeneficiaryID.split('-').pop() || member.BeneficiaryID : '';
+									return (
 									<tr key={index} className="hover:bg-gray-50">
-										<td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">{member.MemberNo}</td>
+										<td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">{memberNo}</td>
 										<td className="border border-gray-300 px-4 py-2 text-sm text-gray-900 font-medium">{member.FullName}</td>
 										<td className="border border-gray-300 px-4 py-2 text-sm text-gray-900">
 											{getRelationshipName(member.RelationshipId)}
@@ -523,7 +526,8 @@ function AddValuesPageContent() {
 											)}
 												</td>
 									</tr>
-								))}
+									);
+								})}
 						</tbody>
 					</table>
 					</div>
