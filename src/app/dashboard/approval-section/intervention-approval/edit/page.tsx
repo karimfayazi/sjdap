@@ -243,7 +243,6 @@ function EditInterventionContent() {
 										}`}
 									>
 										<option value="">Select Status</option>
-										<option value="Pending">Pending</option>
 										<option value="Approved">Approved</option>
 										<option value="Rejected">Rejected</option>
 									</select>

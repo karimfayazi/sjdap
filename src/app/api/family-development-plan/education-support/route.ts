@@ -364,6 +364,37 @@ export async function PUT(request: NextRequest) {
 		const sqlRequest = pool.request();
 
 		sqlRequest.input("FDP_SocialEduID", sql.Int, parseInt(fdpSocialEduId));
+
+		// Check ApprovalStatus before allowing update
+		const checkStatusQuery = `
+			SELECT [ApprovalStatus]
+			FROM [SJDA_Users].[dbo].[PE_FDP_SocialEducation]
+			WHERE [FDP_SocialEduID] = @FDP_SocialEduID AND [IsActive] = 1
+		`;
+		
+		const statusResult = await sqlRequest.query(checkStatusQuery);
+		
+		if (statusResult.recordset.length === 0) {
+			return NextResponse.json(
+				{
+					success: false,
+					message: "Education Support record not found",
+				},
+				{ status: 404 }
+			);
+		}
+
+		const approvalStatus = statusResult.recordset[0].ApprovalStatus;
+		
+		if (approvalStatus === "Accepted") {
+			return NextResponse.json(
+				{
+					success: false,
+					message: "Editing is not allowed because ApprovalStatus is Accepted.",
+				},
+				{ status: 403 }
+			);
+		}
 		sqlRequest.input("MaxSocialSupportAmount", sql.Decimal(18, 2), body.MaxSocialSupportAmount || null);
 		
 		// Validate and normalize EducationInterventionType

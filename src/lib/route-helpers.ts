@@ -26,6 +26,7 @@ export function getSectionNameFromRoute(route: string): string {
 		'/dashboard/approval-section/feasibility-approval': 'Feasibility Approval',
 		'/dashboard/approval-section/family-development-plan-approval': 'Family Development Plan Approval',
 		'/dashboard/approval-section/intervention-approval': 'Intervention Approval',
+		'/dashboard/approval-section/rop-approval': 'ROP Approval',
 		'/dashboard/approval-section/bank-account-approval': 'Bank Account Approval',
 		'/dashboard/feasibility-approval': 'Feasibility Approval',
 		'/dashboard/reports': 'Reports',

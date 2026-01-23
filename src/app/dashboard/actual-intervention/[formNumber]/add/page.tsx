@@ -24,6 +24,15 @@ type Intervention = {
 	CreatedAt: string | null;
 };
 
+type MemberInfo = {
+	BeneficiaryID?: string;
+	FullName?: string;
+	MemberName?: string;
+	CNIC?: string;
+	CNICNumber?: string;
+	BFormOrCNIC?: string;
+};
+
 function AddInterventionContent() {
 	const router = useRouter();
 	const params = useParams();
@@ -35,6 +44,7 @@ function AddInterventionContent() {
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [memberName, setMemberName] = useState<string>("");
+	const [memberCNIC, setMemberCNIC] = useState<string>("");
 	const [headName, setHeadName] = useState<string>("");
 	const [housingSupportRecords, setHousingSupportRecords] = useState<any[]>([]);
 	const [loadingHousingSupport, setLoadingHousingSupport] = useState(false);
@@ -153,17 +163,10 @@ function AddInterventionContent() {
 					const data = await response.json();
 					
 					if (data.success && data.members) {
-						const member = data.members.find((m: any) => m.BeneficiaryID === memberId);
+						const member = data.members.find((m: MemberInfo) => m.BeneficiaryID === memberId) as MemberInfo | undefined;
 						if (member) {
-							if (member.BFormOrCNIC) {
-								setFormData(prev => ({
-									...prev,
-									CNIC: member.BFormOrCNIC,
-								}));
-							}
-							if (member.FullName) {
-								setMemberName(member.FullName);
-							}
+							setMemberName(member?.FullName ?? member?.MemberName ?? "");
+							setMemberCNIC(member?.CNIC ?? member?.CNICNumber ?? member?.BFormOrCNIC ?? "");
 						}
 					}
 				} catch (err) {
@@ -489,7 +492,7 @@ function AddInterventionContent() {
 						)}
 						{memberId && (
 							<p className="text-gray-500 text-sm mt-1">
-								Member ID: {memberId} {memberName && `- ${memberName}`} {formData.CNIC && `| CNIC: ${formData.CNIC}`}
+								Member ID: {memberId} {memberName && `- ${memberName}`} {memberCNIC && `| CNIC: ${memberCNIC}`}
 							</p>
 						)}
 					</div>
@@ -1055,7 +1058,7 @@ function AddInterventionContent() {
 								<label className="block text-sm font-medium text-gray-700 mb-1">CNIC</label>
 								<input
 									type="text"
-									value={formData.CNIC || ""}
+									value={memberCNIC || ""}
 									readOnly
 									className="w-full rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-600 cursor-not-allowed"
 								/>

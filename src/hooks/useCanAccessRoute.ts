@@ -59,6 +59,7 @@ export function canAccessRoute(userProfile: UserProfile | null, route: string, l
 		'/dashboard/approval-section/feasibility-approval': 'FeasibilityApproval',
 		'/dashboard/approval-section/family-development-plan-approval': 'FdpApproval',
 		'/dashboard/approval-section/intervention-approval': 'InterventionApproval',
+		'/dashboard/approval-section/rop-approval': 'InterventionApproval',
 		'/dashboard/approval-section/bank-account-approval': 'BankAccountApproval',
 		'/dashboard/feasibility-approval': 'FeasibilityApproval',
 		'/dashboard/reports': 'Other',

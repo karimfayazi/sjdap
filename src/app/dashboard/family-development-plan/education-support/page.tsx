@@ -151,6 +151,7 @@ function EducationSupportContent() {
 	const [selectedRecordId, setSelectedRecordId] = useState<number | null>(null);
 	const [alreadyDefinedSocialSupport, setAlreadyDefinedSocialSupport] = useState(0);
 	const [availableSocialSupport, setAvailableSocialSupport] = useState(0);
+	const [isLocked, setIsLocked] = useState(false); // Track if record is locked (ApprovalStatus = 'Accepted')
 
 	// Calculate age from DOB
 	const calculateAge = (dobMonth: string | null, dobYear: string | null): number => {
@@ -445,6 +446,11 @@ function EducationSupportContent() {
 							if (existing) {
 								setSelectedRecordId(existing.FDP_SocialEduID);
 								
+								// Check if record is locked (ApprovalStatus = 'Accepted')
+								const approvalStatus = existing.ApprovalStatus || "Pending";
+								const locked = approvalStatus === "Accepted";
+								setIsLocked(locked);
+								
 								// Get beneficiary info from family members if not in existing record
 								const beneficiaryId = existing.BeneficiaryID || memberNo;
 								const selectedMember = familyMembers.find((m: FamilyMember) => m.BeneficiaryID === beneficiaryId);
@@ -481,12 +487,14 @@ function EducationSupportContent() {
 									BaselineSchoolType: existing.BaselineSchoolType || "",
 									TransferredToSchoolType: existing.TransferredToSchoolType || "",
 									TransferredToClassLevel: existing.TransferredToClassLevel || "",
-									ApprovalStatus: existing.ApprovalStatus || "Pending",
+									ApprovalStatus: approvalStatus,
 									Remarks: existing.Remarks || "",
 								}));
 								setShowForm(true);
 							}
 						} else {
+							// Reset isLocked when not in edit mode
+							setIsLocked(false);
 							// If there are records, show gridview by default
 							if (records.length > 0) {
 								setShowForm(false);
@@ -754,6 +762,14 @@ function EducationSupportContent() {
 				</div>
 			)}
 
+			{/* Locked Record Message */}
+			{isLocked && (
+				<div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-md flex items-center gap-2">
+					<AlertCircle className="h-5 w-5" />
+					<span>This record is Accepted and cannot be edited.</span>
+				</div>
+			)}
+
 			{/* Gridview or Form Toggle */}
 			{educationSupportRecords.length > 0 && !showForm && (
 				<div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -822,16 +838,20 @@ function EducationSupportContent() {
 											{record.EduTotalPEContribution ? `PKR ${parseFloat(record.EduTotalPEContribution).toLocaleString()}` : "-"}
 										</td>
 										<td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-											<button
-												type="button"
-												onClick={() => {
-													setSelectedRecordId(record.FDP_SocialEduID);
-													router.push(`/dashboard/family-development-plan/education-support?formNumber=${encodeURIComponent(formNumber || "")}&memberNo=${encodeURIComponent(memberNo || "")}&memberName=${encodeURIComponent(memberName || "")}&fdpSocialEduId=${record.FDP_SocialEduID}`);
-												}}
-												className="text-[#0b4d2b] hover:text-[#0a3d22] mr-3"
-											>
-												Edit
-											</button>
+											{record.ApprovalStatus === "Accepted" ? (
+												<span className="text-gray-400 italic">Cannot edit (Accepted)</span>
+											) : (
+												<button
+													type="button"
+													onClick={() => {
+														setSelectedRecordId(record.FDP_SocialEduID);
+														router.push(`/dashboard/family-development-plan/education-support?formNumber=${encodeURIComponent(formNumber || "")}&memberNo=${encodeURIComponent(memberNo || "")}&memberName=${encodeURIComponent(memberName || "")}&fdpSocialEduId=${record.FDP_SocialEduID}`);
+													}}
+													className="text-[#0b4d2b] hover:text-[#0a3d22] mr-3"
+												>
+													Edit
+												</button>
+											)}
 										</td>
 									</tr>
 								))}
@@ -1035,7 +1055,8 @@ function EducationSupportContent() {
 									}
 								}}
 								required
-								className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+								disabled={isLocked}
+								className={`w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${isLocked ? 'bg-gray-100 cursor-not-allowed' : ''}`}
 							>
 								<option value="">Select Type</option>
 								<option value="Admitted">Admitted</option>
@@ -1056,7 +1077,8 @@ function EducationSupportContent() {
 									type="text"
 									value={formData.BaselineReasonNotStudying}
 									onChange={(e) => handleChange("BaselineReasonNotStudying", e.target.value)}
-									className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+									disabled={isLocked}
+									className={`w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${isLocked ? 'bg-gray-100 cursor-not-allowed' : ''}`}
 									placeholder="Enter reason"
 									required
 								/>
@@ -1069,7 +1091,8 @@ function EducationSupportContent() {
 									<select
 										value={formData.AdmittedToSchoolType}
 										onChange={(e) => handleChange("AdmittedToSchoolType", e.target.value)}
-										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+										disabled={isLocked}
+										className={`w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${isLocked ? 'bg-gray-100 cursor-not-allowed' : ''}`}
 										required
 									>
 										<option value="">Select School Type</option>
@@ -1087,7 +1110,8 @@ function EducationSupportContent() {
 									<select
 										value={formData.AdmittedToClassLevel}
 										onChange={(e) => handleChange("AdmittedToClassLevel", e.target.value)}
-										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+										disabled={isLocked}
+										className={`w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${isLocked ? 'bg-gray-100 cursor-not-allowed' : ''}`}
 										required
 									>
 										<option value="">Select Class Level</option>
@@ -1112,7 +1136,8 @@ function EducationSupportContent() {
 									<select
 										value={formData.AdmittedToSchoolType}
 										onChange={(e) => handleChange("AdmittedToSchoolType", e.target.value)}
-										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+										disabled={isLocked}
+										className={`w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${isLocked ? 'bg-gray-100 cursor-not-allowed' : ''}`}
 										required
 									>
 										<option value="">Select School Type</option>
@@ -1130,7 +1155,8 @@ function EducationSupportContent() {
 									<select
 										value={formData.AdmittedToClassLevel}
 										onChange={(e) => handleChange("AdmittedToClassLevel", e.target.value)}
-										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+										disabled={isLocked}
+										className={`w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${isLocked ? 'bg-gray-100 cursor-not-allowed' : ''}`}
 										required
 									>
 										<option value="">Select Class Level</option>
@@ -1155,7 +1181,8 @@ function EducationSupportContent() {
 									<select
 										value={formData.BaselineSchoolType}
 										onChange={(e) => handleChange("BaselineSchoolType", e.target.value)}
-										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+										disabled={isLocked}
+										className={`w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${isLocked ? 'bg-gray-100 cursor-not-allowed' : ''}`}
 										required
 									>
 										<option value="">Select School Type</option>
@@ -1173,7 +1200,8 @@ function EducationSupportContent() {
 									<select
 										value={formData.TransferredToSchoolType}
 										onChange={(e) => handleChange("TransferredToSchoolType", e.target.value)}
-										className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+										disabled={isLocked}
+										className={`w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${isLocked ? 'bg-gray-100 cursor-not-allowed' : ''}`}
 										required
 									>
 										<option value="">Select School Type</option>
@@ -1192,7 +1220,8 @@ function EducationSupportContent() {
 								<select
 									value={formData.TransferredToClassLevel}
 									onChange={(e) => handleChange("TransferredToClassLevel", e.target.value)}
-									className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+									disabled={isLocked}
+									className={`w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${isLocked ? 'bg-gray-100 cursor-not-allowed' : ''}`}
 									required
 								>
 									<option value="">Select Class Level</option>
@@ -1217,7 +1246,8 @@ function EducationSupportContent() {
 								type="number"
 								value={formData.EduOneTimeAdmissionTotalCost || ""}
 								onChange={(e) => handleChange("EduOneTimeAdmissionTotalCost", parseFloat(e.target.value) || 0)}
-								className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+								disabled={isLocked}
+								className={`w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${isLocked ? 'bg-gray-100 cursor-not-allowed' : ''}`}
 								placeholder="0"
 								min="0"
 								step="0.01"
@@ -1229,7 +1259,8 @@ function EducationSupportContent() {
 								type="number"
 								value={formData.EduOneTimeAdmissionFamilyContribution || ""}
 								onChange={(e) => handleChange("EduOneTimeAdmissionFamilyContribution", parseFloat(e.target.value) || 0)}
-								className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+								disabled={isLocked}
+								className={`w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${isLocked ? 'bg-gray-100 cursor-not-allowed' : ''}`}
 								placeholder="0"
 								min="0"
 								step="0.01"
@@ -1258,7 +1289,8 @@ function EducationSupportContent() {
 								type="number"
 								value={formData.EduMonthlyTuitionTotalCost || ""}
 								onChange={(e) => handleChange("EduMonthlyTuitionTotalCost", parseFloat(e.target.value) || 0)}
-								className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+								disabled={isLocked}
+								className={`w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${isLocked ? 'bg-gray-100 cursor-not-allowed' : ''}`}
 								placeholder="0"
 								min="0"
 								step="0.01"
@@ -1270,7 +1302,8 @@ function EducationSupportContent() {
 								type="number"
 								value={formData.EduMonthlyTuitionFamilyContribution || ""}
 								onChange={(e) => handleChange("EduMonthlyTuitionFamilyContribution", parseFloat(e.target.value) || 0)}
-								className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+								disabled={isLocked}
+								className={`w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${isLocked ? 'bg-gray-100 cursor-not-allowed' : ''}`}
 								placeholder="0"
 								min="0"
 								step="0.01"
@@ -1291,7 +1324,8 @@ function EducationSupportContent() {
 								type="number"
 								value={formData.EduTuitionNumberOfMonths || ""}
 								onChange={(e) => handleChange("EduTuitionNumberOfMonths", parseInt(e.target.value) || 0)}
-								className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+								disabled={isLocked}
+								className={`w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${isLocked ? 'bg-gray-100 cursor-not-allowed' : ''}`}
 								placeholder="0"
 								min="0"
 							/>
@@ -1309,7 +1343,8 @@ function EducationSupportContent() {
 								type="number"
 								value={formData.EduMonthlyHostelTotalCost || ""}
 								onChange={(e) => handleChange("EduMonthlyHostelTotalCost", parseFloat(e.target.value) || 0)}
-								className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+								disabled={isLocked}
+								className={`w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${isLocked ? 'bg-gray-100 cursor-not-allowed' : ''}`}
 								placeholder="0"
 								min="0"
 								step="0.01"
@@ -1321,7 +1356,8 @@ function EducationSupportContent() {
 								type="number"
 								value={formData.EduMonthlyHostelFamilyContribution || ""}
 								onChange={(e) => handleChange("EduMonthlyHostelFamilyContribution", parseFloat(e.target.value) || 0)}
-								className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+								disabled={isLocked}
+								className={`w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${isLocked ? 'bg-gray-100 cursor-not-allowed' : ''}`}
 								placeholder="0"
 								min="0"
 								step="0.01"
@@ -1342,7 +1378,8 @@ function EducationSupportContent() {
 								type="number"
 								value={formData.EduHostelNumberOfMonths || ""}
 								onChange={(e) => handleChange("EduHostelNumberOfMonths", parseInt(e.target.value) || 0)}
-								className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+								disabled={isLocked}
+								className={`w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${isLocked ? 'bg-gray-100 cursor-not-allowed' : ''}`}
 								placeholder="0"
 								min="0"
 							/>
@@ -1360,7 +1397,8 @@ function EducationSupportContent() {
 								type="number"
 								value={formData.EduMonthlyTransportTotalCost || ""}
 								onChange={(e) => handleChange("EduMonthlyTransportTotalCost", parseFloat(e.target.value) || 0)}
-								className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+								disabled={isLocked}
+								className={`w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${isLocked ? 'bg-gray-100 cursor-not-allowed' : ''}`}
 								placeholder="0"
 								min="0"
 								step="0.01"
@@ -1372,7 +1410,8 @@ function EducationSupportContent() {
 								type="number"
 								value={formData.EduMonthlyTransportFamilyContribution || ""}
 								onChange={(e) => handleChange("EduMonthlyTransportFamilyContribution", parseFloat(e.target.value) || 0)}
-								className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+								disabled={isLocked}
+								className={`w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${isLocked ? 'bg-gray-100 cursor-not-allowed' : ''}`}
 								placeholder="0"
 								min="0"
 								step="0.01"
@@ -1393,7 +1432,8 @@ function EducationSupportContent() {
 								type="number"
 								value={formData.EduTransportNumberOfMonths || ""}
 								onChange={(e) => handleChange("EduTransportNumberOfMonths", parseInt(e.target.value) || 0)}
-								className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+								disabled={isLocked}
+								className={`w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${isLocked ? 'bg-gray-100 cursor-not-allowed' : ''}`}
 								placeholder="0"
 								min="0"
 							/>
@@ -1453,7 +1493,8 @@ function EducationSupportContent() {
 							<textarea
 								value={formData.Remarks}
 								onChange={(e) => handleChange("Remarks", e.target.value)}
-								className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+								disabled={isLocked}
+								className={`w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none ${isLocked ? 'bg-gray-100 cursor-not-allowed' : ''}`}
 								rows={4}
 								placeholder="Enter remarks here..."
 							/>
@@ -1479,7 +1520,7 @@ function EducationSupportContent() {
 				</button>
 					<button
 						type="submit"
-						disabled={saving}
+						disabled={saving || isLocked}
 						className="px-6 py-2 bg-[#0b4d2b] text-white rounded-md hover:bg-[#0a3d22] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
 					>
 						{saving ? (

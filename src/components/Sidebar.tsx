@@ -106,6 +106,7 @@ const getAllNavigationGroups = (): NavGroup[] => {
 						{ label: "Feasibility Approval", href: "/dashboard/feasibility-approval" },
 						{ label: "Family Development Plan Approval", href: "/dashboard/approval-section/family-development-plan-approval" },
 						{ label: "Intervention Approval", href: "/dashboard/approval-section/intervention-approval" },
+						{ label: "ROP Approval", href: "/dashboard/approval-section/rop-approval" },
 						{ label: "Bank Account Approval", href: "/dashboard/approval-section/bank-account-approval" },
 					]
 				},
@@ -260,12 +261,12 @@ const getVisibleNavGroups = (allGroups: NavGroup[], userType: string | null | un
 		return visibleGroups;
 	}
 	
-	// If userType is "Regional AM" - Dashboard + Approval Section (3 specific items) + Logout
+	// If userType is "Regional AM" - Dashboard + Approval Section (4 specific items) + Logout
 	if (normalizedUserType === "REGIONAL AM") {
 		const dashboardGroup = findDashboardGroup();
 		const logoutItem = findLogoutItem();
 		
-		// Find "Approval Section" item and extract only the 3 allowed subItems
+		// Find "Approval Section" item and extract only the 4 allowed subItems
 		const approvalSectionGroup = allGroups.find(group => 
 			group.items.some(item => item.label === "Approval Section")
 		);
@@ -277,10 +278,11 @@ const getVisibleNavGroups = (allGroups: NavGroup[], userType: string | null | un
 		const allowedRoutes = [
 			"/dashboard/approval-section/baseline-approval",
 			"/dashboard/approval-section/family-development-plan-approval",
-			"/dashboard/approval-section/intervention-approval"
+			"/dashboard/approval-section/intervention-approval",
+			"/dashboard/approval-section/rop-approval"
 		];
 		
-		// Filter subItems to only include the 3 allowed routes
+		// Filter subItems to only include the 4 allowed routes
 		const allowedSubItems = approvalSectionItem?.subItems?.filter(subItem => 
 			allowedRoutes.includes(subItem.href)
 		) || [];
@@ -292,7 +294,7 @@ const getVisibleNavGroups = (allGroups: NavGroup[], userType: string | null | un
 			visibleGroups.push(dashboardGroup);
 		}
 		
-		// Add Approval Section with only the 3 allowed items
+		// Add Approval Section with only the 4 allowed items
 		if (approvalSectionItem && allowedSubItems.length > 0) {
 			visibleGroups.push({
 				divider: false,
