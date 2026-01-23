@@ -14,6 +14,7 @@ type Intervention = {
 	MainIntervention: string | null;
 	InterventionType: string | null;
 	FinancialCategory: string | null;
+	AmountType: string | null;
 	TotalAmount: number | null;
 	InterventionStartDate: string | null;
 	InterventionEndDate: string | null;
