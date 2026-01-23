@@ -143,6 +143,21 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 	const [loadingBankStatus, setLoadingBankStatus] = useState(false);
 	const [bankStatusError, setBankStatusError] = useState<string | null>(null);
 
+	// Bank accounts cache for interventions (key: `${formNumber}-${beneficiaryId}-${scope}`)
+	type BankAccount = {
+		BankNo: number | null;
+		BankName: string | null;
+		AccountNo: string | null;
+		BeneficiaryID: string | null;
+	};
+	const [bankAccountsCache, setBankAccountsCache] = useState<Record<string, BankAccount[]>>({});
+	const [loadingBankAccountsCache, setLoadingBankAccountsCache] = useState<Record<string, boolean>>({});
+	const [expandedBankAccounts, setExpandedBankAccounts] = useState<Record<string, boolean>>({});
+
+	// Interventions data for conditional rendering
+	const [interventionsMemberSet, setInterventionsMemberSet] = useState<Set<string>>(new Set());
+	const [loadingInterventionsCheck, setLoadingInterventionsCheck] = useState(false);
+
 	// Intervention section modal state
 	const [showInterventionModal, setShowInterventionModal] = useState(false);
 	const [selectedInterventionFormNumber, setSelectedInterventionFormNumber] = useState<string | null>(null);
@@ -372,6 +387,109 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 		}
 	};
 
+	const fetchInterventionsByForm = async (formNumber: string) => {
+		try {
+			setLoadingInterventionsCheck(true);
+			const response = await fetch(`/api/interventions/by-form?formNumber=${encodeURIComponent(formNumber)}`);
+			const data = await response.json().catch(() => ({ ok: false, data: [] }));
+
+			if (data.ok && Array.isArray(data.data)) {
+				// Build Set of MemberIDs that have interventions
+				const memberIdSet = new Set<string>();
+				data.data.forEach((intervention: { MemberID: string | null }) => {
+					if (intervention.MemberID && String(intervention.MemberID).trim()) {
+						memberIdSet.add(String(intervention.MemberID).trim());
+					}
+				});
+				setInterventionsMemberSet(memberIdSet);
+			} else {
+				setInterventionsMemberSet(new Set());
+			}
+		} catch (err) {
+			console.error("Error fetching interventions by form:", err);
+			setInterventionsMemberSet(new Set());
+		} finally {
+			setLoadingInterventionsCheck(false);
+		}
+	};
+
+	const fetchBankAccountsForInterventions = async (formNumber: string, members: FamilyMember[], interventions: Record<string, MemberInterventions>) => {
+		if (!formNumber || members.length === 0) {
+			return;
+		}
+
+		// Fetch bank accounts for all interventions
+		const fetchPromises: Promise<void>[] = [];
+		const socialFetched = new Set<string>();
+
+		members.forEach((member) => {
+			const memberKey = member.BeneficiaryID;
+			const memberInterventions = interventions[memberKey] || {
+				economic: false,
+				education: false,
+				food: false,
+				habitat: false,
+			};
+
+			// For ECONOMIC: fetch by FormNumber + BeneficiaryID
+			if (memberInterventions.economic) {
+				const cacheKey = `${formNumber}-${memberKey}-economic`;
+				if (!bankAccountsCache[cacheKey] && !loadingBankAccountsCache[cacheKey]) {
+					setLoadingBankAccountsCache(prev => ({ ...prev, [cacheKey]: true }));
+					fetchPromises.push(
+						fetch(`/api/bank-information?formNumber=${encodeURIComponent(formNumber)}&beneficiaryId=${encodeURIComponent(memberKey)}&scope=economic`)
+							.then(async (res) => {
+								const data = await res.json().catch(() => ({ ok: false, banks: [] }));
+								if (data.ok && Array.isArray(data.banks)) {
+									setBankAccountsCache(prev => ({ ...prev, [cacheKey]: data.banks }));
+								}
+							})
+							.catch((err) => {
+								console.error(`Error fetching bank accounts for ${cacheKey}:`, err);
+							})
+							.finally(() => {
+								setLoadingBankAccountsCache(prev => {
+									const updated = { ...prev };
+									delete updated[cacheKey];
+									return updated;
+								});
+							})
+					);
+				}
+			}
+
+			// For SOCIAL (education, food, habitat): fetch by FormNumber only (once per family)
+			if ((memberInterventions.education || memberInterventions.food || memberInterventions.habitat) && !socialFetched.has(formNumber)) {
+				socialFetched.add(formNumber);
+				const cacheKey = `${formNumber}-social`;
+				if (!bankAccountsCache[cacheKey] && !loadingBankAccountsCache[cacheKey]) {
+					setLoadingBankAccountsCache(prev => ({ ...prev, [cacheKey]: true }));
+					fetchPromises.push(
+						fetch(`/api/bank-information?formNumber=${encodeURIComponent(formNumber)}&scope=social`)
+							.then(async (res) => {
+								const data = await res.json().catch(() => ({ ok: false, banks: [] }));
+								if (data.ok && Array.isArray(data.banks)) {
+									setBankAccountsCache(prev => ({ ...prev, [cacheKey]: data.banks }));
+								}
+							})
+							.catch((err) => {
+								console.error(`Error fetching bank accounts for ${cacheKey}:`, err);
+							})
+							.finally(() => {
+								setLoadingBankAccountsCache(prev => {
+									const updated = { ...prev };
+									delete updated[cacheKey];
+									return updated;
+								});
+							})
+					);
+				}
+			}
+		});
+
+		await Promise.all(fetchPromises);
+	};
+
 	const handleShowMembers = async (formNumber: string) => {
 		setSelectedFormNumber(formNumber);
 		setShowMemberModal(true);
@@ -381,6 +499,10 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 		setMemberInterventions({});
 		setBankStatusMap({});
 		setBankStatusError(null);
+		setInterventionsMemberSet(new Set());
+
+		// Fetch interventions for this form number
+		await fetchInterventionsByForm(formNumber);
 
 		try {
 			// Use ROPS API if baseRoute is /dashboard/rops, otherwise use actual-intervention API
@@ -398,7 +520,8 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 
 			const membersData = data.members || [];
 			setMembers(membersData);
-			setMemberInterventions(data.interventions || {});
+			const interventionsData = data.interventions || {};
+			setMemberInterventions(interventionsData);
 
 			// Fetch bank status for all members in parallel
 			if (membersData.length > 0) {
@@ -409,6 +532,8 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 				if (beneficiaryIds.length > 0) {
 					// Fetch bank status asynchronously (don't block modal opening)
 					fetchBankStatus(formNumber, beneficiaryIds);
+					// Fetch bank accounts for interventions asynchronously
+					fetchBankAccountsForInterventions(formNumber, membersData, interventionsData);
 				}
 			}
 		} catch (err) {
@@ -1128,9 +1253,13 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 								setRopSuccess(false);
 								setBankStatusMap({});
 								setBankStatusError(null);
+								setBankAccountsCache({});
+								setLoadingBankAccountsCache({});
+								setExpandedBankAccounts({});
+								setInterventionsMemberSet(new Set());
 							}}
 						></div>
-						<div className="relative w-full max-w-6xl bg-white rounded-xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
+						<div className="relative w-[95vw] max-w-[95vw] bg-white rounded-xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
 							<div className="flex items-center justify-between border-b-2 border-gray-200 px-6 py-4 bg-gradient-to-r from-[#0b4d2b] via-[#0d5d35] to-[#0b4d2b]">
 								<div>
 									<h2 className="text-2xl font-bold text-white flex items-center gap-2">
@@ -1156,11 +1285,15 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 											remarks: "",
 											interventions: []
 										});
-										setRopSuccess(false);
-										setBankStatusMap({});
-										setBankStatusError(null);
-									}}
-									className="p-2 hover:bg-white/20 rounded-lg transition-colors text-white hover:text-gray-200"
+								setRopSuccess(false);
+								setBankStatusMap({});
+								setBankStatusError(null);
+								setBankAccountsCache({});
+								setLoadingBankAccountsCache({});
+								setExpandedBankAccounts({});
+								setInterventionsMemberSet(new Set());
+							}}
+							className="p-2 hover:bg-white/20 rounded-lg transition-colors text-white hover:text-gray-200"
 								>
 									<XCircle className="h-6 w-6" />
 								</button>
@@ -1210,15 +1343,6 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 															</th>
 															<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
 																PE Investment Amount
-															</th>
-															<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
-																Bank No
-															</th>
-															<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
-																Bank Name
-															</th>
-															<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
-																Account No
 															</th>
 															<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
 																Interventions
@@ -1275,119 +1399,217 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 																			<span className="text-sm text-gray-400">N/A</span>
 																		)}
 																	</td>
-																	<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-																		{member.BankNo ? (
-																			<span className="font-medium">{member.BankNo}</span>
-																		) : (
-																			<span className="text-gray-400">-</span>
-																		)}
-																	</td>
-																	<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-																		{member.BankName ? (
-																			<span>{member.BankName}</span>
-																		) : (
-																			<span className="text-gray-400">-</span>
-																		)}
-																	</td>
-																	<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 font-mono">
-																		{member.AccountNo ? (
-																			<span>{member.AccountNo}</span>
-																		) : (
-																			<span className="text-gray-400">-</span>
-																		)}
-																	</td>
-																	<td className="px-6 py-4 whitespace-nowrap text-sm">
-																		<div className="flex flex-wrap gap-2">
-																			{interventions.economic || interventions.education || interventions.food || interventions.habitat ? (
-																				<>
-																					{interventions.economic && (
-																						<>
+																	<td className="px-6 py-4 text-sm">
+																		{(() => {
+																			const hasIntervention = interventionsMemberSet.has(memberKey);
+																			
+																			if (!hasIntervention) {
+																				return (
+																					<span className="inline-flex items-center rounded-md px-3 py-1.5 text-xs font-medium text-gray-500 bg-gray-100 italic">
+																						No intervention found
+																					</span>
+																				);
+																			}
+
+																			return (
+																				<div className="space-y-3">
+																					<div className="flex flex-wrap gap-2">
+																						{interventions.economic || interventions.education || interventions.food || interventions.habitat ? (
+																							<>
+																								{interventions.economic && (
+																									<>
+																										<button
+																											type="button"
+																											onClick={(e) => selectedFormNumber && handleInterventionClick(e, selectedFormNumber, "economic", memberKey)}
+																											className="inline-flex items-center rounded-lg px-4 py-2 text-xs font-semibold bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md hover:from-blue-700 hover:to-blue-800 transition-all cursor-pointer"
+																										>
+																											Economic
+																										</button>
+																										<button
+																											type="button"
+																											onClick={(e) => selectedFormNumber && handleBankAccountClick(e, selectedFormNumber, memberKey)}
+																											className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-md hover:from-indigo-700 hover:to-indigo-800 transition-all cursor-pointer"
+																										>
+																											<CreditCard className="h-3.5 w-3.5" />
+																											Bank Account
+																										</button>
+																									</>
+																								)}
+																								{interventions.education && (
+																									<button
+																										type="button"
+																										onClick={(e) => selectedFormNumber && handleInterventionClick(e, selectedFormNumber, "education", memberKey)}
+																										className="inline-flex items-center rounded-lg px-4 py-2 text-xs font-semibold bg-gradient-to-r from-green-600 to-green-700 text-white shadow-md hover:from-green-700 hover:to-green-800 transition-all cursor-pointer"
+																									>
+																										Education
+																									</button>
+																								)}
+																								{interventions.food && (
+																									<button
+																										type="button"
+																										onClick={(e) => selectedFormNumber && handleInterventionClick(e, selectedFormNumber, "food", memberKey)}
+																										className="inline-flex items-center rounded-lg px-4 py-2 text-xs font-semibold bg-gradient-to-r from-amber-600 to-amber-700 text-white shadow-md hover:from-amber-700 hover:to-amber-800 transition-all cursor-pointer"
+																									>
+																										Food
+																									</button>
+																								)}
+																								{interventions.habitat && (
+																									<button
+																										type="button"
+																										onClick={(e) => selectedFormNumber && handleInterventionClick(e, selectedFormNumber, "habitat", memberKey)}
+																										className="inline-flex items-center rounded-lg px-4 py-2 text-xs font-semibold bg-gradient-to-r from-purple-600 to-purple-700 text-white shadow-md hover:from-purple-700 hover:to-purple-800 transition-all cursor-pointer"
+																									>
+																										Habitat
+																									</button>
+																								)}
+																							</>
+																						) : (
+																							<span className="inline-flex items-center rounded-md px-3 py-1.5 text-xs font-medium text-gray-500 bg-gray-100 italic">
+																								No intervention defined in FDP
+																							</span>
+																						)}
+																						{/* Generate ROP Button - Always visible */}
+																						<div className="flex flex-col gap-1">
 																							<button
 																								type="button"
-																								onClick={(e) => selectedFormNumber && handleInterventionClick(e, selectedFormNumber, "economic", memberKey)}
-																								className="inline-flex items-center rounded-lg px-4 py-2 text-xs font-semibold bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md hover:from-blue-700 hover:to-blue-800 transition-all cursor-pointer"
+																								onClick={(e) => selectedFormNumber && handleGenerateROPClick(e, selectedFormNumber, memberKey)}
+																								disabled={loadingBankStatus || !bankStatusMap[memberKey]?.hasBank}
+																								className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold shadow-md transition-all ${
+																									loadingBankStatus || !bankStatusMap[memberKey]?.hasBank
+																										? "bg-gray-400 text-gray-200 cursor-not-allowed opacity-60"
+																										: "bg-gradient-to-r from-teal-600 to-teal-700 text-white hover:from-teal-700 hover:to-teal-800 cursor-pointer"
+																								}`}
 																							>
-																								Economic
+																								{loadingBankStatus ? (
+																									<>
+																										<div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+																										Checking...
+																									</>
+																								) : (
+																									<>
+																										<FileBarChart className="h-3.5 w-3.5" />
+																										Generate ROP
+																									</>
+																								)}
 																							</button>
-																							<button
-																								type="button"
-																								onClick={(e) => selectedFormNumber && handleBankAccountClick(e, selectedFormNumber, memberKey)}
-																								className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-md hover:from-indigo-700 hover:to-indigo-800 transition-all cursor-pointer"
-																							>
-																								<CreditCard className="h-3.5 w-3.5" />
-																								Bank Account
-																							</button>
-																						</>
-																					)}
-																					{interventions.education && (
-																						<button
-																							type="button"
-																							onClick={(e) => selectedFormNumber && handleInterventionClick(e, selectedFormNumber, "education", memberKey)}
-																							className="inline-flex items-center rounded-lg px-4 py-2 text-xs font-semibold bg-gradient-to-r from-green-600 to-green-700 text-white shadow-md hover:from-green-700 hover:to-green-800 transition-all cursor-pointer"
-																						>
-																							Education
-																						</button>
-																					)}
-																					{interventions.food && (
-																						<button
-																							type="button"
-																							onClick={(e) => selectedFormNumber && handleInterventionClick(e, selectedFormNumber, "food", memberKey)}
-																							className="inline-flex items-center rounded-lg px-4 py-2 text-xs font-semibold bg-gradient-to-r from-amber-600 to-amber-700 text-white shadow-md hover:from-amber-700 hover:to-amber-800 transition-all cursor-pointer"
-																						>
-																							Food
-																						</button>
-																					)}
-																					{interventions.habitat && (
-																						<button
-																							type="button"
-																							onClick={(e) => selectedFormNumber && handleInterventionClick(e, selectedFormNumber, "habitat", memberKey)}
-																							className="inline-flex items-center rounded-lg px-4 py-2 text-xs font-semibold bg-gradient-to-r from-purple-600 to-purple-700 text-white shadow-md hover:from-purple-700 hover:to-purple-800 transition-all cursor-pointer"
-																						>
-																							Habitat
-																						</button>
-																					)}
-																				</>
-																			) : (
-																				<span className="inline-flex items-center rounded-md px-3 py-1.5 text-xs font-medium text-gray-500 bg-gray-100 italic">
-																					No intervention defined in FDP
-																				</span>
+																							{!loadingBankStatus && bankStatusMap[memberKey]?.hasBank === false && (
+																								<span className="text-xs text-red-600 font-medium">
+																									Bank account is not defined.
+																								</span>
+																							)}
+																							{bankStatusError && !bankStatusMap[memberKey] && (
+																								<span className="text-xs text-red-600 font-medium">
+																									Unable to verify bank account. Please try again.
+																								</span>
+																							)}
+																						</div>
+																					</div>
+																					
+																					{/* Bank Accounts Display */}
+																					{(interventions.economic || interventions.education || interventions.food || interventions.habitat) && (
+																				<div className="space-y-2">
+																					{/* ECONOMIC Bank Accounts */}
+																					{interventions.economic && (() => {
+																						const cacheKey = `${selectedFormNumber}-${memberKey}-economic`;
+																						const banks = bankAccountsCache[cacheKey] || [];
+																						const isLoading = loadingBankAccountsCache[cacheKey];
+																						const isExpanded = expandedBankAccounts[cacheKey];
+																						
+																						return (
+																							<div className="border border-gray-200 rounded-md">
+																								<button
+																									type="button"
+																									onClick={() => setExpandedBankAccounts(prev => ({ ...prev, [cacheKey]: !prev[cacheKey] }))}
+																									className="w-full px-3 py-2 text-left text-xs font-semibold text-gray-700 bg-gray-50 hover:bg-gray-100 flex items-center justify-between rounded-t-md"
+																								>
+																									<span>Bank Accounts (Economic)</span>
+																									<span className="text-gray-500">{isExpanded ? '▼' : '▶'}</span>
+																								</button>
+																								{isExpanded && (
+																									<div className="p-2">
+																										{isLoading ? (
+																											<div className="text-xs text-gray-500 text-center py-2">Loading...</div>
+																										) : banks.length > 0 ? (
+																											<table className="min-w-full text-xs">
+																												<thead className="bg-gray-100">
+																													<tr>
+																														<th className="px-2 py-1 text-left font-semibold text-gray-700">Bank No</th>
+																														<th className="px-2 py-1 text-left font-semibold text-gray-700">Bank Name</th>
+																														<th className="px-2 py-1 text-left font-semibold text-gray-700">Account No</th>
+																													</tr>
+																												</thead>
+																												<tbody className="divide-y divide-gray-200">
+																													{banks.map((bank, idx) => (
+																														<tr key={idx} className="hover:bg-gray-50">
+																															<td className="px-2 py-1 text-gray-900">{bank.BankNo || '-'}</td>
+																															<td className="px-2 py-1 text-gray-900">{bank.BankName || '-'}</td>
+																															<td className="px-2 py-1 text-gray-900 font-mono">{bank.AccountNo || '-'}</td>
+																														</tr>
+																													))}
+																												</tbody>
+																											</table>
+																										) : (
+																											<div className="text-xs text-gray-500 text-center py-2">No bank accounts found</div>
+																										)}
+																									</div>
+																								)}
+																							</div>
+																						);
+																					})()}
+																					
+																					{/* SOCIAL Bank Accounts (Education, Food, Habitat) */}
+																					{(interventions.education || interventions.food || interventions.habitat) && (() => {
+																						const cacheKey = `${selectedFormNumber}-social`;
+																						const banks = bankAccountsCache[cacheKey] || [];
+																						const isLoading = loadingBankAccountsCache[cacheKey];
+																						const isExpanded = expandedBankAccounts[cacheKey];
+																						
+																						return (
+																							<div className="border border-gray-200 rounded-md">
+																								<button
+																									type="button"
+																									onClick={() => setExpandedBankAccounts(prev => ({ ...prev, [cacheKey]: !prev[cacheKey] }))}
+																									className="w-full px-3 py-2 text-left text-xs font-semibold text-gray-700 bg-gray-50 hover:bg-gray-100 flex items-center justify-between rounded-t-md"
+																								>
+																									<span>Bank Accounts (Social)</span>
+																									<span className="text-gray-500">{isExpanded ? '▼' : '▶'}</span>
+																								</button>
+																								{isExpanded && (
+																									<div className="p-2">
+																										{isLoading ? (
+																											<div className="text-xs text-gray-500 text-center py-2">Loading...</div>
+																										) : banks.length > 0 ? (
+																											<table className="min-w-full text-xs">
+																												<thead className="bg-gray-100">
+																													<tr>
+																														<th className="px-2 py-1 text-left font-semibold text-gray-700">Bank No</th>
+																														<th className="px-2 py-1 text-left font-semibold text-gray-700">Bank Name</th>
+																														<th className="px-2 py-1 text-left font-semibold text-gray-700">Account No</th>
+																													</tr>
+																												</thead>
+																												<tbody className="divide-y divide-gray-200">
+																													{banks.map((bank, idx) => (
+																														<tr key={idx} className="hover:bg-gray-50">
+																															<td className="px-2 py-1 text-gray-900">{bank.BankNo || '-'}</td>
+																															<td className="px-2 py-1 text-gray-900">{bank.BankName || '-'}</td>
+																															<td className="px-2 py-1 text-gray-900 font-mono">{bank.AccountNo || '-'}</td>
+																														</tr>
+																													))}
+																												</tbody>
+																											</table>
+																										) : (
+																											<div className="text-xs text-gray-500 text-center py-2">No bank accounts found</div>
+																										)}
+																									</div>
+																								)}
+																							</div>
+																						);
+																					})()}
+																				</div>
 																			)}
-															{/* Generate ROP Button - Always visible */}
-															<div className="flex flex-col gap-1">
-																<button
-																	type="button"
-																	onClick={(e) => selectedFormNumber && handleGenerateROPClick(e, selectedFormNumber, memberKey)}
-																	disabled={loadingBankStatus || !bankStatusMap[memberKey]?.hasBank}
-																	className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold shadow-md transition-all ${
-																		loadingBankStatus || !bankStatusMap[memberKey]?.hasBank
-																			? "bg-gray-400 text-gray-200 cursor-not-allowed opacity-60"
-																			: "bg-gradient-to-r from-teal-600 to-teal-700 text-white hover:from-teal-700 hover:to-teal-800 cursor-pointer"
-																	}`}
-																>
-																	{loadingBankStatus ? (
-																		<>
-																			<div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-																			Checking...
-																		</>
-																	) : (
-																		<>
-																			<FileBarChart className="h-3.5 w-3.5" />
-																			Generate ROP
-																		</>
-																	)}
-																</button>
-																{!loadingBankStatus && bankStatusMap[memberKey]?.hasBank === false && (
-																	<span className="text-xs text-red-600 font-medium">
-																		Bank account is not defined.
-																	</span>
-																)}
-																{bankStatusError && !bankStatusMap[memberKey] && (
-																	<span className="text-xs text-red-600 font-medium">
-																		Unable to verify bank account. Please try again.
-																	</span>
-																)}
-															</div>
 																		</div>
+																			);
+																		})()}
 																	</td>
 																</tr>
 															);

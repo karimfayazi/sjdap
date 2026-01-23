@@ -197,11 +197,10 @@ export function hasRouteAccess(userType: string | null | undefined, route: strin
 		return false;
 	}
 
-	// Editor access
+	// Editor access (excluding Family Income and SWB-Families)
 	if (normalizedUserType === 'Editor') {
 		const editorRoutes = [
 			'/dashboard/baseline-qol',
-			'/dashboard/family-income',
 			'/dashboard/rops',
 			'/dashboard/family-development-plan',
 			'/dashboard/actual-intervention'

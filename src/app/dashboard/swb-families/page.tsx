@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Download, Search, RefreshCw, Plus, Eye, Trash2, Edit2 } from "lucide-react";
 import PageGuard from "@/components/PageGuard";
+import { useAuth } from "@/hooks/useAuth";
+import { hasRouteAccess, hasFullAccess } from "@/lib/auth-utils";
 
 type SWBFamily = {
 	CNIC: string | null;
@@ -30,6 +32,7 @@ type SWBFamily = {
 
 export default function SWBFamiliesPage() {
 	const router = useRouter();
+	const { userProfile } = useAuth();
 	const [families, setFamilies] = useState<SWBFamily[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -56,6 +59,29 @@ export default function SWBFamiliesPage() {
 	});
 	const [deleting, setDeleting] = useState(false);
 	const itemsPerPage = 50;
+
+	// Check route access based on UserType
+	useEffect(() => {
+		if (!userProfile) return;
+		
+		const userType = userProfile.access_level; // UserType is stored in access_level
+		const hasFullAccessToAll = hasFullAccess(
+			userProfile.username,
+			userProfile.supper_user,
+			userType
+		);
+		
+		// Super Admin has access to all pages
+		if (hasFullAccessToAll) {
+			return;
+		}
+		
+		// Check route-specific access
+		const currentRoute = '/dashboard/swb-families';
+		if (!hasRouteAccess(userType, currentRoute)) {
+			router.push('/dashboard');
+		}
+	}, [userProfile, router]);
 
 	const fetchFamilies = async () => {
 		try {

@@ -1,604 +1,106 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { getBaselineDb } from "@/lib/db";
-import { checkSuperUserFromDb } from "@/lib/auth-server-utils";
-import { requireRoutePermission } from "@/lib/api-permission-helper";
+import sql from "mssql";
 
-// Increase timeout for this route to 120 seconds
 export const maxDuration = 120;
 
 export async function GET(request: NextRequest) {
 	try {
-		// Check permission for bank-information route
-		const permissionCheck = await requireRoutePermission(
-			request,
-			"/dashboard/finance/bank-information",
-			"view"
-		);
-
-		if (!permissionCheck.hasAccess) {
-			return permissionCheck.error;
+		// Auth
+		const authCookie = request.cookies.get("auth");
+		if (!authCookie || !authCookie.value) {
+			return NextResponse.json(
+				{ ok: false, message: "Unauthorized", banks: [] },
+				{ status: 401 }
+			);
 		}
 
-		const userId = permissionCheck.userId;
-
-		// Get user's full name, user type, program and area
-		const userPool = await getDb();
-		const userResult = await userPool
-			.request()
-			.input("user_id", userId)
-			.input("email_address", userId)
-			.query(
-				"SELECT TOP(1) [UserFullName], [UserType] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
+		const userId = authCookie.value.split(":")[1];
+		if (!userId) {
+			return NextResponse.json(
+				{ ok: false, message: "Invalid session", banks: [] },
+				{ status: 401 }
 			);
+		}
 
-		const user = userResult.recordset?.[0];
-		const userFullName = user?.UserFullName || null;
-		const isAdmin = user?.UserType?.toLowerCase() === "admin";
-		const userProgram = null; // PE_User doesn't have PROGRAM field
-		const userArea = null; // PE_User doesn't have AREA field
+		const { searchParams } = new URL(request.url);
+		const formNumber = searchParams.get("formNumber");
+		const beneficiaryId = searchParams.get("beneficiaryId");
+		const scope = searchParams.get("scope"); // "economic" or "social"
 
-		const searchParams = request.nextUrl.searchParams;
-		const familyId = searchParams.get("familyId") || "";
-		const program = searchParams.get("program") || "";
-		const headName = searchParams.get("headName") || "";
-		const familyProgressStatus = searchParams.get("familyProgressStatus") || "";
-		const mentor = searchParams.get("mentor") || "";
-		const bankName = searchParams.get("bankName") || "";
-		const accountTitle = searchParams.get("accountTitle") || "";
-		const accountNo = searchParams.get("accountNo") || "";
-		const cnic = searchParams.get("cnic") || "";
-		const accountType = searchParams.get("accountType") || "";
+		if (!formNumber) {
+			return NextResponse.json(
+				{ ok: false, message: "Form Number is required", banks: [] },
+				{ status: 400 }
+			);
+		}
+
+		if (!scope || (scope !== "economic" && scope !== "social")) {
+			return NextResponse.json(
+				{ ok: false, message: "Scope must be 'economic' or 'social'", banks: [] },
+				{ status: 400 }
+			);
+		}
 
 		const pool = await getDb();
-		
-		// Build dynamic query with filters
+		const sqlRequest = pool.request();
+		(sqlRequest as any).timeout = 120000;
+
+		sqlRequest.input("formNumber", sql.VarChar, formNumber.trim());
+
+		// Build query based on scope
 		let query = `
-			SELECT TOP (1000) 
-				[FAMILY_ID],
-				[PROGRAM],
-				[AREA],
-				[HEAD NAME] as HEAD_NAME,
-				[FAMILY_PROGRESS_STATUS],
-				[MENTOR],
-				[BANK_NAME],
-				[ACCOUNT_TITLE],
-				[ACCOUNT_NO],
-				[CNIC],
-				[ACCOUNT_TYPE]
-			FROM [SJDA_Tracking_System].[dbo].[View_Show_Bank_Informtion]
-			WHERE 1=1
+			SELECT 
+				[BankNo],
+				[FormNumber],
+				[BeneficiaryID],
+				[BankName],
+				[AccountNo]
+			FROM [SJDA_Users].[dbo].[PE_BankInformation]
+			WHERE LTRIM(RTRIM([FormNumber])) = LTRIM(RTRIM(@formNumber))
 		`;
 
-		const request_query = pool.request();
-
-		if (familyId) {
-			query += " AND [FAMILY_ID] LIKE @familyId";
-			request_query.input("familyId", `%${familyId}%`);
-		}
-
-		if (program) {
-			query += " AND [PROGRAM] = @program";
-			request_query.input("program", program);
-		}
-
-		if (headName) {
-			query += " AND [HEAD NAME] LIKE @headName";
-			request_query.input("headName", `%${headName}%`);
-		}
-
-		if (familyProgressStatus) {
-			query += " AND [FAMILY_PROGRESS_STATUS] = @familyProgressStatus";
-			request_query.input("familyProgressStatus", familyProgressStatus);
-		}
-
-		if (mentor) {
-			query += " AND [MENTOR] LIKE @mentor";
-			request_query.input("mentor", `%${mentor}%`);
-		}
-
-		if (bankName) {
-			query += " AND [BANK_NAME] LIKE @bankName";
-			request_query.input("bankName", `%${bankName}%`);
-		}
-
-		if (accountTitle) {
-			query += " AND [ACCOUNT_TITLE] LIKE @accountTitle";
-			request_query.input("accountTitle", `%${accountTitle}%`);
-		}
-
-		if (accountNo) {
-			query += " AND [ACCOUNT_NO] LIKE @accountNo";
-			request_query.input("accountNo", `%${accountNo}%`);
-		}
-
-		if (cnic) {
-			query += " AND [CNIC] LIKE @cnic";
-			request_query.input("cnic", `%${cnic}%`);
-		}
-
-		if (accountType) {
-			query += " AND [ACCOUNT_TYPE] = @accountType";
-			request_query.input("accountType", accountType);
-		}
-
-		// Non-admin users: restrict by PROGRAM and AREA based on logged-in user
-		if (!isAdmin) {
-			if (userProgram) {
-				query += " AND LTRIM(RTRIM([PROGRAM])) = LTRIM(RTRIM(@userProgram))";
-				request_query.input("userProgram", userProgram);
-			}
-			if (userArea) {
-				query += " AND LTRIM(RTRIM([AREA])) = LTRIM(RTRIM(@userArea))";
-				request_query.input("userArea", userArea);
-			}
-		}
-
-		query += " ORDER BY [FAMILY_ID]";
-
-		// Set request timeout to 120 seconds
-		(request_query as any).timeout = 120000;
-		const result = await request_query.query(query);
-		const banks = result.recordset || [];
-
-		return NextResponse.json({
-			success: true,
-			banks: banks
-		});
-	} catch (error) {
-		console.error("Error fetching bank information:", error);
-		
-		const errorMessage = error instanceof Error ? error.message : String(error);
-		const isConnectionError =
-			errorMessage.includes("ENOTFOUND") ||
-			errorMessage.includes("getaddrinfo") ||
-			errorMessage.includes("Failed to connect") ||
-			errorMessage.includes("ECONNREFUSED") ||
-			errorMessage.includes("ETIMEDOUT") ||
-			errorMessage.includes("ConnectionError");
-
-		const isTimeoutError = 
-			errorMessage.includes("Timeout") ||
-			errorMessage.includes("timeout") ||
-			errorMessage.includes("Request failed to complete");
-
-		if (isConnectionError) {
-			return NextResponse.json(
-				{
-					success: false,
-					message: "Please Re-Connect VPN"
-				},
-				{ status: 503 }
-			);
-		}
-
-		if (isTimeoutError) {
-			return NextResponse.json(
-				{ 
-					success: false, 
-					message: "Request timeout. The query is taking too long. Please try again or contact support if the issue persists."
-				},
-				{ status: 504 }
-			);
-		}
-
-		return NextResponse.json(
-			{
-				success: false,
-				message: "Error fetching bank information: " + errorMessage
-			},
-			{ status: 500 }
-		);
-	}
-}
-
-export async function POST(request: NextRequest) {
-	try {
-		// Check permission for bank-information route (add action)
-		const permissionCheck = await requireRoutePermission(
-			request,
-			"/dashboard/finance/bank-information",
-			"add"
-		);
-
-		if (!permissionCheck.hasAccess) {
-			return permissionCheck.error;
-		}
-
-		const userId = permissionCheck.userId;
-
-		// Get user's full name to set as MENTOR
-		const userPool = await getDb();
-		const userFullNameResult = await userPool
-			.request()
-			.input("user_id", userId)
-			.input("email_address", userId)
-			.query(
-				"SELECT TOP(1) [UserFullName] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
-			);
-
-		const userFullName = userFullNameResult.recordset?.[0]?.UserFullName || null;
-
-		if (!userFullName) {
-			return NextResponse.json(
-				{ success: false, message: "User full name not found" },
-				{ status: 404 }
-			);
-		}
-
-		// Get the bank data from request body
-		const bankData = await request.json();
-
-		// Validate required fields
-		if (!bankData.familyId || !bankData.bankName || !bankData.accountHolderName || !bankData.accountNumber) {
-			return NextResponse.json(
-				{ success: false, message: "Family ID, Bank Name, Account Holder Name, and Account Number are required" },
-				{ status: 400 }
-			);
-		}
-
-		// Check if Bank Account Number already exists
-		const pool = await getDb();
-		const accountCheckRequest = pool.request();
-		accountCheckRequest.input("ACCOUNT_NO", bankData.accountNumber.trim());
-		const accountCheckQuery = `
-			SELECT [FAMILY_ID], [ACCOUNT_NO]
-			FROM [SJDA_Tracking_System].[dbo].[Table_BANK_INFORMATION]
-			WHERE LTRIM(RTRIM([ACCOUNT_NO])) = LTRIM(RTRIM(@ACCOUNT_NO))
-		`;
-		const accountCheckResult = await accountCheckRequest.query(accountCheckQuery);
-
-		if (accountCheckResult.recordset.length > 0) {
-			return NextResponse.json(
-				{ success: false, message: "This Bank Account is already used. Please use a different account number." },
-				{ status: 400 }
-			);
-		}
-
-		// Check if CNIC already exists (if provided)
-		if (bankData.cnic && bankData.cnic.trim() !== "") {
-			const cnicCheckRequest = pool.request();
-			cnicCheckRequest.input("CNIC", bankData.cnic.trim());
-			const cnicCheckQuery = `
-				SELECT [FAMILY_ID], [CNIC]
-				FROM [SJDA_Tracking_System].[dbo].[Table_BANK_INFORMATION]
-				WHERE LTRIM(RTRIM([CNIC])) = LTRIM(RTRIM(@CNIC))
-			`;
-			const cnicCheckResult = await cnicCheckRequest.query(cnicCheckQuery);
-
-			if (cnicCheckResult.recordset.length > 0) {
+		if (scope === "economic") {
+			// For ECONOMIC: filter by FormNumber AND BeneficiaryID
+			if (!beneficiaryId) {
 				return NextResponse.json(
-					{ success: false, message: "This CNIC is already used. Please use a different CNIC number." },
+					{ ok: false, message: "BeneficiaryID is required for economic scope", banks: [] },
 					{ status: 400 }
 				);
 			}
+			sqlRequest.input("beneficiaryId", sql.VarChar, beneficiaryId.trim());
+			query += " AND LTRIM(RTRIM([BeneficiaryID])) = LTRIM(RTRIM(@beneficiaryId))";
+		} else {
+			// For SOCIAL: filter by FormNumber only (all family members)
+			// No additional BeneficiaryID filter needed
 		}
 
-		// Insert into database
-		const insertQuery = `
-			INSERT INTO [SJDA_Tracking_System].[dbo].[Table_BANK_INFORMATION]
-			(
-				[FAMILY_ID],
-				[BANK_NAME],
-				[ACCOUNT_TITLE],
-				[ACCOUNT_NO],
-				[MENTOR],
-				[REMARKS],
-				[CNIC],
-				[BANK_CODE],
-				[LAST_UPDATE],
-				[UPDATED_DATE],
-				[CNIC_Expriy_Date]
-			)
-			VALUES
-			(
-				@FAMILY_ID,
-				@BANK_NAME,
-				@ACCOUNT_TITLE,
-				@ACCOUNT_NO,
-				@MENTOR,
-				@REMARKS,
-				@CNIC,
-				@BANK_CODE,
-				GETDATE(),
-				GETDATE(),
-				@CNIC_Expriy_Date
-			)
-		`;
+		query += " ORDER BY [BankNo]";
 
-		const request_query = pool.request();
-		request_query.input("FAMILY_ID", bankData.familyId);
-		request_query.input("BANK_NAME", bankData.bankName);
-		request_query.input("ACCOUNT_TITLE", bankData.accountHolderName);
-		request_query.input("ACCOUNT_NO", bankData.accountNumber);
-		request_query.input("MENTOR", userFullName);
-		request_query.input("REMARKS", bankData.remarks || null);
-		request_query.input("CNIC", bankData.cnic || null);
-		request_query.input("BANK_CODE", bankData.branchCode || null);
-		request_query.input("CNIC_Expriy_Date", bankData.cnicExpiryDate || null);
-		(request_query as any).timeout = 120000;
-
-		await request_query.query(insertQuery);
+		const result = await sqlRequest.query(query);
+		const banks = (result.recordset || []).map((row: any) => ({
+			BankNo: row.BankNo || null,
+			BankName: row.BankName || null,
+			AccountNo: row.AccountNo || null,
+			BeneficiaryID: row.BeneficiaryID || null,
+		}));
 
 		return NextResponse.json({
-			success: true,
-			message: "Bank details saved successfully"
+			ok: true,
+			banks: banks,
 		});
-
 	} catch (error) {
-		console.error("Error saving bank information:", error);
-		
+		console.error("Error fetching bank information:", error);
+
 		const errorMessage = error instanceof Error ? error.message : String(error);
-		const isConnectionError =
-			errorMessage.includes("ENOTFOUND") ||
-			errorMessage.includes("getaddrinfo") ||
-			errorMessage.includes("Failed to connect") ||
-			errorMessage.includes("ECONNREFUSED") ||
-			errorMessage.includes("ETIMEDOUT") ||
-			errorMessage.includes("ConnectionError");
-
-		const isTimeoutError = 
-			errorMessage.includes("Timeout") ||
-			errorMessage.includes("timeout") ||
-			errorMessage.includes("Request failed to complete");
-
-		if (isConnectionError) {
-			return NextResponse.json(
-				{
-					success: false,
-					message: "Please Re-Connect VPN"
-				},
-				{ status: 503 }
-			);
-		}
-
-		if (isTimeoutError) {
-			return NextResponse.json(
-				{ 
-					success: false, 
-					message: "Request timeout. The query is taking too long. Please try again or contact support if the issue persists."
-				},
-				{ status: 504 }
-			);
-		}
-
+		
 		return NextResponse.json(
 			{
-				success: false,
-				message: "Error saving bank information: " + errorMessage
+				ok: false,
+				message: "Error fetching bank information: " + errorMessage,
+				banks: [],
 			},
 			{ status: 500 }
 		);
 	}
 }
-
-export async function PUT(request: NextRequest) {
-	try {
-		// Check permission for bank-information route (edit action)
-		const permissionCheck = await requireRoutePermission(
-			request,
-			"/dashboard/finance/bank-information",
-			"edit"
-		);
-
-		if (!permissionCheck.hasAccess) {
-			return permissionCheck.error;
-		}
-
-		const userId = permissionCheck.userId;
-
-		// Get user's full name
-		const userPool = await getDb();
-		const userResult = await userPool
-			.request()
-			.input("user_id", userId)
-			.input("email_address", userId)
-			.query(
-				"SELECT TOP(1) [UserFullName] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
-			);
-
-		const user = userResult.recordset?.[0];
-
-		// Get the bank data from request body
-		const bankData = await request.json();
-
-		// Validate required fields
-		if (!bankData.familyId || !bankData.bankName || !bankData.accountHolderName || !bankData.accountNumber) {
-			return NextResponse.json(
-				{ success: false, message: "Family ID, Bank Name, Account Holder Name, and Account Number are required" },
-				{ status: 400 }
-			);
-		}
-
-		// Update database
-		const pool = await getDb();
-		const updateQuery = `
-			UPDATE [SJDA_Tracking_System].[dbo].[Table_BANK_INFORMATION]
-			SET
-				[BANK_NAME] = @BANK_NAME,
-				[ACCOUNT_TITLE] = @ACCOUNT_TITLE,
-				[ACCOUNT_NO] = @ACCOUNT_NO,
-				[REMARKS] = @REMARKS,
-				[CNIC] = @CNIC,
-				[BANK_CODE] = @BANK_CODE,
-				[UPDATED_DATE] = GETDATE(),
-				[CNIC_Expriy_Date] = @CNIC_Expriy_Date
-			WHERE
-				[FAMILY_ID] = @FAMILY_ID
-				AND [ACCOUNT_NO] = @ACCOUNT_NO
-		`;
-
-		const request_query = pool.request();
-		request_query.input("FAMILY_ID", bankData.familyId);
-		request_query.input("BANK_NAME", bankData.bankName);
-		request_query.input("ACCOUNT_TITLE", bankData.accountHolderName);
-		request_query.input("ACCOUNT_NO", bankData.accountNumber);
-		request_query.input("REMARKS", bankData.remarks || null);
-		request_query.input("CNIC", bankData.cnic || null);
-		request_query.input("BANK_CODE", bankData.branchCode || null);
-		request_query.input("CNIC_Expriy_Date", bankData.cnicExpiryDate || null);
-		(request_query as any).timeout = 120000;
-
-		const result = await request_query.query(updateQuery);
-
-		if (result.rowsAffected[0] === 0) {
-			return NextResponse.json(
-				{ success: false, message: "No record found to update" },
-				{ status: 404 }
-			);
-		}
-
-		return NextResponse.json({
-			success: true,
-			message: "Bank details updated successfully"
-		});
-
-	} catch (error) {
-		console.error("Error updating bank information:", error);
-		
-		const errorMessage = error instanceof Error ? error.message : String(error);
-		const isConnectionError =
-			errorMessage.includes("ENOTFOUND") ||
-			errorMessage.includes("getaddrinfo") ||
-			errorMessage.includes("Failed to connect") ||
-			errorMessage.includes("ECONNREFUSED") ||
-			errorMessage.includes("ETIMEDOUT") ||
-			errorMessage.includes("ConnectionError");
-
-		const isTimeoutError = 
-			errorMessage.includes("Timeout") ||
-			errorMessage.includes("timeout") ||
-			errorMessage.includes("Request failed to complete");
-
-		if (isConnectionError) {
-			return NextResponse.json(
-				{
-					success: false,
-					message: "Please Re-Connect VPN"
-				},
-				{ status: 503 }
-			);
-		}
-
-		if (isTimeoutError) {
-			return NextResponse.json(
-				{ 
-					success: false, 
-					message: "Request timeout. The query is taking too long. Please try again or contact support if the issue persists."
-				},
-				{ status: 504 }
-			);
-		}
-
-		return NextResponse.json(
-			{
-				success: false,
-				message: "Error updating bank information: " + errorMessage
-			},
-			{ status: 500 }
-		);
-	}
-}
-
-export async function DELETE(request: NextRequest) {
-	try {
-		// Check permission for bank-information route (delete action)
-		const permissionCheck = await requireRoutePermission(
-			request,
-			"/dashboard/finance/bank-information",
-			"delete"
-		);
-
-		if (!permissionCheck.hasAccess) {
-			return permissionCheck.error;
-		}
-
-		const userId = permissionCheck.userId;
-
-		// Get the family ID and account number from query params
-		const searchParams = request.nextUrl.searchParams;
-		const familyId = searchParams.get("familyId");
-		const accountNo = searchParams.get("accountNo");
-
-		if (!familyId || !accountNo) {
-			return NextResponse.json(
-				{ success: false, message: "Family ID and Account Number are required" },
-				{ status: 400 }
-			);
-		}
-
-		// Delete from database
-		const pool = await getDb();
-		const deleteQuery = `
-			DELETE FROM [SJDA_Tracking_System].[dbo].[Table_BANK_INFORMATION]
-			WHERE
-				[FAMILY_ID] = @FAMILY_ID
-				AND [ACCOUNT_NO] = @ACCOUNT_NO
-		`;
-
-		const request_query = pool.request();
-		request_query.input("FAMILY_ID", familyId);
-		request_query.input("ACCOUNT_NO", accountNo);
-		(request_query as any).timeout = 120000;
-
-		const result = await request_query.query(deleteQuery);
-
-		if (result.rowsAffected[0] === 0) {
-			return NextResponse.json(
-				{ success: false, message: "No record found to delete" },
-				{ status: 404 }
-			);
-		}
-
-		return NextResponse.json({
-			success: true,
-			message: "Bank details deleted successfully"
-		});
-
-	} catch (error) {
-		console.error("Error deleting bank information:", error);
-		
-		const errorMessage = error instanceof Error ? error.message : String(error);
-		const isConnectionError =
-			errorMessage.includes("ENOTFOUND") ||
-			errorMessage.includes("getaddrinfo") ||
-			errorMessage.includes("Failed to connect") ||
-			errorMessage.includes("ECONNREFUSED") ||
-			errorMessage.includes("ETIMEDOUT") ||
-			errorMessage.includes("ConnectionError");
-
-		const isTimeoutError = 
-			errorMessage.includes("Timeout") ||
-			errorMessage.includes("timeout") ||
-			errorMessage.includes("Request failed to complete");
-
-		if (isConnectionError) {
-			return NextResponse.json(
-				{
-					success: false,
-					message: "Please Re-Connect VPN"
-				},
-				{ status: 503 }
-			);
-		}
-
-		if (isTimeoutError) {
-			return NextResponse.json(
-				{ 
-					success: false, 
-					message: "Request timeout. The query is taking too long. Please try again or contact support if the issue persists."
-				},
-				{ status: 504 }
-			);
-		}
-
-		return NextResponse.json(
-			{
-				success: false,
-				message: "Error deleting bank information: " + errorMessage
-			},
-			{ status: 500 }
-		);
-	}
-}
-

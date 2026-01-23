@@ -44,15 +44,13 @@ export const USER_TYPE_ROUTE_ACCESS: Record<string, string[]> = {
 		"/logout",
 	],
 	
-	// Editor: Dashboard + Program Level routes + Logout
+	// Editor: Dashboard + Program Level routes (excluding Family Income and SWB-Families) + Logout
 	"EDITOR": [
 		"/dashboard",
 		"/dashboard/baseline-qol",
 		"/dashboard/family-development-plan",
 		"/dashboard/actual-intervention",
 		"/dashboard/rops",
-		"/dashboard/family-income",
-		"/dashboard/swb-families",
 		"/logout",
 	],
 	

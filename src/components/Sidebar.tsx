@@ -111,6 +111,13 @@ const getAllNavigationGroups = (): NavGroup[] => {
 					]
 				},
 				{
+					label: "Reports",
+					icon: FileText,
+					subItems: [
+						{ label: "ROP-Report", href: "/dashboard/rops/report" },
+					]
+				},
+				{
 					label: "Admin Section",
 					icon: Folder,
 					subItems: [
@@ -155,16 +162,32 @@ const getVisibleNavGroups = (allGroups: NavGroup[], userType: string | null | un
 		return logoutGroup?.items.find(item => item.label === "Logout");
 	};
 	
-	// If userType is "Managment" (note spelling as in DB) - Dashboard + Logout only
+	// If userType is "Managment" (note spelling as in DB) - Dashboard + Reports + Logout
 	if (normalizedUserType === "MANAGMENT") {
 		const dashboardGroup = findDashboardGroup();
 		const logoutItem = findLogoutItem();
+		
+		// Find "Reports" item
+		const reportsGroup = allGroups.find(group => 
+			group.items.some(item => item.label === "Reports")
+		);
+		const reportsItem = reportsGroup?.items.find(
+			item => item.label === "Reports"
+		);
 		
 		const visibleGroups: NavGroup[] = [];
 		
 		// Add Dashboard group
 		if (dashboardGroup) {
 			visibleGroups.push(dashboardGroup);
+		}
+		
+		// Add Reports
+		if (reportsItem) {
+			visibleGroups.push({
+				divider: false,
+				items: [reportsItem],
+			});
 		}
 		
 		// Add Logout
@@ -195,7 +218,7 @@ const getVisibleNavGroups = (allGroups: NavGroup[], userType: string | null | un
 		return visibleGroups;
 	}
 	
-	// If userType is "Finance and Administration" - Dashboard + Finance group (without Bank Information) + Approval Section (Bank Account Approval only) + Logout
+	// If userType is "Finance and Administration" - Dashboard + Finance group (without Bank Information) + Approval Section (Bank Account Approval only) + Reports + Logout
 	if (normalizedUserType === "FINANCE AND ADMINISTRATION") {
 		const dashboardGroup = findDashboardGroup();
 		const logoutItem = findLogoutItem();
@@ -224,6 +247,14 @@ const getVisibleNavGroups = (allGroups: NavGroup[], userType: string | null | un
 			subItem => subItem.label === "Bank Account Approval"
 		);
 		
+		// Find "Reports" item
+		const reportsGroup = allGroups.find(group => 
+			group.items.some(item => item.label === "Reports")
+		);
+		const reportsItem = reportsGroup?.items.find(
+			item => item.label === "Reports"
+		);
+		
 		const visibleGroups: NavGroup[] = [];
 		
 		// Add Dashboard group
@@ -250,6 +281,14 @@ const getVisibleNavGroups = (allGroups: NavGroup[], userType: string | null | un
 			});
 		}
 		
+		// Add Reports
+		if (reportsItem) {
+			visibleGroups.push({
+				divider: false,
+				items: [reportsItem],
+			});
+		}
+		
 		// Add Logout
 		if (logoutItem) {
 			visibleGroups.push({
@@ -261,7 +300,7 @@ const getVisibleNavGroups = (allGroups: NavGroup[], userType: string | null | un
 		return visibleGroups;
 	}
 	
-	// If userType is "Regional AM" - Dashboard + Approval Section (4 specific items) + Logout
+	// If userType is "Regional AM" - Dashboard + Approval Section (4 specific items) + Reports + Logout
 	if (normalizedUserType === "REGIONAL AM") {
 		const dashboardGroup = findDashboardGroup();
 		const logoutItem = findLogoutItem();
@@ -287,6 +326,14 @@ const getVisibleNavGroups = (allGroups: NavGroup[], userType: string | null | un
 			allowedRoutes.includes(subItem.href)
 		) || [];
 		
+		// Find "Reports" item
+		const reportsGroup = allGroups.find(group => 
+			group.items.some(item => item.label === "Reports")
+		);
+		const reportsItem = reportsGroup?.items.find(
+			item => item.label === "Reports"
+		);
+		
 		const visibleGroups: NavGroup[] = [];
 		
 		// Add Dashboard group
@@ -308,6 +355,14 @@ const getVisibleNavGroups = (allGroups: NavGroup[], userType: string | null | un
 			});
 		}
 		
+		// Add Reports
+		if (reportsItem) {
+			visibleGroups.push({
+				divider: false,
+				items: [reportsItem],
+			});
+		}
+		
 		// Add Logout
 		if (logoutItem) {
 			visibleGroups.push({
@@ -319,12 +374,22 @@ const getVisibleNavGroups = (allGroups: NavGroup[], userType: string | null | un
 		return visibleGroups;
 	}
 	
-	// If userType is "Editor", return only allowed groups (Dashboard + Program Level + Logout)
+	// If userType is "Editor", return only allowed groups (Dashboard + Program Level + Reports + Logout)
 	// Editor should NOT see Feasibility Approval
+	// Editor should NOT see Family Income and SWB-Families
+	// Editor has access to ROP pages, so they should see Reports
 	if (normalizedUserType === "EDITOR") {
 		const dashboardGroup = findDashboardGroup();
 		const programLevelGroup = allGroups.find(group => group.label === "Program Level");
 		const logoutItem = findLogoutItem();
+		
+		// Find "Reports" item
+		const reportsGroup = allGroups.find(group => 
+			group.items.some(item => item.label === "Reports")
+		);
+		const reportsItem = reportsGroup?.items.find(
+			item => item.label === "Reports"
+		);
 		
 		const visibleGroups: NavGroup[] = [];
 		
@@ -333,9 +398,23 @@ const getVisibleNavGroups = (allGroups: NavGroup[], userType: string | null | un
 			visibleGroups.push(dashboardGroup);
 		}
 		
-		// Add Program Level group
+		// Add Program Level group, but filter out Family Income and SWB-Families for Editor
 		if (programLevelGroup) {
-			visibleGroups.push(programLevelGroup);
+			const filteredProgramLevelGroup = {
+				...programLevelGroup,
+				items: programLevelGroup.items.filter(item => 
+					item.label !== "Family Income" && item.label !== "SWB-Families"
+				)
+			};
+			visibleGroups.push(filteredProgramLevelGroup);
+		}
+		
+		// Add Reports (Editor has ROP access)
+		if (reportsItem) {
+			visibleGroups.push({
+				divider: false,
+				items: [reportsItem],
+			});
 		}
 		
 		// Add Logout
@@ -397,7 +476,21 @@ const getVisibleNavGroups = (allGroups: NavGroup[], userType: string | null | un
 		return visibleGroups;
 	}
 	
-	// For all other user types (Admin, SuperAdmin, etc.), return full menu
+	// For all other user types (Admin, SuperAdmin, etc.), return full menu but filter out Reports
+	// Reports should only be visible to: Editor, Finance and Administration, Managment
+	const allowedReportsUserTypes = ["EDITOR", "FINANCE AND ADMINISTRATION", "MANAGMENT"];
+	const shouldShowReports = allowedReportsUserTypes.includes(normalizedUserType);
+	
+	if (!shouldShowReports) {
+		// Filter out Reports from all groups
+		const filteredGroups = allGroups.map(group => ({
+			...group,
+			items: group.items.filter(item => item.label !== "Reports")
+		}));
+		return filteredGroups;
+	}
+	
+	// Return full menu with Reports included (for allowed user types)
 	return allGroups;
 };
 
