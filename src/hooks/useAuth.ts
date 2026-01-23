@@ -29,7 +29,14 @@ export type UserProfile = {
 	Setting: boolean | number | null;
 	Other: boolean | number | null;
 	SWB_Families: boolean | number | null;
-	// Removed: BankInformation, BaselineApproval, FeasibilityApproval, FdpApproval, InterventionApproval, BankAccountApproval, ActualIntervention, FinanceSection (deleted from PE_User table)
+	ActualIntervention: boolean | number | null;
+	FinanceSection: boolean | number | null;
+	BankInformation: boolean | number | null;
+	BaselineApproval: boolean | number | null;
+	FeasibilityApproval: boolean | number | null;
+	FdpApproval: boolean | number | null;
+	InterventionApproval: boolean | number | null;
+	BankAccountApproval: boolean | number | null;
 };
 
 export type UserInfo = {
