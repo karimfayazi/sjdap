@@ -48,7 +48,8 @@ async function getAllowedApprovalStatusValues(): Promise<string[]> {
 		// Match patterns like 'Accepted' or 'Rejected' (with quotes)
 		const valueMatches = definition.match(/'([^']+)'/g);
 		if (valueMatches) {
-			allowedValues.push(...valueMatches.map(m => m.replace(/'/g, '')));
+			const extracted: string[] = valueMatches.map((m: string) => m.replace(/'/g, ''));
+			allowedValues.push(...extracted);
 		}
 		
 		// If no values found, use defaults
