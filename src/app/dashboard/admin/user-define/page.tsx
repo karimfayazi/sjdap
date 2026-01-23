@@ -89,12 +89,13 @@ export default function UserDefinePage() {
 			const data = await response.json();
 
 			if (data.success) {
-				setUsers(data.users || []);
+				const users: User[] = (data.users || []) as User[];
+				setUsers(users);
 				
 				// Extract unique values for dropdowns
-				const uniqueUserTypes: string[] = [...new Set(data.users.map((u: User) => u.UserType).filter((v): v is string => Boolean(v)))];
-				const uniqueAccessScopes: string[] = [...new Set(data.users.map((u: User) => u.AccessScope).filter((v): v is string => Boolean(v)))];
-				const uniqueRegionalCouncils: string[] = [...new Set(data.users.map((u: User) => u.Regional_Council).filter((v): v is string => Boolean(v)))];
+				const uniqueUserTypes: string[] = Array.from(new Set(users.map((u) => u.UserType).filter((v): v is string => Boolean(v))));
+				const uniqueAccessScopes: string[] = Array.from(new Set(users.map((u) => u.AccessScope).filter((v): v is string => Boolean(v))));
+				const uniqueRegionalCouncils: string[] = Array.from(new Set(users.map((u) => u.Regional_Council).filter((v): v is string => Boolean(v))));
 				
 				setUserTypes(uniqueUserTypes.sort());
 				setAccessScopes(uniqueAccessScopes.sort());
