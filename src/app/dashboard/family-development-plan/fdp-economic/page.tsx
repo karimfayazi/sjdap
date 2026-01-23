@@ -626,7 +626,7 @@ function FDPEconomicContent() {
 		return true;
 	};
 
-	const handleChange = (field: keyof FDPEconomicFormData, value: string | number) => {
+	const handleChange = (field: keyof FDPEconomicFormData, value: string | number | null) => {
 		setFormData(prev => ({ ...prev, [field]: value }));
 		
 		// Clear validation errors when user makes changes
