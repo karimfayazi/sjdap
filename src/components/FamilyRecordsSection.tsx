@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Eye, XCircle, CreditCard, RefreshCw, Users, FileText, MapPin, Hash, Search, Filter, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Eye, XCircle, CreditCard, RefreshCw, Users, FileText, MapPin, Hash, Search, Filter, X, ChevronLeft, ChevronRight, Image as ImageIcon, Activity, FileBarChart } from "lucide-react";
 
 type FamilyRecord = {
 	FormNumber: string;
@@ -98,6 +98,55 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 	const [memberInterventions, setMemberInterventions] = useState<Record<string, MemberInterventions>>({});
 	const [loadingMembers, setLoadingMembers] = useState(false);
 	const [memberError, setMemberError] = useState<string | null>(null);
+	
+	// In-modal action state (for showing content inside Family Members modal)
+	const [activeModalAction, setActiveModalAction] = useState<'economic' | 'education' | 'food' | 'habitat' | 'bankAccount' | 'generateROP' | null>(null);
+	const [activeModalMemberId, setActiveModalMemberId] = useState<string | null>(null);
+	const [modalActionData, setModalActionData] = useState<any[]>([]);
+	const [loadingModalAction, setLoadingModalAction] = useState(false);
+	const [modalActionError, setModalActionError] = useState<string | null>(null);
+
+	// Generate ROP form state
+	const [ropFormData, setRopFormData] = useState<{
+		monthOfPayment: string;
+		paymentType: string;
+		remarks: string;
+		interventions: Array<{
+			InterventionID: string;
+			Section: string;
+			PayableAmount: number;
+			PayAmount: number;
+		}>;
+	}>({
+		monthOfPayment: "",
+		paymentType: "",
+		remarks: "",
+		interventions: []
+	});
+	const [submittingROP, setSubmittingROP] = useState(false);
+	const [ropSuccess, setRopSuccess] = useState(false);
+
+	// Bank account modal state
+	const [showBankModal, setShowBankModal] = useState(false);
+	const [selectedBankFormNumber, setSelectedBankFormNumber] = useState<string | null>(null);
+	const [selectedBankMemberId, setSelectedBankMemberId] = useState<string | null>(null);
+	const [bankAccounts, setBankAccounts] = useState<any[]>([]);
+	const [loadingBankAccounts, setLoadingBankAccounts] = useState(false);
+	const [bankError, setBankError] = useState<string | null>(null);
+
+	// Bank status for ROP Generate validation
+	const [bankStatusMap, setBankStatusMap] = useState<Record<string, { hasBank: boolean; bankNo?: number }>>({});
+	const [loadingBankStatus, setLoadingBankStatus] = useState(false);
+	const [bankStatusError, setBankStatusError] = useState<string | null>(null);
+
+	// Intervention section modal state
+	const [showInterventionModal, setShowInterventionModal] = useState(false);
+	const [selectedInterventionFormNumber, setSelectedInterventionFormNumber] = useState<string | null>(null);
+	const [selectedInterventionMemberId, setSelectedInterventionMemberId] = useState<string | null>(null);
+	const [selectedInterventionSection, setSelectedInterventionSection] = useState<string | null>(null);
+	const [interventions, setInterventions] = useState<any[]>([]);
+	const [loadingInterventions, setLoadingInterventions] = useState(false);
+	const [interventionError, setInterventionError] = useState<string | null>(null);
 
 	// Load filter options on mount
 	useEffect(() => {
@@ -271,6 +320,54 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 		return active;
 	};
 
+	const fetchBankStatus = async (formNumber: string, beneficiaryIds: string[]) => {
+		if (!formNumber || beneficiaryIds.length === 0) {
+			return;
+		}
+
+		try {
+			setLoadingBankStatus(true);
+			setBankStatusError(null);
+
+			const response = await fetch("/api/bank/check-bulk", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json"
+				},
+				body: JSON.stringify({
+					formNumber: formNumber,
+					beneficiaryIds: beneficiaryIds
+				})
+			});
+
+			const data = await response.json().catch(() => ({}));
+
+			if (!response.ok || !data.success) {
+				setBankStatusError(data?.message || "Unable to verify bank account. Please try again.");
+				// Initialize all as false if error
+				const errorMap: Record<string, { hasBank: boolean }> = {};
+				beneficiaryIds.forEach(id => {
+					errorMap[id] = { hasBank: false };
+				});
+				setBankStatusMap(errorMap);
+				return;
+			}
+
+			setBankStatusMap(data.bankStatusMap || {});
+		} catch (err) {
+			console.error("Error fetching bank status:", err);
+			setBankStatusError("Unable to verify bank account. Please try again.");
+			// Initialize all as false if error
+			const errorMap: Record<string, { hasBank: boolean }> = {};
+			beneficiaryIds.forEach(id => {
+				errorMap[id] = { hasBank: false };
+			});
+			setBankStatusMap(errorMap);
+		} finally {
+			setLoadingBankStatus(false);
+		}
+	};
+
 	const handleShowMembers = async (formNumber: string) => {
 		setSelectedFormNumber(formNumber);
 		setShowMemberModal(true);
@@ -278,6 +375,8 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 		setMemberError(null);
 		setMembers([]);
 		setMemberInterventions({});
+		setBankStatusMap({});
+		setBankStatusError(null);
 
 		try {
 			// Use ROPS API if baseRoute is /dashboard/rops, otherwise use actual-intervention API
@@ -293,8 +392,21 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 				return;
 			}
 
-			setMembers(data.members || []);
+			const membersData = data.members || [];
+			setMembers(membersData);
 			setMemberInterventions(data.interventions || {});
+
+			// Fetch bank status for all members in parallel
+			if (membersData.length > 0) {
+				const beneficiaryIds = membersData
+					.map((member: any) => member.BeneficiaryID)
+					.filter((id: any) => id && String(id).trim() !== '');
+				
+				if (beneficiaryIds.length > 0) {
+					// Fetch bank status asynchronously (don't block modal opening)
+					fetchBankStatus(formNumber, beneficiaryIds);
+				}
+			}
 		} catch (err) {
 			console.error("Error fetching members:", err);
 			setMemberError("Error fetching members");
@@ -303,12 +415,309 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 		}
 	};
 
-	const handleInterventionClick = (formNumber: string, interventionType: string, memberId: string) => {
+	const handleInterventionClick = (e: React.MouseEvent<HTMLButtonElement>, formNumber: string, interventionType: string, memberId: string) => {
+		e.preventDefault();
+		e.stopPropagation();
+		
+		// ALWAYS prevent navigation if we're on ROPS page - show in modal or in-modal content
+		if (baseRoute === "/dashboard/rops") {
+			// If Family Members modal is open, show content inside that modal
+			if (showMemberModal) {
+				setActiveModalAction(interventionType as 'economic' | 'education' | 'food' | 'habitat');
+				setActiveModalMemberId(memberId);
+				setModalActionData([]);
+				setLoadingModalAction(true);
+				setModalActionError(null);
+				fetchModalActionData(formNumber, interventionType, memberId);
+				return;
+			}
+			
+			// If modal is not open, open separate intervention modal
+			const sectionName = interventionType.charAt(0).toUpperCase() + interventionType.slice(1);
+			setSelectedInterventionFormNumber(formNumber);
+			setSelectedInterventionMemberId(memberId);
+			setSelectedInterventionSection(sectionName);
+			setShowInterventionModal(true);
+			setLoadingInterventions(true);
+			setInterventionError(null);
+			setInterventions([]);
+			fetchInterventions(formNumber, sectionName, memberId);
+			return;
+		}
+		
+		// For non-ROPS pages, navigate to intervention add page
 		router.push(`/dashboard/actual-intervention/${encodeURIComponent(formNumber)}/add?type=${interventionType}&memberId=${encodeURIComponent(memberId)}`);
 	};
 
-	const handleBankAccountClick = (formNumber: string, memberId: string) => {
+	const fetchModalActionData = async (formNumber: string, interventionType: string, memberId: string) => {
+		try {
+			setLoadingModalAction(true);
+			setModalActionError(null);
+
+			const sectionName = interventionType.charAt(0).toUpperCase() + interventionType.slice(1);
+			const params = new URLSearchParams();
+			params.append("formNumber", formNumber);
+			params.append("section", sectionName);
+			if (memberId) {
+				params.append("memberId", memberId);
+			}
+
+			const response = await fetch(`/api/rops/interventions?${params.toString()}`);
+			const data = await response.json().catch(() => ({}));
+
+			if (!response.ok || !data.success) {
+				setModalActionError(data?.message || "Failed to load data");
+				return;
+			}
+
+			setModalActionData(data.records || []);
+		} catch (err) {
+			console.error("Error fetching modal action data:", err);
+			setModalActionError("Error fetching data");
+		} finally {
+			setLoadingModalAction(false);
+		}
+	};
+
+	const fetchModalBankAccounts = async (formNumber: string, memberId: string) => {
+		try {
+			setLoadingModalAction(true);
+			setModalActionError(null);
+
+			const params = new URLSearchParams();
+			params.append("formNumber", formNumber);
+			if (memberId) {
+				params.append("beneficiaryId", memberId);
+			}
+
+			const response = await fetch(`/api/actual-intervention/pe-bank-information?${params.toString()}`);
+			const data = await response.json().catch(() => ({}));
+
+			if (!response.ok || !data.success) {
+				setModalActionError(data?.message || "Failed to load bank account information");
+				return;
+			}
+
+			setModalActionData(data.banks || []);
+		} catch (err) {
+			console.error("Error fetching modal bank accounts:", err);
+			setModalActionError("Error fetching bank account information");
+		} finally {
+			setLoadingModalAction(false);
+		}
+	};
+
+	const fetchInterventions = async (formNumber: string, section: string, memberId: string) => {
+		try {
+			setLoadingInterventions(true);
+			setInterventionError(null);
+
+			const params = new URLSearchParams();
+			params.append("formNumber", formNumber);
+			if (section) {
+				params.append("section", section);
+			}
+			if (memberId) {
+				params.append("memberId", memberId);
+			}
+
+			const response = await fetch(`/api/rops/interventions?${params.toString()}`);
+			const data = await response.json().catch(() => ({}));
+
+			if (!response.ok || !data.success) {
+				setInterventionError(data?.message || "Failed to load interventions");
+				return;
+			}
+
+			setInterventions(data.records || []);
+		} catch (err) {
+			console.error("Error fetching interventions:", err);
+			setInterventionError("Error fetching interventions");
+		} finally {
+			setLoadingInterventions(false);
+		}
+	};
+
+	const formatDate = (dateString: string | null): string => {
+		if (!dateString) return "N/A";
+		try {
+			return new Date(dateString).toLocaleDateString("en-US", {
+				year: "numeric",
+				month: "short",
+				day: "numeric",
+			});
+		} catch {
+			return dateString;
+		}
+	};
+
+	const handleBankAccountClick = (e: React.MouseEvent<HTMLButtonElement>, formNumber: string, memberId: string) => {
+		e.preventDefault();
+		e.stopPropagation();
+		
+		// ALWAYS prevent navigation if we're on ROPS page - show in modal or in-modal content
+		if (baseRoute === "/dashboard/rops") {
+			// If Family Members modal is open, show content inside that modal
+			if (showMemberModal) {
+				setActiveModalAction('bankAccount');
+				setActiveModalMemberId(memberId);
+				setModalActionData([]);
+				setLoadingModalAction(true);
+				setModalActionError(null);
+				fetchModalBankAccounts(formNumber, memberId);
+				return;
+			}
+			
+			// If modal is not open, open separate bank account modal
+			setSelectedBankFormNumber(formNumber);
+			setSelectedBankMemberId(memberId);
+			setShowBankModal(true);
+			setLoadingBankAccounts(true);
+			setBankError(null);
+			setBankAccounts([]);
+			fetchBankAccounts(formNumber, memberId);
+			return;
+		}
+		
+		// For non-ROPS pages, navigate to bank account page
 		router.push(`/dashboard/actual-intervention/bank-account?formNumber=${encodeURIComponent(formNumber)}&memberId=${encodeURIComponent(memberId)}`);
+	};
+
+	const handleGenerateROPClick = (e: React.MouseEvent<HTMLButtonElement>, formNumber: string, memberId: string) => {
+		e.preventDefault();
+		e.stopPropagation();
+		
+		// Navigate to full page Generate ROP
+		router.push(`/dashboard/rops/generate?formNumber=${encodeURIComponent(formNumber)}&memberId=${encodeURIComponent(memberId)}`);
+	};
+
+	const handleROPFormChange = (field: string, value: string) => {
+		setRopFormData(prev => ({
+			...prev,
+			[field]: value
+		}));
+	};
+
+	const handleROPInterventionAmountChange = (interventionId: string, payAmount: number) => {
+		setRopFormData(prev => ({
+			...prev,
+			interventions: prev.interventions.map(int =>
+				int.InterventionID === interventionId
+					? { ...int, PayAmount: Math.max(0, Math.min(payAmount, int.PayableAmount)) }
+					: int
+			)
+		}));
+	};
+
+	const handleROPSubmit = async () => {
+		if (!selectedFormNumber || !activeModalMemberId) {
+			setModalActionError("Form Number and Member ID are required");
+			return;
+		}
+
+		if (!ropFormData.monthOfPayment) {
+			setModalActionError("Month of Payment is required");
+			return;
+		}
+
+		if (ropFormData.interventions.length === 0) {
+			setModalActionError("No interventions available to generate ROP");
+			return;
+		}
+
+		// Validate all intervention amounts
+		for (const intervention of ropFormData.interventions) {
+			if (intervention.PayAmount < 0 || intervention.PayAmount > intervention.PayableAmount) {
+				setModalActionError(`PayAmount for ${intervention.InterventionID} must be between 0 and ${intervention.PayableAmount}`);
+				return;
+			}
+		}
+
+		try {
+			setSubmittingROP(true);
+			setModalActionError(null);
+			setRopSuccess(false);
+
+			// Prepare items for API
+			const items = ropFormData.interventions.map(intervention => {
+				const originalIntervention = modalActionData.find((int: any) => int.InterventionID === intervention.InterventionID);
+				return {
+					FormNumber: selectedFormNumber,
+					BeneficiaryID: activeModalMemberId,
+					InterventionID: intervention.InterventionID,
+					InterventionSection: intervention.Section,
+					PayableAmount: intervention.PayableAmount,
+					MonthOfPayment: ropFormData.monthOfPayment,
+					PaymentType: ropFormData.paymentType || null,
+					PayAmount: intervention.PayAmount,
+					Remarks: ropFormData.remarks || null
+				};
+			});
+
+			const response = await fetch("/api/rops/generate", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json"
+				},
+				body: JSON.stringify({ items })
+			});
+
+			const data = await response.json();
+
+			if (!response.ok || !data.success) {
+				setModalActionError(data?.message || "Failed to generate ROP");
+				return;
+			}
+
+			setRopSuccess(true);
+			// Refresh the families list
+			fetchFamilies();
+			
+			// Reset form after 2 seconds
+			setTimeout(() => {
+				setRopFormData({
+					monthOfPayment: "",
+					paymentType: "",
+					remarks: "",
+					interventions: []
+				});
+				setRopSuccess(false);
+			}, 2000);
+
+		} catch (err) {
+			console.error("Error submitting ROP:", err);
+			setModalActionError("Error generating ROP. Please try again.");
+		} finally {
+			setSubmittingROP(false);
+		}
+	};
+
+	const fetchBankAccounts = async (formNumber: string, memberId: string) => {
+		try {
+			setLoadingBankAccounts(true);
+			setBankError(null);
+
+			const params = new URLSearchParams();
+			params.append("formNumber", formNumber);
+			if (memberId) {
+				params.append("beneficiaryId", memberId);
+			}
+
+			const response = await fetch(`/api/actual-intervention/pe-bank-information?${params.toString()}`);
+			const data = await response.json().catch(() => ({}));
+
+			if (!response.ok || !data.success) {
+				setBankError(data?.message || "Failed to load bank account information");
+				return;
+			}
+
+			setBankAccounts(data.banks || []);
+		} catch (err) {
+			console.error("Error fetching bank accounts:", err);
+			setBankError("Error fetching bank account information");
+		} finally {
+			setLoadingBankAccounts(false);
+		}
 	};
 
 	const formatDateOfBirth = (month: number | null, year: number | null): string => {
@@ -688,6 +1097,19 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 								setSelectedFormNumber(null);
 								setMembers([]);
 								setMemberInterventions({});
+								setActiveModalAction(null);
+								setActiveModalMemberId(null);
+								setModalActionData([]);
+								setModalActionError(null);
+								setRopFormData({
+									monthOfPayment: "",
+									paymentType: "",
+									remarks: "",
+									interventions: []
+								});
+								setRopSuccess(false);
+								setBankStatusMap({});
+								setBankStatusError(null);
 							}}
 						></div>
 						<div className="relative w-full max-w-6xl bg-white rounded-xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
@@ -706,6 +1128,19 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 										setSelectedFormNumber(null);
 										setMembers([]);
 										setMemberInterventions({});
+										setActiveModalAction(null);
+										setActiveModalMemberId(null);
+										setModalActionData([]);
+										setModalActionError(null);
+										setRopFormData({
+											monthOfPayment: "",
+											paymentType: "",
+											remarks: "",
+											interventions: []
+										});
+										setRopSuccess(false);
+										setBankStatusMap({});
+										setBankStatusError(null);
 									}}
 									className="p-2 hover:bg-white/20 rounded-lg transition-colors text-white hover:text-gray-200"
 								>
@@ -731,6 +1166,7 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 									</div>
 								) : (
 									<div className="space-y-4">
+										{/* Members Table */}
 										<div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
 											<div className="overflow-x-auto">
 												<table className="min-w-full divide-y divide-gray-200">
@@ -813,64 +1249,698 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 																		)}
 																	</td>
 																	<td className="px-6 py-4 whitespace-nowrap text-sm">
-																		{interventions.economic || interventions.education || interventions.food || interventions.habitat ? (
-																			<div className="flex flex-wrap gap-2">
-																				{interventions.economic && (
-																					<>
+																		<div className="flex flex-wrap gap-2">
+																			{interventions.economic || interventions.education || interventions.food || interventions.habitat ? (
+																				<>
+																					{interventions.economic && (
+																						<>
+																							<button
+																								type="button"
+																								onClick={(e) => selectedFormNumber && handleInterventionClick(e, selectedFormNumber, "economic", memberKey)}
+																								className="inline-flex items-center rounded-lg px-4 py-2 text-xs font-semibold bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md hover:from-blue-700 hover:to-blue-800 transition-all cursor-pointer"
+																							>
+																								Economic
+																							</button>
+																							<button
+																								type="button"
+																								onClick={(e) => selectedFormNumber && handleBankAccountClick(e, selectedFormNumber, memberKey)}
+																								className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-md hover:from-indigo-700 hover:to-indigo-800 transition-all cursor-pointer"
+																							>
+																								<CreditCard className="h-3.5 w-3.5" />
+																								Bank Account
+																							</button>
+																						</>
+																					)}
+																					{interventions.education && (
 																						<button
 																							type="button"
-																							onClick={() => selectedFormNumber && handleInterventionClick(selectedFormNumber, "economic", memberKey)}
-																							className="inline-flex items-center rounded-lg px-4 py-2 text-xs font-semibold bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md hover:from-blue-700 hover:to-blue-800 transition-all cursor-pointer"
+																							onClick={(e) => selectedFormNumber && handleInterventionClick(e, selectedFormNumber, "education", memberKey)}
+																							className="inline-flex items-center rounded-lg px-4 py-2 text-xs font-semibold bg-gradient-to-r from-green-600 to-green-700 text-white shadow-md hover:from-green-700 hover:to-green-800 transition-all cursor-pointer"
 																						>
-																							Economic
+																							Education
 																						</button>
+																					)}
+																					{interventions.food && (
 																						<button
 																							type="button"
-																							onClick={() => selectedFormNumber && handleBankAccountClick(selectedFormNumber, memberKey)}
-																							className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-md hover:from-indigo-700 hover:to-indigo-800 transition-all cursor-pointer"
+																							onClick={(e) => selectedFormNumber && handleInterventionClick(e, selectedFormNumber, "food", memberKey)}
+																							className="inline-flex items-center rounded-lg px-4 py-2 text-xs font-semibold bg-gradient-to-r from-amber-600 to-amber-700 text-white shadow-md hover:from-amber-700 hover:to-amber-800 transition-all cursor-pointer"
 																						>
-																							<CreditCard className="h-3.5 w-3.5" />
-																							Bank Account
+																							Food
 																						</button>
-																					</>
-																				)}
-																				{interventions.education && (
-																					<button
-																						type="button"
-																						onClick={() => selectedFormNumber && handleInterventionClick(selectedFormNumber, "education", memberKey)}
-																						className="inline-flex items-center rounded-lg px-4 py-2 text-xs font-semibold bg-gradient-to-r from-green-600 to-green-700 text-white shadow-md hover:from-green-700 hover:to-green-800 transition-all cursor-pointer"
-																					>
-																						Education
-																					</button>
-																				)}
-																				{interventions.food && (
-																					<button
-																						type="button"
-																						onClick={() => selectedFormNumber && handleInterventionClick(selectedFormNumber, "food", memberKey)}
-																						className="inline-flex items-center rounded-lg px-4 py-2 text-xs font-semibold bg-gradient-to-r from-amber-600 to-amber-700 text-white shadow-md hover:from-amber-700 hover:to-amber-800 transition-all cursor-pointer"
-																					>
-																						Food
-																					</button>
-																				)}
-																				{interventions.habitat && (
-																					<button
-																						type="button"
-																						onClick={() => selectedFormNumber && handleInterventionClick(selectedFormNumber, "habitat", memberKey)}
-																						className="inline-flex items-center rounded-lg px-4 py-2 text-xs font-semibold bg-gradient-to-r from-purple-600 to-purple-700 text-white shadow-md hover:from-purple-700 hover:to-purple-800 transition-all cursor-pointer"
-																					>
-																						Habitat
-																					</button>
-																				)}
-																			</div>
-																		) : (
-																			<span className="inline-flex items-center rounded-md px-3 py-1.5 text-xs font-medium text-gray-500 bg-gray-100 italic">
-																				No intervention defined in FDP
-																			</span>
-																		)}
+																					)}
+																					{interventions.habitat && (
+																						<button
+																							type="button"
+																							onClick={(e) => selectedFormNumber && handleInterventionClick(e, selectedFormNumber, "habitat", memberKey)}
+																							className="inline-flex items-center rounded-lg px-4 py-2 text-xs font-semibold bg-gradient-to-r from-purple-600 to-purple-700 text-white shadow-md hover:from-purple-700 hover:to-purple-800 transition-all cursor-pointer"
+																						>
+																							Habitat
+																						</button>
+																					)}
+																				</>
+																			) : (
+																				<span className="inline-flex items-center rounded-md px-3 py-1.5 text-xs font-medium text-gray-500 bg-gray-100 italic">
+																					No intervention defined in FDP
+																				</span>
+																			)}
+															{/* Generate ROP Button - Always visible */}
+															<div className="flex flex-col gap-1">
+																<button
+																	type="button"
+																	onClick={(e) => selectedFormNumber && handleGenerateROPClick(e, selectedFormNumber, memberKey)}
+																	disabled={loadingBankStatus || !bankStatusMap[memberKey]?.hasBank}
+																	className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold shadow-md transition-all ${
+																		loadingBankStatus || !bankStatusMap[memberKey]?.hasBank
+																			? "bg-gray-400 text-gray-200 cursor-not-allowed opacity-60"
+																			: "bg-gradient-to-r from-teal-600 to-teal-700 text-white hover:from-teal-700 hover:to-teal-800 cursor-pointer"
+																	}`}
+																>
+																	{loadingBankStatus ? (
+																		<>
+																			<div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+																			Checking...
+																		</>
+																	) : (
+																		<>
+																			<FileBarChart className="h-3.5 w-3.5" />
+																			Generate ROP
+																		</>
+																	)}
+																</button>
+																{!loadingBankStatus && bankStatusMap[memberKey]?.hasBank === false && (
+																	<span className="text-xs text-red-600 font-medium">
+																		Bank account is not defined.
+																	</span>
+																)}
+																{bankStatusError && !bankStatusMap[memberKey] && (
+																	<span className="text-xs text-red-600 font-medium">
+																		Unable to verify bank account. Please try again.
+																	</span>
+																)}
+															</div>
+																		</div>
 																	</td>
 																</tr>
 															);
 														})}
+													</tbody>
+												</table>
+											</div>
+										</div>
+
+										{/* Dynamic Content Area - Shows selected action content */}
+										{activeModalAction && (
+											<div className="bg-white rounded-lg border-2 border-[#0b4d2b] shadow-lg overflow-hidden mt-4">
+												<div className="bg-gradient-to-r from-[#0b4d2b] via-[#0d5d35] to-[#0b4d2b] px-6 py-3 border-b-2 border-[#0a3d22]">
+													<div className="flex items-center justify-between">
+														<h3 className="text-lg font-bold text-white flex items-center gap-2">
+															{activeModalAction === 'bankAccount' ? (
+																<><CreditCard className="h-5 w-5" /> Bank Account Information</>
+															) : activeModalAction === 'generateROP' ? (
+																<><FileBarChart className="h-5 w-5" /> Generate ROP</>
+															) : (
+																<><Activity className="h-5 w-5" /> {activeModalAction.charAt(0).toUpperCase() + activeModalAction.slice(1)} ROP</>
+															)}
+														</h3>
+														<button
+															type="button"
+															onClick={() => {
+																setActiveModalAction(null);
+																setActiveModalMemberId(null);
+																setModalActionData([]);
+																setModalActionError(null);
+																setRopFormData({
+																	monthOfPayment: "",
+																	paymentType: "",
+																	remarks: "",
+																	interventions: []
+																});
+																setRopSuccess(false);
+															}}
+															className="p-1.5 hover:bg-white/20 rounded-lg transition-colors text-white hover:text-gray-200"
+														>
+															<XCircle className="h-5 w-5" />
+														</button>
+													</div>
+													{activeModalMemberId && (
+														<p className="text-sm text-white/80 mt-1">Member: {activeModalMemberId}</p>
+													)}
+												</div>
+												<div className="p-4">
+													{loadingModalAction ? (
+														<div className="flex items-center justify-center py-12">
+															<div className="text-center">
+																<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b] mx-auto"></div>
+																<span className="ml-3 text-gray-600 mt-3 block">Loading...</span>
+															</div>
+														</div>
+													) : modalActionError ? (
+														<div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700">
+															{modalActionError}
+														</div>
+													) : modalActionData.length === 0 ? (
+														<div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
+															{activeModalAction === 'bankAccount' ? (
+																<><CreditCard className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+																<p className="text-gray-600">No bank account information found.</p></>
+															) : activeModalAction === 'generateROP' ? (
+																<><FileBarChart className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+																<p className="text-gray-600">Generate ROP functionality will be implemented soon.</p></>
+															) : (
+																<><Activity className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+																<p className="text-gray-600">No {activeModalAction} interventions found.</p></>
+															)}
+														</div>
+													) : activeModalAction === 'bankAccount' ? (
+														<div className="overflow-x-auto">
+															<table className="min-w-full divide-y divide-gray-200">
+																<thead className="bg-gradient-to-r from-gray-700 to-gray-800">
+																	<tr>
+																		<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">Bank No</th>
+																		<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">Form Number</th>
+																		<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">Beneficiary ID</th>
+																		<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">Bank Name</th>
+																		<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">Account Title</th>
+																		<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">Account Number</th>
+																		<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">CNIC</th>
+																		<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">Bank Code</th>
+																		<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">Approval Status</th>
+																		<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Cheque Image</th>
+																	</tr>
+																</thead>
+																<tbody className="bg-white divide-y divide-gray-200">
+																	{modalActionData.map((bank, index) => (
+																		<tr key={bank.BankNo || index} className={index % 2 === 0 ? "bg-white hover:bg-blue-50" : "bg-gray-50 hover:bg-blue-50"}>
+																			<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{bank.BankNo || "N/A"}</td>
+																			<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{bank.FormNumber || "N/A"}</td>
+																			<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{bank.BeneficiaryID || "N/A"}</td>
+																			<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{bank.BankName || "N/A"}</td>
+																			<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{bank.AccountTitle || "N/A"}</td>
+																			<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 font-mono">{bank.AccountNo || "N/A"}</td>
+																			<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 font-mono">{bank.CNIC || "N/A"}</td>
+																			<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{bank.BankCode || "N/A"}</td>
+																			<td className="px-4 py-3 whitespace-nowrap text-sm">
+																				{bank.ApprovalStatus ? (
+																					<span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+																						bank.ApprovalStatus === "Approved" ? "bg-green-100 text-green-800" :
+																						bank.ApprovalStatus === "Rejected" ? "bg-red-100 text-red-800" :
+																						"bg-yellow-100 text-yellow-800"
+																					}`}>
+																						{bank.ApprovalStatus}
+																					</span>
+																				) : "N/A"}
+																			</td>
+																			<td className="px-4 py-3 whitespace-nowrap text-sm">
+																				{bank.BankChequeImagePath ? (
+																					<a href={bank.BankChequeImagePath} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800">
+																						<ImageIcon className="h-4 w-4" />
+																						View Image
+																					</a>
+																				) : "N/A"}
+																			</td>
+																		</tr>
+																	))}
+																</tbody>
+															</table>
+														</div>
+													) : activeModalAction === 'generateROP' ? (
+														<div className="space-y-6">
+															{ropSuccess ? (
+																<div className="bg-green-50 border-2 border-green-500 rounded-lg p-6 text-center">
+																	<div className="inline-flex items-center justify-center w-16 h-16 bg-green-500 rounded-full mb-4">
+																		<svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+																			<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+																		</svg>
+																	</div>
+																	<h4 className="text-lg font-semibold text-green-900 mb-2">ROP Generated Successfully!</h4>
+																	<p className="text-green-700">
+																		{ropFormData.interventions.length} ROP record(s) have been created and submitted for approval.
+																	</p>
+																</div>
+															) : (
+																<>
+																	{/* Form Header */}
+																	<div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+																		<h4 className="text-lg font-semibold text-gray-900 mb-2">Generate ROP</h4>
+																		<p className="text-sm text-gray-600">
+																			Form Number: <span className="font-semibold">{selectedFormNumber}</span>
+																			{activeModalMemberId && (
+																				<> | Member: <span className="font-semibold">{activeModalMemberId}</span></>
+																			)}
+																		</p>
+																	</div>
+
+																	{/* Form Fields */}
+																	<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+																		{/* Month of Payment */}
+																		<div>
+																			<label className="block text-sm font-medium text-gray-700 mb-2">
+																				Month of Payment <span className="text-red-500">*</span>
+																			</label>
+																			<input
+																				type="month"
+																				value={ropFormData.monthOfPayment}
+																				onChange={(e) => handleROPFormChange("monthOfPayment", e.target.value)}
+																				className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#0b4d2b] focus:border-[#0b4d2b] outline-none"
+																				required
+																			/>
+																		</div>
+
+																		{/* Payment Type */}
+																		<div>
+																			<label className="block text-sm font-medium text-gray-700 mb-2">
+																				Payment Type
+																			</label>
+																			<select
+																				value={ropFormData.paymentType}
+																				onChange={(e) => handleROPFormChange("paymentType", e.target.value)}
+																				className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#0b4d2b] focus:border-[#0b4d2b] outline-none"
+																			>
+																				<option value="">Select Payment Type</option>
+																				<option value="Cash">Cash</option>
+																				<option value="Bank Transfer">Bank Transfer</option>
+																				<option value="Cheque">Cheque</option>
+																				<option value="Other">Other</option>
+																			</select>
+																		</div>
+																	</div>
+
+																	{/* Remarks */}
+																	<div>
+																		<label className="block text-sm font-medium text-gray-700 mb-2">
+																			Remarks (Optional)
+																		</label>
+																		<textarea
+																			value={ropFormData.remarks}
+																			onChange={(e) => handleROPFormChange("remarks", e.target.value)}
+																			rows={3}
+																			className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#0b4d2b] focus:border-[#0b4d2b] outline-none"
+																			placeholder="Enter any remarks or notes..."
+																		/>
+																	</div>
+
+																	{/* Interventions Table */}
+																	{ropFormData.interventions.length > 0 ? (
+																		<div className="overflow-x-auto">
+																			<table className="min-w-full divide-y divide-gray-200 border border-gray-300 rounded-lg">
+																				<thead className="bg-gradient-to-r from-gray-700 to-gray-800">
+																					<tr>
+																						<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+																							Intervention ID
+																						</th>
+																						<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+																							Section
+																						</th>
+																						<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+																							Payable Amount
+																						</th>
+																						<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">
+																							Pay Amount <span className="text-red-300">*</span>
+																						</th>
+																					</tr>
+																				</thead>
+																				<tbody className="bg-white divide-y divide-gray-200">
+																					{ropFormData.interventions.map((intervention, index) => (
+																						<tr key={intervention.InterventionID} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+																							<td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+																								{intervention.InterventionID}
+																							</td>
+																							<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+																								<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+																									{intervention.Section}
+																								</span>
+																							</td>
+																							<td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-gray-900">
+																								PKR {intervention.PayableAmount.toLocaleString()}
+																							</td>
+																							<td className="px-4 py-3 whitespace-nowrap">
+																								<input
+																									type="number"
+																									min="0"
+																									max={intervention.PayableAmount}
+																									step="0.01"
+																									value={intervention.PayAmount}
+																									onChange={(e) => handleROPInterventionAmountChange(intervention.InterventionID, parseFloat(e.target.value) || 0)}
+																									className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#0b4d2b] focus:border-[#0b4d2b] outline-none text-sm"
+																									required
+																								/>
+																							</td>
+																						</tr>
+																					))}
+																				</tbody>
+																			</table>
+																		</div>
+																	) : (
+																		<div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
+																			<p className="text-gray-600">No interventions available for this member.</p>
+																		</div>
+																	)}
+
+																	{/* Submit Button */}
+																	<div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+																		<button
+																			type="button"
+																			onClick={() => {
+																				setActiveModalAction(null);
+																				setActiveModalMemberId(null);
+																				setRopFormData({
+																					monthOfPayment: "",
+																					paymentType: "",
+																					remarks: "",
+																					interventions: []
+																				});
+																				setRopSuccess(false);
+																			}}
+																			className="px-6 py-2.5 bg-gray-500 text-white rounded-lg text-sm font-semibold hover:bg-gray-600 transition-all shadow-md hover:shadow-lg"
+																		>
+																			Cancel
+																		</button>
+																		<button
+																			type="button"
+																			onClick={handleROPSubmit}
+																			disabled={submittingROP || !ropFormData.monthOfPayment || ropFormData.interventions.length === 0}
+																			className="px-6 py-2.5 bg-gradient-to-r from-[#0b4d2b] to-[#0d5d35] text-white rounded-lg text-sm font-semibold hover:from-[#0a3d22] hover:to-[#0b4d2b] transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+																		>
+																			{submittingROP ? (
+																				<>
+																					<div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+																					Generating...
+																				</>
+																			) : (
+																				<>
+																					<FileBarChart className="h-4 w-4" />
+																					Generate ROP
+																				</>
+																			)}
+																		</button>
+																	</div>
+																</>
+															)}
+														</div>
+													) : (
+														<div className="overflow-x-auto">
+															<table className="min-w-full divide-y divide-gray-200">
+																<thead className="bg-gradient-to-r from-gray-700 to-gray-800">
+																	<tr>
+																		<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">ID</th>
+																		<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">Form Number</th>
+																		<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">Section</th>
+																		<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">Status</th>
+																		<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">Category</th>
+																		<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">Type</th>
+																		<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">Total Amount</th>
+																		<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">Start Date</th>
+																		<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">End Date</th>
+																		<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">Approval Status</th>
+																	</tr>
+																</thead>
+																<tbody className="bg-white divide-y divide-gray-200">
+																	{modalActionData.map((intervention, index) => (
+																		<tr key={intervention.InterventionID || index} className={index % 2 === 0 ? "bg-white hover:bg-blue-50" : "bg-gray-50 hover:bg-blue-50"}>
+																			<td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">{intervention.InterventionID || "N/A"}</td>
+																			<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{intervention.FormNumber || "N/A"}</td>
+																			<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+																				<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+																					{intervention.Section || "N/A"}
+																				</span>
+																			</td>
+																			<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+																				<span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+																					intervention.InterventionStatus === "Open" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
+																				}`}>
+																					{intervention.InterventionStatus || "N/A"}
+																				</span>
+																			</td>
+																			<td className="px-4 py-3 text-sm text-gray-900 max-w-xs">
+																				<div className="truncate" title={intervention.InterventionCategory || "N/A"}>
+																					{intervention.InterventionCategory || "N/A"}
+																				</div>
+																			</td>
+																			<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{intervention.InterventionType || "N/A"}</td>
+																			<td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-gray-900">
+																				{intervention.TotalAmount != null ? `PKR ${intervention.TotalAmount.toLocaleString()}` : "N/A"}
+																			</td>
+																			<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{formatDate(intervention.InterventionStartDate)}</td>
+																			<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{formatDate(intervention.InterventionEndDate)}</td>
+																			<td className="px-4 py-3 whitespace-nowrap text-sm">
+																				<span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+																					intervention.ApprovalStatus === "Approved" ? "bg-green-100 text-green-800" :
+																					intervention.ApprovalStatus === "Pending" ? "bg-yellow-100 text-yellow-800" :
+																					"bg-gray-100 text-gray-800"
+																				}`}>
+																					{intervention.ApprovalStatus || "N/A"}
+																				</span>
+																			</td>
+																		</tr>
+																	))}
+																</tbody>
+															</table>
+														</div>
+													)}
+												</div>
+											</div>
+										)}
+									</div>
+								)}
+							</div>
+
+							<div className="border-t-2 border-gray-200 px-6 py-4 bg-gradient-to-r from-gray-50 to-gray-100 flex justify-end gap-3">
+								{activeModalAction && (
+									<button
+										type="button"
+										onClick={() => {
+											setActiveModalAction(null);
+											setActiveModalMemberId(null);
+											setModalActionData([]);
+											setModalActionError(null);
+											setRopFormData({
+												monthOfPayment: "",
+												paymentType: "",
+												remarks: "",
+												interventions: []
+											});
+											setRopSuccess(false);
+										}}
+										className="px-6 py-2.5 bg-gray-500 text-white rounded-lg text-sm font-semibold hover:bg-gray-600 transition-all shadow-md hover:shadow-lg"
+									>
+										Back to Members
+									</button>
+								)}
+								<button
+									type="button"
+									onClick={() => {
+										setShowMemberModal(false);
+										setSelectedFormNumber(null);
+										setMembers([]);
+										setMemberInterventions({});
+										setActiveModalAction(null);
+										setActiveModalMemberId(null);
+										setModalActionData([]);
+										setModalActionError(null);
+										setRopFormData({
+											monthOfPayment: "",
+											paymentType: "",
+											remarks: "",
+											interventions: []
+										});
+										setRopSuccess(false);
+										setBankStatusMap({});
+										setBankStatusError(null);
+									}}
+									className="px-6 py-2.5 bg-gradient-to-r from-[#0b4d2b] to-[#0d5d35] text-white rounded-lg text-sm font-semibold hover:from-[#0a3d22] hover:to-[#0b4d2b] transition-all shadow-md hover:shadow-lg"
+								>
+									Close
+								</button>
+							</div>
+						</div>
+					</div>
+				</div>
+			)}
+
+			{/* Bank Account Modal */}
+			{showBankModal && (
+				<div className="fixed inset-0 z-50 overflow-y-auto">
+					<div className="flex min-h-screen items-center justify-center p-4">
+						<div
+							className="fixed inset-0 bg-black bg-opacity-50"
+							onClick={() => {
+								setShowBankModal(false);
+								setSelectedBankFormNumber(null);
+								setSelectedBankMemberId(null);
+								setBankAccounts([]);
+							}}
+						></div>
+						<div className="relative w-full max-w-6xl bg-white rounded-xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
+							<div className="flex items-center justify-between border-b-2 border-gray-200 px-6 py-4 bg-gradient-to-r from-[#0b4d2b] via-[#0d5d35] to-[#0b4d2b]">
+								<div>
+									<h2 className="text-2xl font-bold text-white flex items-center gap-2">
+										<CreditCard className="h-6 w-6" />
+										Bank Account Information
+									</h2>
+									<p className="text-sm text-white/80 mt-1">
+										Form Number: {selectedBankFormNumber}
+										{selectedBankMemberId && ` - Member: ${selectedBankMemberId}`}
+									</p>
+								</div>
+								<button
+									type="button"
+									onClick={() => {
+										setShowBankModal(false);
+										setSelectedBankFormNumber(null);
+										setSelectedBankMemberId(null);
+										setBankAccounts([]);
+									}}
+									className="p-2 hover:bg-white/20 rounded-lg transition-colors text-white hover:text-gray-200"
+								>
+									<XCircle className="h-6 w-6" />
+								</button>
+							</div>
+
+							<div className="flex-1 overflow-y-auto px-6 py-4">
+								{loadingBankAccounts ? (
+									<div className="flex items-center justify-center py-12">
+										<div className="text-center">
+											<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b] mx-auto"></div>
+											<span className="ml-3 text-gray-600 mt-3 block">Loading bank account information...</span>
+										</div>
+									</div>
+								) : bankError ? (
+									<div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700">
+										{bankError}
+									</div>
+								) : bankAccounts.length === 0 ? (
+									<div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
+										<CreditCard className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+										<p className="text-gray-600">No bank account information found for this family{selectedBankMemberId ? " and member" : ""}.</p>
+									</div>
+								) : (
+									<div className="space-y-4">
+										<div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+											<div className="overflow-x-auto">
+												<table className="min-w-full divide-y divide-gray-200">
+													<thead className="bg-gradient-to-r from-gray-700 to-gray-800">
+														<tr>
+															<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+																Bank No
+															</th>
+															<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+																Form Number
+															</th>
+															<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+																Beneficiary ID
+															</th>
+															<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+																Bank Name
+															</th>
+															<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+																Account Title
+															</th>
+															<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+																Account Number
+															</th>
+															<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+																CNIC
+															</th>
+															<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+																Bank Code
+															</th>
+															<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+																Submitted At
+															</th>
+															<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+																Submitted By
+															</th>
+															<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+																Approval Status
+															</th>
+															<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+																Remarks
+															</th>
+															<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">
+																Cheque Image
+															</th>
+														</tr>
+													</thead>
+													<tbody className="bg-white divide-y divide-gray-200">
+														{bankAccounts.map((bank, index) => (
+															<tr 
+																key={bank.BankNo || index} 
+																className={`transition-colors ${
+																	index % 2 === 0 
+																		? "bg-white hover:bg-blue-50" 
+																		: "bg-gray-50 hover:bg-blue-50"
+																}`}
+															>
+																<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+																	{bank.BankNo || "N/A"}
+																</td>
+																<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+																	{bank.FormNumber || "N/A"}
+																</td>
+																<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+																	{bank.BeneficiaryID || "N/A"}
+																</td>
+																<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+																	{bank.BankName || "N/A"}
+																</td>
+																<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+																	{bank.AccountTitle || "N/A"}
+																</td>
+																<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 font-mono">
+																	{bank.AccountNo || "N/A"}
+																</td>
+																<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 font-mono">
+																	{bank.CNIC || "N/A"}
+																</td>
+																<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+																	{bank.BankCode || "N/A"}
+																</td>
+																<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+																	{bank.SubmittedAt ? new Date(bank.SubmittedAt).toLocaleString() : "N/A"}
+																</td>
+																<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+																	{bank.SubmittedBy || "N/A"}
+																</td>
+																<td className="px-4 py-3 whitespace-nowrap text-sm">
+																	{bank.ApprovalStatus ? (
+																		<span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+																			bank.ApprovalStatus === "Approved" ? "bg-green-100 text-green-800" :
+																			bank.ApprovalStatus === "Rejected" ? "bg-red-100 text-red-800" :
+																			"bg-yellow-100 text-yellow-800"
+																		}`}>
+																			{bank.ApprovalStatus}
+																		</span>
+																	) : (
+																		"N/A"
+																	)}
+																</td>
+																<td className="px-4 py-3 text-sm text-gray-900 max-w-xs">
+																	{bank.Remarks ? (
+																		<span className="truncate block" title={bank.Remarks}>
+																			{bank.Remarks}
+																		</span>
+																	) : (
+																		"N/A"
+																	)}
+																</td>
+																<td className="px-4 py-3 whitespace-nowrap text-sm">
+																	{bank.BankChequeImagePath ? (
+																		<a
+																			href={bank.BankChequeImagePath}
+																			target="_blank"
+																			rel="noopener noreferrer"
+																			className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800"
+																		>
+																			<ImageIcon className="h-4 w-4" />
+																			View Image
+																		</a>
+																	) : (
+																		"N/A"
+																	)}
+																</td>
+															</tr>
+														))}
 													</tbody>
 												</table>
 											</div>
@@ -883,10 +1953,219 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 								<button
 									type="button"
 									onClick={() => {
-										setShowMemberModal(false);
-										setSelectedFormNumber(null);
-										setMembers([]);
-										setMemberInterventions({});
+										setShowBankModal(false);
+										setSelectedBankFormNumber(null);
+										setSelectedBankMemberId(null);
+										setBankAccounts([]);
+									}}
+									className="px-6 py-2.5 bg-gradient-to-r from-[#0b4d2b] to-[#0d5d35] text-white rounded-lg text-sm font-semibold hover:from-[#0a3d22] hover:to-[#0b4d2b] transition-all shadow-md hover:shadow-lg"
+								>
+									Close
+								</button>
+							</div>
+						</div>
+					</div>
+				</div>
+			)}
+
+			{/* Intervention Section Modal */}
+			{showInterventionModal && (
+				<div className="fixed inset-0 z-50 overflow-y-auto">
+					<div className="flex min-h-screen items-center justify-center p-4">
+						<div
+							className="fixed inset-0 bg-black bg-opacity-50"
+							onClick={() => {
+								setShowInterventionModal(false);
+								setSelectedInterventionFormNumber(null);
+								setSelectedInterventionMemberId(null);
+								setSelectedInterventionSection(null);
+								setInterventions([]);
+							}}
+						></div>
+						<div className="relative w-full max-w-7xl bg-white rounded-xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
+							<div className="flex items-center justify-between border-b-2 border-gray-200 px-6 py-4 bg-gradient-to-r from-[#0b4d2b] via-[#0d5d35] to-[#0b4d2b]">
+								<div>
+									<h2 className="text-2xl font-bold text-white flex items-center gap-2">
+										<Activity className="h-6 w-6" />
+										{selectedInterventionSection} ROP
+									</h2>
+									<p className="text-sm text-white/80 mt-1">
+										Form Number: {selectedInterventionFormNumber}
+										{selectedInterventionMemberId && ` - Member: ${selectedInterventionMemberId}`}
+									</p>
+								</div>
+								<button
+									type="button"
+									onClick={() => {
+										setShowInterventionModal(false);
+										setSelectedInterventionFormNumber(null);
+										setSelectedInterventionMemberId(null);
+										setSelectedInterventionSection(null);
+										setInterventions([]);
+									}}
+									className="p-2 hover:bg-white/20 rounded-lg transition-colors text-white hover:text-gray-200"
+								>
+									<XCircle className="h-6 w-6" />
+								</button>
+							</div>
+
+							<div className="flex-1 overflow-y-auto px-6 py-4">
+								{loadingInterventions ? (
+									<div className="flex items-center justify-center py-12">
+										<div className="text-center">
+											<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b] mx-auto"></div>
+											<span className="ml-3 text-gray-600 mt-3 block">Loading interventions...</span>
+										</div>
+									</div>
+								) : interventionError ? (
+									<div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700">
+										{interventionError}
+									</div>
+								) : interventions.length === 0 ? (
+									<div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
+										<Activity className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+										<p className="text-gray-600">No {selectedInterventionSection?.toLowerCase()} interventions found for this family{selectedInterventionMemberId ? " and member" : ""}.</p>
+									</div>
+								) : (
+									<div className="space-y-4">
+										<div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+											<div className="overflow-x-auto">
+												<table className="min-w-full divide-y divide-gray-200">
+													<thead className="bg-gradient-to-r from-gray-700 to-gray-800">
+														<tr>
+															<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+																ID
+															</th>
+															<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+																Form Number
+															</th>
+															<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+																Section
+															</th>
+															<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+																Status
+															</th>
+															<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+																Category
+															</th>
+															<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+																Main Intervention
+															</th>
+															<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+																Type
+															</th>
+															<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+																Financial Category
+															</th>
+															<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+																Total Amount
+															</th>
+															<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+																Start Date
+															</th>
+															<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+																End Date
+															</th>
+															<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+																Member ID
+															</th>
+															<th className="px-4 py-3 text-left text-xs font-bold text-white uppercase tracking-wider">
+																Approval Status
+															</th>
+														</tr>
+													</thead>
+													<tbody className="bg-white divide-y divide-gray-200">
+														{interventions.map((intervention, index) => (
+															<tr 
+																key={intervention.InterventionID || index} 
+																className={`transition-colors ${
+																	index % 2 === 0 
+																		? "bg-white hover:bg-blue-50" 
+																		: "bg-gray-50 hover:bg-blue-50"
+																}`}
+															>
+																<td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+																	{intervention.InterventionID || "N/A"}
+																</td>
+																<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+																	{intervention.FormNumber || "N/A"}
+																</td>
+																<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+																	<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+																		{intervention.Section || "N/A"}
+																	</span>
+																</td>
+																<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+																	<span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+																		intervention.InterventionStatus === "Open" 
+																			? "bg-green-100 text-green-800" 
+																			: "bg-gray-100 text-gray-800"
+																	}`}>
+																		{intervention.InterventionStatus || "N/A"}
+																	</span>
+																</td>
+																<td className="px-4 py-3 text-sm text-gray-900 max-w-xs">
+																	<div className="truncate" title={intervention.InterventionCategory || "N/A"}>
+																		{intervention.InterventionCategory || "N/A"}
+																	</div>
+																</td>
+																<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+																	<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+																		{intervention.MainIntervention || "N/A"}
+																	</span>
+																</td>
+																<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+																	{intervention.InterventionType || "N/A"}
+																</td>
+																<td className="px-4 py-3 text-sm text-gray-900 max-w-xs">
+																	<div className="truncate" title={intervention.FinancialCategory || "N/A"}>
+																		{intervention.FinancialCategory || "N/A"}
+																	</div>
+																</td>
+																<td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-gray-900">
+																	{intervention.TotalAmount != null
+																		? `PKR ${intervention.TotalAmount.toLocaleString()}`
+																		: "N/A"}
+																</td>
+																<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+																	{formatDate(intervention.InterventionStartDate)}
+																</td>
+																<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+																	{formatDate(intervention.InterventionEndDate)}
+																</td>
+																<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+																	{intervention.MemberID || "N/A"}
+																</td>
+																<td className="px-4 py-3 whitespace-nowrap text-sm">
+																	<span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+																		intervention.ApprovalStatus === "Approved" 
+																			? "bg-green-100 text-green-800" 
+																			: intervention.ApprovalStatus === "Pending"
+																			? "bg-yellow-100 text-yellow-800"
+																			: "bg-gray-100 text-gray-800"
+																	}`}>
+																		{intervention.ApprovalStatus || "N/A"}
+																	</span>
+																</td>
+															</tr>
+														))}
+													</tbody>
+												</table>
+											</div>
+										</div>
+									</div>
+								)}
+							</div>
+
+							<div className="border-t-2 border-gray-200 px-6 py-4 bg-gradient-to-r from-gray-50 to-gray-100 flex justify-end">
+								<button
+									type="button"
+									onClick={() => {
+										setShowInterventionModal(false);
+										setSelectedInterventionFormNumber(null);
+										setSelectedInterventionMemberId(null);
+										setSelectedInterventionSection(null);
+										setInterventions([]);
 									}}
 									className="px-6 py-2.5 bg-gradient-to-r from-[#0b4d2b] to-[#0d5d35] text-white rounded-lg text-sm font-semibold hover:from-[#0a3d22] hover:to-[#0b4d2b] transition-all shadow-md hover:shadow-lg"
 								>

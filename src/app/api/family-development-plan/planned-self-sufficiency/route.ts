@@ -92,11 +92,27 @@ export async function GET(request: NextRequest) {
 		const economicResult = await sqlRequest.query(economicQuery);
 		const acceptedInterventions = economicResult.recordset || [];
 
-		// Get baselineIncomePM from the FIRST accepted record's CurrentMonthlyIncome
-		// If no accepted records exist or CurrentMonthlyIncome is null, use 0
-		const baselineIncomePM = acceptedInterventions.length > 0 && acceptedInterventions[0].CurrentMonthlyIncome != null
-			? (parseFloat(acceptedInterventions[0].CurrentMonthlyIncome) || 0)
-			: 0;
+		// Calculate baselineIncomePM as Total Family Baseline Income
+		// Total Family Baseline Income = Family Income + Total Member Income
+		// Family Income = MonthlyIncome_Remittance + MonthlyIncome_Rental + MonthlyIncome_OtherSources
+		const familyIncome = 
+			(parseFloat(basicInfo.MonthlyIncome_Remittance || 0) || 0) +
+			(parseFloat(basicInfo.MonthlyIncome_Rental || 0) || 0) +
+			(parseFloat(basicInfo.MonthlyIncome_OtherSources || 0) || 0);
+		
+		// Total Family Baseline Income = Family Income + Total Member Income
+		const baselineIncomePM = familyIncome + totalMemberIncome;
+
+		// Temporary debug logging for formNumber PE-00006
+		if (formNumber === "PE-00006") {
+			console.log("[DEBUG PE-00006] Baseline Income Calculation:");
+			console.log("  - MonthlyIncome_Remittance:", basicInfo.MonthlyIncome_Remittance);
+			console.log("  - MonthlyIncome_Rental:", basicInfo.MonthlyIncome_Rental);
+			console.log("  - MonthlyIncome_OtherSources:", basicInfo.MonthlyIncome_OtherSources);
+			console.log("  - Family Income (sum of above):", familyIncome);
+			console.log("  - Total Member Income:", totalMemberIncome);
+			console.log("  - baselineIncomePM (Family Income + Total Member Income):", baselineIncomePM);
+		}
 
 		// Calculate targetIncomePM = requiredPerCapitaPM * familyMembers
 		const targetIncomePM = requiredPerCapitaPM * familyMembers;
