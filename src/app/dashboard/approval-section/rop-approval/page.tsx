@@ -83,17 +83,16 @@ export default function ROPApprovalPage() {
 			const data = await response.json();
 
 			if (data.success) {
-				setRops(data.rops || []);
+				const rops: ROP[] = (data.rops || []) as ROP[];
+				setRops(rops);
 
 				// Extract unique values for filters
-				const uniqueStatuses = [...new Set(
-					data.rops.map((r: ROP) => 
-						r.ApprovalStatus || "Pending"
-					).filter(Boolean)
-				)];
-				const uniqueCommunities = [...new Set(
-					data.rops.map((r: ROP) => (r as any).RegionalCommunity).filter(Boolean)
-				)];
+				const uniqueStatuses: string[] = Array.from(new Set(
+					rops.map((r) => r.ApprovalStatus || "Pending")
+				));
+				const uniqueCommunities: string[] = Array.from(new Set(
+					rops.map((r) => r.RegionalCommunity).filter((v): v is string => Boolean(v))
+				));
 
 				setApprovalStatuses(uniqueStatuses.sort());
 				setRegionalCommunities(uniqueCommunities.sort());
