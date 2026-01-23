@@ -97,6 +97,14 @@ export async function POST(request: NextRequest) {
 				);
 			}
 
+			// Validate PaymentType
+			if (!item.PaymentType || typeof item.PaymentType !== 'string' || item.PaymentType.trim() === '') {
+				return NextResponse.json(
+					{ success: false, message: `Item ${itemIndex}: PaymentType is required and must be a non-empty string` },
+					{ status: 400 }
+				);
+			}
+
 			// Validate amounts
 			const payableAmount = parseFloat(item.PayableAmount) || 0;
 			const payAmount = parseFloat(item.PayAmount) || 0;
@@ -119,6 +127,52 @@ export async function POST(request: NextRequest) {
 		// Insert ROP records
 		const pool = await getDb();
 		const insertedIds: number[] = [];
+
+		// Fetch bank details for all items in bulk to avoid N+1 queries
+		const bankDetailsMap: Record<string, number | null> = {};
+		const uniqueBeneficiaries = new Set<string>();
+		items.forEach(item => {
+			const key = `${String(item.FormNumber || '').trim()}:${String(item.BeneficiaryID || '').trim()}`;
+			if (key !== ':') {
+				uniqueBeneficiaries.add(key);
+			}
+		});
+
+		if (uniqueBeneficiaries.size > 0) {
+			try {
+				const bankRequest = pool.request();
+				// Build OR conditions for each (FormNumber, BeneficiaryID) pair
+				const conditions: string[] = [];
+				Array.from(uniqueBeneficiaries).forEach((key, index) => {
+					const [formNumber, beneficiaryID] = key.split(':');
+					const formParam = `formNum${index}`;
+					const benefParam = `benef${index}`;
+					bankRequest.input(formParam, sql.VarChar, formNumber);
+					bankRequest.input(benefParam, sql.VarChar, beneficiaryID);
+					conditions.push(`([FormNumber] = @${formParam} AND [BeneficiaryID] = @${benefParam})`);
+				});
+
+				const bankQuery = `
+					SELECT 
+						[FormNumber],
+						[BeneficiaryID],
+						MAX([BankNo]) AS BankNo
+					FROM [SJDA_Users].[dbo].[PE_BankInformation]
+					WHERE ${conditions.join(' OR ')}
+					GROUP BY [FormNumber], [BeneficiaryID]
+				`;
+				(bankRequest as any).timeout = 120000;
+				const bankResult = await bankRequest.query(bankQuery);
+				
+				(bankResult.recordset || []).forEach((row: any) => {
+					const key = `${String(row.FormNumber || '').trim()}:${String(row.BeneficiaryID || '').trim()}`;
+					bankDetailsMap[key] = row.BankNo ? parseInt(row.BankNo, 10) : null;
+				});
+			} catch (bankError) {
+				console.error("Error fetching bank details:", bankError);
+				// Continue - will validate per item
+			}
+		}
 
 		for (const item of items) {
 			// Convert MonthOfPayment to DATE (first day of the month)
@@ -212,7 +266,8 @@ export async function POST(request: NextRequest) {
 					[SubmittedAt],
 					[Remarks],
 					[Payment_Done],
-					[ApprovalStatus]
+					[ApprovalStatus],
+					[BankNo]
 				)
 				VALUES
 				(
@@ -228,7 +283,8 @@ export async function POST(request: NextRequest) {
 					GETDATE(),
 					@Remarks,
 					@Payment_Done,
-					'Pending'
+					'Pending',
+					@BankNo
 				);
 				SELECT SCOPE_IDENTITY() AS ROPId;
 			`;
@@ -262,6 +318,41 @@ export async function POST(request: NextRequest) {
 				);
 			}
 
+			// Fetch BankNo for this FormNumber + BeneficiaryID
+			const bankKey = `${formNumber}:${beneficiaryID}`;
+			let bankNo: number | null = bankDetailsMap[bankKey] || null;
+			
+			// If not found in bulk query, try individual query
+			if (bankNo === null || bankNo === undefined) {
+				try {
+					const bankCheckRequest = pool.request();
+					bankCheckRequest.input("FormNumber", sql.VarChar, formNumber);
+					bankCheckRequest.input("BeneficiaryID", sql.VarChar, beneficiaryID);
+					const bankCheckQuery = `
+						SELECT TOP 1 [BankNo]
+						FROM [SJDA_Users].[dbo].[PE_BankInformation]
+						WHERE [FormNumber] = @FormNumber
+							AND [BeneficiaryID] = @BeneficiaryID
+					`;
+					(bankCheckRequest as any).timeout = 30000;
+					const bankCheckResult = await bankCheckRequest.query(bankCheckQuery);
+					
+					if (bankCheckResult.recordset && bankCheckResult.recordset.length > 0) {
+						bankNo = bankCheckResult.recordset[0].BankNo ? parseInt(bankCheckResult.recordset[0].BankNo, 10) : null;
+					}
+				} catch (bankCheckError) {
+					console.error("Error checking bank for individual item:", bankCheckError);
+				}
+			}
+
+			// Validate bank exists
+			if (bankNo === null || bankNo === undefined) {
+				return NextResponse.json(
+					{ success: false, message: "Bank account is not defined." },
+					{ status: 400 }
+				);
+			}
+
 			request_query.input("FormNumber", sql.VarChar, formNumber);
 			request_query.input("BeneficiaryID", sql.VarChar, beneficiaryID);
 			request_query.input("InterventionID", sql.VarChar, interventionID);
@@ -270,11 +361,12 @@ export async function POST(request: NextRequest) {
 			// Store MonthOfPayment as DATE (first day of the selected month)
 			// The value comes from the month input textbox in format YYYY-MM
 			request_query.input("MonthOfPayment", sql.Date, monthOfPaymentDate);
-			request_query.input("PaymentType", sql.NVarChar, item.PaymentType || null);
+			request_query.input("PaymentType", sql.NVarChar, String(item.PaymentType || '').trim());
 			request_query.input("PayAmount", sql.Decimal(18, 2), parseFloat(item.PayAmount) || 0);
 			request_query.input("SubmittedBy", sql.NVarChar, submittedBy);
 			request_query.input("Remarks", sql.NVarChar, item.Remarks || null);
 			request_query.input("Payment_Done", sql.NVarChar, item.Payment_Done || "Not-Payment");
+			request_query.input("BankNo", sql.Int, bankNo);
 			(request_query as any).timeout = 120000;
 
 			const result = await request_query.query(insertQuery);

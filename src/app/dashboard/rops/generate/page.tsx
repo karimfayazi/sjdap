@@ -259,6 +259,12 @@ function GenerateROPContent() {
 			return;
 		}
 
+		// Validate PaymentType
+		if (!ropFormData.paymentType || ropFormData.paymentType.trim() === '') {
+			setError("Payment Type is required");
+			return;
+		}
+
 		if (ropFormData.interventions.length === 0) {
 			setError("No interventions available to generate ROP");
 			return;
@@ -462,7 +468,7 @@ function GenerateROPContent() {
 						{/* Payment Type */}
 						<div>
 							<label className="block text-sm font-medium text-gray-700 mb-2">
-								Payment Type
+								Payment Type <span className="text-red-500">*</span>
 							</label>
 							{(section && (section.toLowerCase().trim() === "social support" || section.toLowerCase().trim() === "social")) ? (
 								<input
@@ -471,12 +477,14 @@ function GenerateROPContent() {
 									readOnly
 									disabled
 									className="w-full px-4 py-2 border border-gray-300 rounded-md bg-gray-100 cursor-not-allowed"
+									required
 								/>
 							) : (
 								<select
 									value={ropFormData.paymentType}
 									onChange={(e) => handleROPFormChange("paymentType", e.target.value)}
 									className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#0b4d2b] focus:border-[#0b4d2b] outline-none"
+									required
 								>
 									<option value="">Select Payment Type</option>
 									<option value="Loan">Loan</option>
@@ -572,7 +580,7 @@ function GenerateROPContent() {
 						<button
 							type="button"
 							onClick={handleROPSubmit}
-							disabled={submittingROP || !ropFormData.monthOfPayment || ropFormData.interventions.length === 0}
+							disabled={submittingROP || !ropFormData.monthOfPayment || !ropFormData.paymentType || ropFormData.interventions.length === 0}
 							className="px-6 py-2.5 bg-gradient-to-r from-[#0b4d2b] to-[#0d5d35] text-white rounded-lg text-sm font-semibold hover:from-[#0a3d22] hover:to-[#0b4d2b] transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
 						>
 							{submittingROP ? (

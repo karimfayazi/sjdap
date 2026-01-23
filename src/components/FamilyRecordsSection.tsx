@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, XCircle, CreditCard, RefreshCw, Users, FileText, MapPin, Hash, Search, Filter, X, ChevronLeft, ChevronRight, Image as ImageIcon, Activity, FileBarChart } from "lucide-react";
+import Link from "next/link";
 
 type FamilyRecord = {
 	FormNumber: string;
@@ -31,6 +32,9 @@ type FamilyMember = {
 	DOBYear: number | null;
 	MonthlyIncome: number | null;
 	PEInvestmentAmount: number;
+	BankNo: number | null;
+	BankName: string | null;
+	AccountNo: string | null;
 };
 
 type MemberInterventions = {
@@ -620,6 +624,11 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 			return;
 		}
 
+		if (!ropFormData.paymentType || ropFormData.paymentType.trim() === '') {
+			setModalActionError("Payment Type is required");
+			return;
+		}
+
 		if (ropFormData.interventions.length === 0) {
 			setModalActionError("No interventions available to generate ROP");
 			return;
@@ -778,6 +787,15 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 					)}
 				</div>
 				<div className="flex items-center gap-3">
+					{baseRoute === "/dashboard/rops" && (
+						<Link
+							href="/dashboard/rops/report"
+							className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-lg hover:from-gray-700 hover:to-gray-800 transition-all shadow-md hover:shadow-lg font-semibold"
+						>
+							<FileBarChart className="h-4 w-4" />
+							Report ROPs
+						</Link>
+					)}
 					<button
 						onClick={fetchFamilies}
 						className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-lg hover:from-gray-700 hover:to-gray-800 transition-all shadow-md hover:shadow-lg font-semibold"
@@ -1193,6 +1211,15 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 															<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
 																PE Investment Amount
 															</th>
+															<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+																Bank No
+															</th>
+															<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+																Bank Name
+															</th>
+															<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
+																Account No
+															</th>
 															<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
 																Interventions
 															</th>
@@ -1246,6 +1273,27 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 																			</span>
 																		) : (
 																			<span className="text-sm text-gray-400">N/A</span>
+																		)}
+																	</td>
+																	<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+																		{member.BankNo ? (
+																			<span className="font-medium">{member.BankNo}</span>
+																		) : (
+																			<span className="text-gray-400">-</span>
+																		)}
+																	</td>
+																	<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+																		{member.BankName ? (
+																			<span>{member.BankName}</span>
+																		) : (
+																			<span className="text-gray-400">-</span>
+																		)}
+																	</td>
+																	<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 font-mono">
+																		{member.AccountNo ? (
+																			<span>{member.AccountNo}</span>
+																		) : (
+																			<span className="text-gray-400">-</span>
 																		)}
 																	</td>
 																	<td className="px-6 py-4 whitespace-nowrap text-sm">
@@ -1510,12 +1558,13 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 																		{/* Payment Type */}
 																		<div>
 																			<label className="block text-sm font-medium text-gray-700 mb-2">
-																				Payment Type
+																				Payment Type <span className="text-red-500">*</span>
 																			</label>
 																			<select
 																				value={ropFormData.paymentType}
 																				onChange={(e) => handleROPFormChange("paymentType", e.target.value)}
 																				className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#0b4d2b] focus:border-[#0b4d2b] outline-none"
+																				required
 																			>
 																				<option value="">Select Payment Type</option>
 																				<option value="Cash">Cash</option>
@@ -1619,7 +1668,7 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 																		<button
 																			type="button"
 																			onClick={handleROPSubmit}
-																			disabled={submittingROP || !ropFormData.monthOfPayment || ropFormData.interventions.length === 0}
+																			disabled={submittingROP || !ropFormData.monthOfPayment || !ropFormData.paymentType || ropFormData.interventions.length === 0}
 																			className="px-6 py-2.5 bg-gradient-to-r from-[#0b4d2b] to-[#0d5d35] text-white rounded-lg text-sm font-semibold hover:from-[#0a3d22] hover:to-[#0b4d2b] transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
 																		>
 																			{submittingROP ? (

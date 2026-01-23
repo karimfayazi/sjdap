@@ -185,10 +185,48 @@ export async function GET(request: NextRequest) {
 			};
 		});
 
-		// Add PE Investment Amount to each member
+		// Fetch bank details for all members in bulk
+		const bankDetailsMap: Record<string, { BankNo: number | null; BankName: string | null; AccountNo: string | null }> = {};
+		
+		if (memberNos.length > 0) {
+			try {
+				const bankRequest = pool.request();
+				const memberNosParam = memberNos.map((m: string) => m.replace(/'/g, "''")).join("','");
+				const bankQuery = `
+					SELECT
+						[BeneficiaryID],
+						MAX([BankNo]) AS BankNo,
+						MAX([BankName]) AS BankName,
+						MAX([AccountNo]) AS AccountNo
+					FROM [SJDA_Users].[dbo].[PE_BankInformation]
+					WHERE [FormNumber] = @FormNumber
+						AND [BeneficiaryID] IN ('${memberNosParam}')
+					GROUP BY [BeneficiaryID]
+				`;
+				bankRequest.input("FormNumber", sql.VarChar, formNumber);
+				(bankRequest as any).timeout = 120000;
+				const bankResult = await bankRequest.query(bankQuery);
+				
+				(bankResult.recordset || []).forEach((row: any) => {
+					bankDetailsMap[row.BeneficiaryID] = {
+						BankNo: row.BankNo ? parseInt(row.BankNo, 10) : null,
+						BankName: row.BankName || null,
+						AccountNo: row.AccountNo || null
+					};
+				});
+			} catch (bankError) {
+				console.error("Error fetching bank details:", bankError);
+				// Continue without bank details if query fails
+			}
+		}
+
+		// Add PE Investment Amount and bank details to each member
 		const membersWithPEInvestment = members.map((member: any) => ({
 			...member,
 			PEInvestmentAmount: peInvestmentAmounts[member.BeneficiaryID] || 0,
+			BankNo: bankDetailsMap[member.BeneficiaryID]?.BankNo || null,
+			BankName: bankDetailsMap[member.BeneficiaryID]?.BankName || null,
+			AccountNo: bankDetailsMap[member.BeneficiaryID]?.AccountNo || null,
 		}));
 
 		return NextResponse.json({
