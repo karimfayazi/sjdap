@@ -21,6 +21,9 @@ type Intervention = {
 	Remarks: string | null;
 	MemberID: string | null;
 	ApprovalStatus: string | null;
+	MainTrade: string | null;
+	SubTrades: string | null;
+	SpecialtyTrade: string | null;
 	CreatedBy: string | null;
 	CreatedAt: string | null;
 };
