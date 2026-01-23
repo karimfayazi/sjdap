@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPeDb } from "@/lib/db";
 import sql from "mssql";
+import { getSelfSufficiencyIncomePerCapita, getPovertyLevelByPercent } from "@/config/selfSufficiency";
 
 export const maxDuration = 120;
 
@@ -64,149 +65,141 @@ export async function GET(request: NextRequest) {
 
 		const membersResult = await sqlRequest.query(membersQuery);
 		const membersData = membersResult.recordset[0];
-		const totalMembers = membersData?.TotalMembers || 0;
-		const totalMemberIncome = membersData?.TotalMemberIncome || 0;
+		const familyMembers = parseInt(membersData?.TotalMembers || 0) || 0;
+		const totalMemberIncome = parseFloat(membersData?.TotalMemberIncome || 0) || 0;
 
 		// Get Mentor from SubmittedBy field in PE_Application_BasicInfo
 		const mentor = basicInfo.SubmittedBy || null;
 
-		// Calculate baseline family income
-		const baselineFamilyIncome = 
-			(basicInfo.MonthlyIncome_Remittance || 0) +
-			(basicInfo.MonthlyIncome_Rental || 0) +
-			(basicInfo.MonthlyIncome_OtherSources || 0) +
-			totalMemberIncome;
+		// Get requiredPerCapitaPM from config (based on area type)
+		const areaType = (basicInfo.Area_Type || "Rural").trim();
+		const requiredPerCapitaPM = getSelfSufficiencyIncomePerCapita(areaType);
 
-		// Determine self-sufficiency income per capita based on area type
-		const areaType = basicInfo.Area_Type || "Rural";
-		const selfSufficiencyIncomePerCapita = 
-			areaType === "Urban" ? 19200 :
-			areaType === "Peri-Urban" ? 16100 :
-			10800; // Rural
-
-		// Calculate baseline per capita income
-		const baselinePerCapita = totalMembers > 0 
-			? baselineFamilyIncome / totalMembers 
-			: 0;
-
-		// Calculate poverty level
-		const calculatePovertyLevel = (perCapitaIncome: number, areaType: string): string => {
-			const thresholds: { [key: string]: { [key: number]: string } } = {
-				"Rural": {
-					0: "Level -4",
-					2700: "Level -3",
-					5400: "Level -2",
-					8100: "Level -1",
-					10800: "Level 0",
-					13500: "Level +1",
-				},
-				"Urban": {
-					0: "Level -4",
-					4800: "Level -3",
-					9600: "Level -2",
-					14400: "Level -1",
-					19200: "Level 0",
-					24000: "Level +1",
-				},
-				"Peri-Urban": {
-					0: "Level -4",
-					4025: "Level -3",
-					8100: "Level -2",
-					12100: "Level -1",
-					16100: "Level 0",
-					20100: "Level +1",
-				},
-			};
-
-			const areaThresholds = thresholds[areaType] || thresholds["Rural"];
-			const sortedLevels = Object.keys(areaThresholds)
-				.map(Number)
-				.sort((a, b) => b - a);
-
-			for (const threshold of sortedLevels) {
-				if (perCapitaIncome >= threshold) {
-					return areaThresholds[threshold];
-				}
-			}
-
-			return "Level -4";
-		};
-
-		const baselineIncomeLevel = calculatePovertyLevel(baselinePerCapita, areaType);
-
-		// Fetch approved ECONOMIC interventions only
+		// Fetch accepted economic interventions ordered by CreatedAt ASC
+		// This defines the sequence for Intervention 1..4
 		const economicQuery = `
 			SELECT 
-				[FDP_EconomicID],
 				[InvestmentFromPEProgram],
+				[CurrentMonthlyIncome],
 				[IncrementalMonthlyIncome],
-				[InterventionType],
-				[ApprovalStatus],
-				[ApprovalDate],
 				[CreatedAt]
 			FROM [SJDA_Users].[dbo].[PE_FDP_EconomicDevelopment]
 			WHERE [FormNumber] = @FormNumber
-				AND [IsActive] = 1
-				AND UPPER(LTRIM(RTRIM([InterventionType]))) = 'ECONOMIC'
-				AND UPPER(LTRIM(RTRIM([ApprovalStatus]))) = 'APPROVED'
-			ORDER BY 
-				CASE WHEN [ApprovalDate] IS NOT NULL THEN [ApprovalDate] ELSE '1900-01-01' END ASC,
-				CASE WHEN [CreatedAt] IS NOT NULL THEN [CreatedAt] ELSE '1900-01-01' END ASC,
-				[FDP_EconomicID] ASC
+				AND [ApprovalStatus] = 'Accepted'
+			ORDER BY [CreatedAt] ASC
 		`;
 
 		const economicResult = await sqlRequest.query(economicQuery);
-		const economicInterventions = economicResult.recordset || [];
+		const acceptedInterventions = economicResult.recordset || [];
 
-		// Take only first 4 approved economic interventions and map to slots 1-4
-		const approvedEconomicInterventions = economicInterventions.slice(0, 4);
+		// Get baselineIncomePM from the FIRST accepted record's CurrentMonthlyIncome
+		// If no accepted records exist or CurrentMonthlyIncome is null, use 0
+		const baselineIncomePM = acceptedInterventions.length > 0 && acceptedInterventions[0].CurrentMonthlyIncome != null
+			? (parseFloat(acceptedInterventions[0].CurrentMonthlyIncome) || 0)
+			: 0;
 
-		// Build interventions array with incremental income mapped to slots
-		const interventions = approvedEconomicInterventions.map((intervention: any, index: number) => {
-			const incrementalIncome = intervention.IncrementalMonthlyIncome != null 
-				? (typeof intervention.IncrementalMonthlyIncome === 'number' ? intervention.IncrementalMonthlyIncome : parseFloat(intervention.IncrementalMonthlyIncome) || 0)
-				: 0;
+		// Calculate targetIncomePM = requiredPerCapitaPM * familyMembers
+		const targetIncomePM = requiredPerCapitaPM * familyMembers;
+
+		// Calculate baseline values
+		const baselinePerCapita = familyMembers > 0 
+			? baselineIncomePM / familyMembers 
+			: 0;
+		const baselinePercent = requiredPerCapitaPM > 0
+			? baselinePerCapita / requiredPerCapitaPM
+			: 0;
+		const baselinePovertyLevel = getPovertyLevelByPercent(baselinePercent);
+		const baselineSSStatus = baselineIncomePM - targetIncomePM;
+
+		// Take first 4 accepted interventions (ordered by CreatedAt ASC)
+		const plannedInterventions = acceptedInterventions.slice(0, 4);
+
+		// Calculate interventions with cumulative values
+		// Start with baseline income
+		let cumulativeIncome = baselineIncomePM;
+		const interventions: Array<{
+			idx: number;
+			investment: number;
+			incrementalIncome: number;
+			incomeAfter: number;
+			perCapita: number;
+			percent: number;
+			povertyLevel: string;
+			ssStatus: number;
+		}> = [];
+
+		// Process up to 4 interventions
+		for (let i = 0; i < 4; i++) {
+			const intervention = plannedInterventions[i];
 			
-			return {
-				InterventionNumber: index + 1,
-				Investment: intervention.InvestmentFromPEProgram || 0,
-				IncrementalIncome: incrementalIncome,
-				IncrementalIncomePerCapita: totalMembers > 0 
-					? incrementalIncome / totalMembers 
-					: 0,
-				InterventionType: intervention.InterventionType || "Economic",
-			};
-		});
+			// Get investment and incremental income from the intervention record
+			// Use ISNULL equivalent: if null/undefined, use 0
+			const investment = intervention 
+				? (parseFloat(intervention.InvestmentFromPEProgram || 0) || 0)
+				: 0;
+			const incrementalIncome = intervention
+				? (parseFloat(intervention.IncrementalMonthlyIncome || 0) || 0)
+				: 0;
 
-		// Fill remaining slots (up to 4) with zero values if needed
-		while (interventions.length < 4) {
+			// Calculate cumulative income after this intervention
+			// incomeAfter[i] = baselineIncomePM + inc[1] + inc[2] + ... + inc[i]
+			cumulativeIncome += incrementalIncome;
+
+			// Calculate per capita after this intervention
+			const perCapitaAfter = familyMembers > 0 
+				? cumulativeIncome / familyMembers 
+				: 0;
+
+			// Calculate percent after this intervention (as decimal)
+			const percentAfter = requiredPerCapitaPM > 0
+				? perCapitaAfter / requiredPerCapitaPM
+				: 0;
+
+			// Calculate poverty level
+			const povertyLevelAfter = getPovertyLevelByPercent(percentAfter);
+
+			// Calculate self-sufficiency status
+			const ssStatusAfter = cumulativeIncome - targetIncomePM;
+
 			interventions.push({
-				InterventionNumber: interventions.length + 1,
-				Investment: 0,
-				IncrementalIncome: 0,
-				IncrementalIncomePerCapita: 0,
-				InterventionType: "Economic",
+				idx: i + 1,
+				investment: investment,
+				incrementalIncome: incrementalIncome,
+				incomeAfter: cumulativeIncome,
+				perCapita: perCapitaAfter,
+				percent: percentAfter,
+				povertyLevel: povertyLevelAfter,
+				ssStatus: ssStatusAfter,
 			});
 		}
 
-		// Return data
+		// Calculate total investment
+		const totalInvestment = interventions.reduce((sum, inv) => sum + (inv.investment || 0), 0);
+
+		// Return data matching Excel structure
 		return NextResponse.json({
 			success: true,
-			data: {
-				familyInfo: {
-					FamilyNumber: basicInfo.FormNumber,
-					HeadName: basicInfo.Full_Name,
-					RegionalCouncil: basicInfo.RegionalCommunity,
-					LocalCommunity: basicInfo.LocalCommunity,
-					AreaType: areaType,
-					BaselineIncomeLevel: baselineIncomeLevel,
-					TotalMembers: totalMembers,
-					BaselineFamilyIncome: baselineFamilyIncome,
-					SelfSufficiencyIncomePerCapita: selfSufficiencyIncomePerCapita,
-					Mentor: mentor,
-				},
-				interventions: interventions,
+			familyInfo: {
+				FamilyNumber: basicInfo.FormNumber,
+				HeadName: basicInfo.Full_Name,
+				RegionalCouncil: basicInfo.RegionalCommunity,
+				LocalCommunity: basicInfo.LocalCommunity,
+				AreaType: areaType,
+				TotalMembers: familyMembers,
+				Mentor: mentor,
 			},
+			requiredPerCapitaPM: requiredPerCapitaPM,
+			familyMembers: familyMembers,
+			targetIncomePM: targetIncomePM,
+			baselineIncomePM: baselineIncomePM,
+			baseline: {
+				perCapita: baselinePerCapita,
+				percent: baselinePercent,
+				povertyLevel: baselinePovertyLevel,
+				ssStatus: baselineSSStatus,
+			},
+			interventions: interventions,
+			totalInvestment: totalInvestment,
 		});
 	} catch (error: any) {
 		console.error("Error fetching Planned Self-Sufficiency Status:", error);
