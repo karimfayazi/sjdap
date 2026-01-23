@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { sendLoginNotification } from "@/lib/notification-service";
+import { normalizeApiError, createErrorResponse } from "@/lib/api-error-handler";
 
 // Increase timeout for this route to 120 seconds
 export const maxDuration = 120;
@@ -14,7 +15,23 @@ export async function POST(request: NextRequest) {
 		}
 
 		// Query PE_User table from SJDA_Users database to find user by email_address
-		const pool = await getDb();
+		// Wrap getDb() in try-catch to catch connection errors
+		let pool;
+		try {
+			pool = await getDb();
+		} catch (dbError) {
+			// Database connection failed - normalize and return VPN error
+			const normalized = normalizeApiError(dbError);
+			return NextResponse.json(
+				{
+					success: false,
+					code: normalized.type === 'VPN_REQUIRED' ? 'VPN_REQUIRED' : undefined,
+					message: normalized.message
+				},
+				{ status: normalized.statusCode }
+			);
+		}
+		
 		const request_query = pool.request();
 		request_query.input("email_address", email);
 		(request_query as any).timeout = 120000;
@@ -77,34 +94,47 @@ export async function POST(request: NextRequest) {
 		});
 		return response;
 	} catch (error) {
-		console.error("Login error:", error);
-		
-		// Check for database connection errors
+		// Log error with minimal info (no passwords)
 		const errorMessage = error instanceof Error ? error.message : String(error);
-		const isConnectionError = 
-			errorMessage.includes("ENOTFOUND") ||
-			errorMessage.includes("getaddrinfo") ||
-			errorMessage.includes("Failed to connect") ||
-			errorMessage.includes("ECONNREFUSED") ||
-			errorMessage.includes("ETIMEDOUT") ||
-			errorMessage.includes("ConnectionError");
+		const errorName = error instanceof Error ? error.name : typeof error;
+		console.error("Login error:", {
+			errorName,
+			message: errorMessage,
+			// Explicitly exclude password from logs
+		});
 		
-		if (isConnectionError) {
+		// Normalize error to determine type
+		const normalized = normalizeApiError(error);
+		
+		// Return appropriate response based on error type
+		if (normalized.type === 'VPN_REQUIRED') {
 			return NextResponse.json(
-				{ 
-					success: false, 
-					message: "Please Re-Connect VPN"
+				{
+					success: false,
+					code: 'VPN_REQUIRED',
+					message: normalized.message
 				},
-				{ status: 503 }
+				{ status: normalized.statusCode }
 			);
 		}
 		
+		if (normalized.type === 'TIMEOUT') {
+			return NextResponse.json(
+				{
+					success: false,
+					message: normalized.message
+				},
+				{ status: normalized.statusCode }
+			);
+		}
+		
+		// For other errors, return generic error message (don't expose internal details)
 		return NextResponse.json(
-			{ 
-				success: false, 
-				message: "Login error: " + errorMessage
+			{
+				success: false,
+				message: "Login failed. Please try again."
 			},
-			{ status: 500 }
+			{ status: normalized.statusCode }
 		);
 	}
 }

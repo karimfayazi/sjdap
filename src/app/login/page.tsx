@@ -39,16 +39,25 @@ export default function LoginPage() {
 			try {
 				data = await res.json();
 			} catch (parseError) {
-				// If JSON parsing fails, use default error message
-				setError("Login failed - Invalid response from server");
+				// If JSON parsing fails, check status code
+				if (res.status === 503) {
+					setError("Please Re-Connect VPN");
+				} else {
+					setError("Login failed - Invalid response from server");
+				}
 				setLoading(false);
 				return;
 			}
 			
 			if (!res.ok) {
-				// Handle error response gracefully without throwing
-				const errorMessage = data?.message || "Login failed";
-				setError(errorMessage);
+				// Check for VPN-related errors (503 status or VPN_REQUIRED code)
+				if (res.status === 503 || data?.code === "VPN_REQUIRED") {
+					setError("Please Re-Connect VPN");
+				} else {
+					// Handle other error responses gracefully
+					const errorMessage = data?.message || "Login failed";
+					setError(errorMessage);
+				}
 				setLoading(false);
 				return;
 			}
@@ -85,10 +94,18 @@ export default function LoginPage() {
 			}
 			
 		} catch (e: unknown) {
-			// Only catch network errors or unexpected errors
+			// Catch network errors or unexpected errors
 			console.error("Login error:", e);
-			const errorMessage = e instanceof Error ? e.message : "An unexpected error occurred. Please try again.";
-			setError(errorMessage);
+			const errorMessage = e instanceof Error ? e.message : "";
+			
+			// Check if it's a network/connection error that might indicate VPN issue
+			if (errorMessage.includes("Failed to fetch") || 
+			    errorMessage.includes("NetworkError") ||
+			    errorMessage.includes("Network request failed")) {
+				setError("Please Re-Connect VPN");
+			} else {
+				setError("An unexpected error occurred. Please try again.");
+			}
 			setLoading(false);
 		}
 	}
