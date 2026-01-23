@@ -31,8 +31,14 @@ export function normalizeApiError(error: unknown): NormalizedError {
 		errorMessage.includes("Connection is closed") ||
 		errorMessage.includes("socket hang up") ||
 		errorMessage.includes("ECONNRESET") ||
+		errorMessage.includes("Cannot open database") ||
+		errorMessage.includes("Login failed") ||
+		errorMessage.includes("A network-related") ||
+		errorMessage.includes("SQL Server") && errorMessage.includes("not found") ||
+		errorMessage.includes("Server does not exist") ||
 		errorName === "ConnectionError" ||
-		errorName === "TimeoutError";
+		errorName === "TimeoutError" ||
+		errorName === "RequestError";
 	
 	// Check for timeout errors
 	const isTimeoutError = 
