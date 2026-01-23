@@ -63,17 +63,16 @@ export default function InterventionApprovalPage() {
 			const data = await response.json();
 
 			if (data.success) {
-				setInterventions(data.interventions || []);
+				const interventions: Intervention[] = (data.interventions || []) as Intervention[];
+				setInterventions(interventions);
 
 				// Extract unique values for filters
-				const uniqueStatuses = [...new Set(
-					data.interventions.map((i: Intervention) => 
-						i.ApprovalStatus || "Pending"
-					).filter(Boolean)
-				)];
-				const uniqueCommunities = [...new Set(
-					data.interventions.map((i: Intervention) => i.RegionalCommunity).filter(Boolean)
-				)];
+				const uniqueStatuses: string[] = Array.from(new Set(
+					interventions.map((i) => i.ApprovalStatus || "Pending")
+				));
+				const uniqueCommunities: string[] = Array.from(new Set(
+					interventions.map((i) => i.RegionalCommunity).filter((v): v is string => Boolean(v))
+				));
 
 				setApprovalStatuses(uniqueStatuses.sort());
 				setRegionalCommunities(uniqueCommunities.sort());
