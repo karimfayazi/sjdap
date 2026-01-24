@@ -308,21 +308,18 @@ export default function UserDefinePage() {
 
 			{/* Search and Filters */}
 			<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 space-y-4">
-				<div className="relative">
-					<Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-					<input
-						type="text"
-						placeholder="Search by email, full name, or user type..."
-						value={searchTerm}
-						onChange={(e) => setSearchTerm(e.target.value)}
-						onKeyDown={(e) => {
-							if (e.key === "Enter") {
-								fetchUsers();
-							}
-						}}
-						className="w-full pl-10 rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-					/>
-				</div>
+				<input
+					type="text"
+					placeholder="Search by email, full name, or user type..."
+					value={searchTerm}
+					onChange={(e) => setSearchTerm(e.target.value)}
+					onKeyDown={(e) => {
+						if (e.key === "Enter") {
+							fetchUsers();
+						}
+					}}
+					className="w-full px-3 py-2 rounded-md border border-gray-300 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+				/>
 				
 				<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 					<select

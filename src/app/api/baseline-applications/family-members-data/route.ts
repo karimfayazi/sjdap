@@ -333,7 +333,7 @@ export async function POST(request: NextRequest) {
 							console.log(`Successfully inserted member ${i + 1}: FormNo=${formNoValue}, BeneficiaryID=${beneficiaryIDValue}, rows affected:`, result.rowsAffected);
 						}
 					} catch (memberError: any) {
-						console.error(`Error inserting member ${i + 1} (${member.BeneficiaryID}):`, memberError);
+						console.error(`[PE_FamilyMember] Error processing member ${i + 1} (BeneficiaryID: ${member.BeneficiaryID}, FormNo: ${formNoValue}):`, memberError);
 						console.error("Member data:", JSON.stringify(member, null, 2));
 						console.error("Error details:", {
 							message: memberError.message,
@@ -353,8 +353,8 @@ export async function POST(request: NextRequest) {
 							memberErrorMessage += ` (Original: ${memberError.originalError.message || memberError.originalError})`;
 						}
 						
-						// Include SQL error number in the thrown error for better debugging
-						const errorToThrow = new Error(`Failed to save member ${i + 1} (${member.BeneficiaryID || 'Unknown'}): ${memberErrorMessage}`);
+						// Include table name and key in error message
+						const errorToThrow = new Error(`[PE_FamilyMember] Failed to save member ${i + 1} (BeneficiaryID: ${member.BeneficiaryID || 'Unknown'}, FormNo: ${formNoValue}): ${memberErrorMessage}`);
 						(errorToThrow as any).sqlErrorNumber = memberError.number;
 						(errorToThrow as any).sqlErrorState = memberError.state;
 						throw errorToThrow;
@@ -415,20 +415,20 @@ export async function POST(request: NextRequest) {
 			throw new Error(errorMessage);
 		}
 	} catch (error: any) {
-		console.error("Error saving family members data:", error);
+		console.error("[PE_FamilyMember] Error saving family members data:", error);
 		
 		// Extract error message from various possible error structures
-		let errorMessage = "Failed to save family members data";
+		let errorMessage = "[PE_FamilyMember] Failed to save family members data";
 		
 		if (error) {
 			if (typeof error === 'string') {
-				errorMessage = error;
+				errorMessage = `[PE_FamilyMember] ${error}`;
 			} else if (error.message) {
-				errorMessage = error.message;
+				errorMessage = error.message; // Already includes [PE_FamilyMember] prefix from memberError
 			} else if (error.originalError) {
-				errorMessage = error.originalError.message || String(error.originalError);
+				errorMessage = `[PE_FamilyMember] ${error.originalError.message || String(error.originalError)}`;
 			} else {
-				errorMessage = String(error);
+				errorMessage = `[PE_FamilyMember] ${String(error)}`;
 			}
 		}
 		
@@ -440,6 +440,7 @@ export async function POST(request: NextRequest) {
 				success: false,
 				message: errorMessage,
 				details: process.env.NODE_ENV === 'development' ? {
+					table: "PE_FamilyMember",
 					errorNumber: error?.number,
 					errorState: error?.state,
 					errorClass: error?.class,

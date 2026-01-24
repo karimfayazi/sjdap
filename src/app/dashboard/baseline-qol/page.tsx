@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import { Download, RefreshCw, Plus, X, Eye, Edit2, Search } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { isSuperUser, hasRouteAccess, hasFullAccess } from "@/lib/auth-utils";
+import FilterBar from "@/components/common/FilterBar";
+import FilterField from "@/components/common/FilterField";
+import DataCardTable from "@/components/common/DataCardTable";
+import { reportStyles } from "@/lib/ui/reportStyles";
 
 type BaselineApplication = {
 	FormNo: string | null;
@@ -349,106 +353,90 @@ export default function BaselineQOLPage() {
 			</div>
 
 			{/* Filters */}
-			<div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 shadow-md p-6">
-				<div className="mb-4">
-					<h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-						<Search className="h-5 w-5 text-[#0b4d2b]" />
-						Filter Options
-					</h3>
-					<p className="text-sm text-gray-600 mt-1">Use the filters below to search for specific applications</p>
-				</div>
-				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-1">Form No</label>
-						<input
-							type="text"
-							placeholder="Enter Form No"
-							value={filters.formNo}
-							onChange={(e) => handleFilterChange("formNo", e.target.value)}
-							className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-30 focus:outline-none transition-all shadow-sm hover:shadow-md"
-						/>
-					</div>
-					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-1">CNIC No</label>
-						<input
-							type="text"
-							placeholder="Enter CNIC No"
-							value={filters.cnicNo}
-							onChange={(e) => handleFilterChange("cnicNo", e.target.value)}
-							className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-30 focus:outline-none transition-all shadow-sm hover:shadow-md"
-						/>
-					</div>
-					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-						<input
-							type="text"
-							placeholder="Enter Full Name"
-							value={filters.fullName}
-							onChange={(e) => handleFilterChange("fullName", e.target.value)}
-							className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-30 focus:outline-none transition-all shadow-sm hover:shadow-md"
-						/>
-					</div>
-					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-1">Primary Contact</label>
-						<input
-							type="text"
-							placeholder="Enter Contact No"
-							value={filters.primaryContactNo}
-							onChange={(e) => handleFilterChange("primaryContactNo", e.target.value)}
-							className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-30 focus:outline-none transition-all shadow-sm hover:shadow-md"
-						/>
-					</div>
-					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-1">Regional Council</label>
-						<input
-							type="text"
-							placeholder="Enter Regional Council"
-							value={filters.regionalCouncil}
-							onChange={(e) => handleFilterChange("regionalCouncil", e.target.value)}
-							className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-30 focus:outline-none transition-all shadow-sm hover:shadow-md"
-						/>
-					</div>
-					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-1">Local Council</label>
-						<input
-							type="text"
-							placeholder="Enter Local Council"
-							value={filters.localCouncil}
-							onChange={(e) => handleFilterChange("localCouncil", e.target.value)}
-							className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-30 focus:outline-none transition-all shadow-sm hover:shadow-md"
-						/>
-					</div>
-				</div>
-				<div className="mt-6 flex justify-end gap-3">
+			<FilterBar columns={4}>
+				<FilterField label="Form No">
+					<input
+						type="text"
+						placeholder="Enter Form No"
+						value={filters.formNo}
+						onChange={(e) => handleFilterChange("formNo", e.target.value)}
+						className={reportStyles.filterControl}
+					/>
+				</FilterField>
+				<FilterField label="CNIC No">
+					<input
+						type="text"
+						placeholder="Enter CNIC No"
+						value={filters.cnicNo}
+						onChange={(e) => handleFilterChange("cnicNo", e.target.value)}
+						className={reportStyles.filterControl}
+					/>
+				</FilterField>
+				<FilterField label="Full Name">
+					<input
+						type="text"
+						placeholder="Enter Full Name"
+						value={filters.fullName}
+						onChange={(e) => handleFilterChange("fullName", e.target.value)}
+						className={reportStyles.filterControl}
+					/>
+				</FilterField>
+				<FilterField label="Primary Contact">
+					<input
+						type="text"
+						placeholder="Enter Contact No"
+						value={filters.primaryContactNo}
+						onChange={(e) => handleFilterChange("primaryContactNo", e.target.value)}
+						className={reportStyles.filterControl}
+					/>
+				</FilterField>
+				<FilterField label="Regional Council">
+					<input
+						type="text"
+						placeholder="Enter Regional Council"
+						value={filters.regionalCouncil}
+						onChange={(e) => handleFilterChange("regionalCouncil", e.target.value)}
+						className={reportStyles.filterControl}
+					/>
+				</FilterField>
+				<FilterField label="Local Council">
+					<input
+						type="text"
+						placeholder="Enter Local Council"
+						value={filters.localCouncil}
+						onChange={(e) => handleFilterChange("localCouncil", e.target.value)}
+						className={reportStyles.filterControl}
+					/>
+				</FilterField>
+				<div className="flex items-end gap-2">
 					<button
 						onClick={clearFilters}
-						className="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-all shadow-sm hover:shadow-md flex items-center gap-2"
+						className={reportStyles.filterButtonSecondary}
 					>
 						<X className="h-4 w-4" />
-						Clear Filters
+						<span className="hidden sm:inline">Reset</span>
 					</button>
 				</div>
-			</div>
+			</FilterBar>
 
 			{/* Table */}
-			<div className="bg-white rounded-lg border border-gray-200 shadow-lg overflow-hidden">
-				<div className="overflow-x-auto">
-					<table className="min-w-full divide-y divide-gray-200">
-						<thead className="bg-gradient-to-r from-[#0b4d2b] to-[#0a3d22]">
-							<tr>
-								<th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">Form No</th>
-								<th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">Full Name [Head Name]</th>
-								<th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">CNIC No</th>
-								<th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">Regional Council</th>
-								<th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">Local Council</th>
-								<th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">Primary Contact</th>
-								<th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">Total Members</th>
-								<th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">Mentor</th>
-								<th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">Approval Status</th>
-								<th className="px-6 py-4 text-center text-xs font-semibold text-white uppercase tracking-wider">Actions</th>
-							</tr>
-						</thead>
-						<tbody className="bg-white divide-y divide-gray-200">
+			<DataCardTable>
+				<table className={reportStyles.table}>
+					<thead className={reportStyles.tableHeader}>
+						<tr>
+							<th className={reportStyles.tableHeaderCell}>Form No</th>
+							<th className={reportStyles.tableHeaderCell}>Full Name [Head Name]</th>
+							<th className={reportStyles.tableHeaderCell}>CNIC No</th>
+							<th className={reportStyles.tableHeaderCell}>Regional Council</th>
+							<th className={reportStyles.tableHeaderCell}>Local Council</th>
+							<th className={reportStyles.tableHeaderCell}>Primary Contact</th>
+							<th className={reportStyles.tableHeaderCell}>Total Members</th>
+							<th className={reportStyles.tableHeaderCell}>Mentor</th>
+							<th className={reportStyles.tableHeaderCell}>Approval Status</th>
+							<th className={reportStyles.tableHeaderCell}>Actions</th>
+						</tr>
+					</thead>
+					<tbody className={reportStyles.tableBody}>
 							{filteredApplications.length === 0 ? (
 								<tr>
 									<td colSpan={10} className="px-6 py-8 text-center text-gray-500">
@@ -460,42 +448,17 @@ export default function BaselineQOLPage() {
 									</td>
 								</tr>
 							) : (
-								filteredApplications.map((app, index) => (
-									<tr 
-										key={app.FormNo} 
-										className={`transition-colors ${
-											index % 2 === 0 
-												? "bg-white hover:bg-blue-50" 
-												: "bg-gray-50 hover:bg-blue-50"
-										}`}
-									>
-										<td className="px-6 py-4 whitespace-nowrap">
-											<span className="text-sm font-semibold text-gray-900">{app.FormNo || "N/A"}</span>
-										</td>
-										<td className="px-6 py-4">
-											<span className="text-sm font-medium text-gray-900">{app.FullName || "N/A"}</span>
-										</td>
-										<td className="px-6 py-4 whitespace-nowrap">
-											<span className="text-sm text-gray-700">{app.CNICNo || "N/A"}</span>
-										</td>
-										<td className="px-6 py-4">
-											<span className="text-sm text-gray-700">{app.RegionalCouncil || "N/A"}</span>
-										</td>
-										<td className="px-6 py-4">
-											<span className="text-sm text-gray-700">{app.LocalCouncil || "N/A"}</span>
-										</td>
-										<td className="px-6 py-4 whitespace-nowrap">
-											<span className="text-sm text-gray-700">{app.PrimaryContactNo || "N/A"}</span>
-										</td>
-										<td className="px-6 py-4 whitespace-nowrap text-center">
-											<span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
-												{app.TotalFamilyMembers || 0}
-											</span>
-										</td>
-										<td className="px-6 py-4">
-											<span className="text-sm font-medium text-indigo-700">{app.SubmittedBy || "N/A"}</span>
-										</td>
-										<td className="px-6 py-4 whitespace-nowrap">
+								filteredApplications.map((app) => (
+									<tr key={app.FormNo} className={reportStyles.tableRow}>
+										<td className={reportStyles.tableCellNoWrap}>{app.FormNo || "N/A"}</td>
+										<td className={reportStyles.tableCell}>{app.FullName || "N/A"}</td>
+										<td className={reportStyles.tableCell}>{app.CNICNo || "N/A"}</td>
+										<td className={reportStyles.tableCell}>{app.RegionalCouncil || "N/A"}</td>
+										<td className={reportStyles.tableCell}>{app.LocalCouncil || "N/A"}</td>
+										<td className={reportStyles.tableCell}>{app.PrimaryContactNo || "N/A"}</td>
+										<td className={reportStyles.tableCell}>{app.TotalFamilyMembers || 0}</td>
+										<td className={reportStyles.tableCell}>{app.SubmittedBy || "N/A"}</td>
+										<td className={reportStyles.tableCell}>
 											{(() => {
 												const status = app.ApprovalStatus?.toLowerCase() || '';
 												const isApproved = status.includes('approve') || status === 'approved' || status === 'complete';
@@ -523,8 +486,8 @@ export default function BaselineQOLPage() {
 												}
 											})()}
 										</td>
-										<td className="px-6 py-4 whitespace-nowrap text-center">
-											<div className="flex items-center justify-center gap-2">
+										<td className={reportStyles.tableCell}>
+											<div className="flex items-center gap-2">
 												<button
 													onClick={() => router.push(`/dashboard/baseline-qol/view?formNo=${encodeURIComponent(app.FormNo || "")}`)}
 													className="p-2 text-[#0b4d2b] hover:bg-[#0b4d2b] hover:text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
@@ -561,83 +524,32 @@ export default function BaselineQOLPage() {
 							)}
 						</tbody>
 					</table>
-				</div>
 
-				{/* Pagination */}
-				{totalPages > 1 && (
-					<div className="bg-gray-50 px-4 py-3 flex items-center justify-between border-t border-gray-200">
-						<div className="flex-1 flex justify-between sm:hidden">
-							<button
-								onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-								disabled={currentPage === 1}
-								className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-							>
-								Previous
-							</button>
-							<button
-								onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-								disabled={currentPage === totalPages}
-								className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-							>
-								Next
-							</button>
-						</div>
-						<div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-							<div>
-								<p className="text-sm text-gray-700">
-									Showing <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> to{" "}
-									<span className="font-medium">{Math.min(currentPage * itemsPerPage, totalRecords)}</span> of{" "}
-									<span className="font-medium">{totalRecords}</span> results
-								</p>
+					{/* Pagination */}
+					{totalPages > 1 && (
+						<div className={reportStyles.paginationContainer}>
+							<div className={reportStyles.paginationText}>
+								Showing page {currentPage} of {totalPages} ({totalRecords} total records)
 							</div>
-							<div>
-								<nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-									<button
-										onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-										disabled={currentPage === 1}
-										className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-									>
-										Previous
-									</button>
-									{Array.from({ length: totalPages }, (_, i) => i + 1)
-										.filter((page) => {
-											if (totalPages <= 7) return true;
-											if (page === 1 || page === totalPages) return true;
-											if (Math.abs(page - currentPage) <= 1) return true;
-											return false;
-										})
-										.map((page, idx, arr) => (
-											<div key={page}>
-												{idx > 0 && arr[idx - 1] !== page - 1 && (
-													<span className="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
-														...
-													</span>
-												)}
-												<button
-													onClick={() => setCurrentPage(page)}
-													className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-														currentPage === page
-															? "z-10 bg-[#0b4d2b] border-[#0b4d2b] text-white"
-															: "bg-white border-gray-300 text-gray-500 hover:bg-gray-50"
-													}`}
-												>
-													{page}
-												</button>
-											</div>
-										))}
-									<button
-										onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-										disabled={currentPage === totalPages}
-										className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-									>
-										Next
-									</button>
-								</nav>
+							<div className="flex items-center gap-2">
+								<button
+									onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+									disabled={currentPage === 1}
+									className={reportStyles.paginationButton}
+								>
+									Previous
+								</button>
+								<button
+									onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+									disabled={currentPage === totalPages}
+									className={reportStyles.paginationButton}
+								>
+									Next
+								</button>
 							</div>
 						</div>
-					</div>
-				)}
-			</div>
+					)}
+				</DataCardTable>
 		</div>
 	);
 }

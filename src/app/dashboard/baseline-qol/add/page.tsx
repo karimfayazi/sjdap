@@ -306,13 +306,15 @@ export default function AddBaselineApplicationPage() {
 				const response = await fetch(`/api/baseline-applications/basic-info?formNumber=${encodeURIComponent(formNoParam)}`);
 				const data = await response.json();
 				
-				if (data.success && data.data) {
-					const app = data.data;
+				// If API returns success (even with minimal data), proceed
+				// This allows adding members even if basic info doesn't exist yet
+				if (data.success) {
+					const app = data.data || {};
 					setLoadingFormNo(false);
 					
 					// ALWAYS use formNoParam (from URL) as the source of truth for FormNumber in edit mode
 					// Never use app.FormNumber from API - the URL parameter is authoritative
-					console.log("Loading application for edit - FormNumber from URL (using this):", formNoParam, "FormNumber from API (ignored):", app.FormNumber);
+					console.log("Loading application for edit - FormNumber from URL (using this):", formNoParam, "FormNumber from API (ignored):", app?.FormNumber);
 					
 					setFormData({
 						FormNumber: formNoParam, // Always use the URL parameter
@@ -378,15 +380,33 @@ export default function AddBaselineApplicationPage() {
 							.catch((err) => console.error("Error fetching local communities:", err));
 					}
 					
-					// Fetch family members data
+					// Fetch family members data (this will work even if basic info doesn't exist)
 					const membersResponse = await fetch(`/api/baseline-applications/family-members-data?formNumber=${encodeURIComponent(formNoParam)}`);
 					const membersData = await membersResponse.json();
 					
 					if (membersData.success && membersData.data) {
 						const members = membersData.data.map((m: any, index: number) => {
+							// Map BeneficiaryID to MemberNo (API returns BeneficiaryID, frontend uses MemberNo)
+							// BeneficiaryID format: PE-{FormNo}-{MemberNumber} (e.g., PE-00001-01)
+							// MemberNo format: {FormNumber}-{MemberNumber} (e.g., PE-00001-01)
+							const memberNo = m.BeneficiaryID || m.MemberNo || "";
+							
+							// Normalize IsPrimaryEarner - handle both boolean and string "Yes"/"No"
+							let isPrimaryEarner = false;
+							if (m.IsPrimaryEarner !== null && m.IsPrimaryEarner !== undefined) {
+								if (typeof m.IsPrimaryEarner === "boolean") {
+									isPrimaryEarner = m.IsPrimaryEarner;
+								} else if (typeof m.IsPrimaryEarner === "string") {
+									const value = m.IsPrimaryEarner.toLowerCase().trim();
+									isPrimaryEarner = value === "yes" || value === "true" || value === "1";
+								} else if (typeof m.IsPrimaryEarner === "number") {
+									isPrimaryEarner = m.IsPrimaryEarner === 1;
+								}
+							}
+							
 							// Normalize IsCurrentlyStudying to "Yes" or "No"
 							let isCurrentlyStudying = "";
-							if (m.IsCurrentlyStudying) {
+							if (m.IsCurrentlyStudying !== null && m.IsCurrentlyStudying !== undefined) {
 								const value = String(m.IsCurrentlyStudying).trim();
 								if (value.toLowerCase() === "yes" || value === "1" || value === "true") {
 									isCurrentlyStudying = "Yes";
@@ -399,7 +419,7 @@ export default function AddBaselineApplicationPage() {
 							
 							// Normalize IsCurrentlyEarning to "Yes" or "No"
 							let isCurrentlyEarning = "";
-							if (m.IsCurrentlyEarning) {
+							if (m.IsCurrentlyEarning !== null && m.IsCurrentlyEarning !== undefined) {
 								const value = String(m.IsCurrentlyEarning).trim();
 								if (value.toLowerCase() === "yes" || value === "1" || value === "true") {
 									isCurrentlyEarning = "Yes";
@@ -414,7 +434,7 @@ export default function AddBaselineApplicationPage() {
 							const relationshipId = index === 0 ? "Self" : (m.Relationship || m.RelationshipId || "");
 							
 							return {
-								MemberNo: m.MemberNo || "",
+								MemberNo: memberNo,
 								FullName: m.FullName || "",
 								RelationshipId: relationshipId,
 								GenderId: m.Gender || m.GenderId || "",
@@ -424,7 +444,7 @@ export default function AddBaselineApplicationPage() {
 								BFormOrCNIC: m.BFormOrCNIC || "",
 								OccupationId: m.Occupation || m.OccupationId || "",
 								PrimaryLocation: m.PrimaryLocation || "",
-								IsPrimaryEarner: m.IsPrimaryEarner || false,
+								IsPrimaryEarner: isPrimaryEarner,
 								education: {
 									IsCurrentlyStudying: isCurrentlyStudying,
 									InstitutionType: m.InstitutionType || "",
@@ -443,11 +463,26 @@ export default function AddBaselineApplicationPage() {
 							};
 						});
 						setFamilyMembers(members);
+					} else {
+						// No members found yet - this is OK, allow adding first member
+						setFamilyMembers([]);
 					}
+				} else {
+					// API returned error - only show error if FormNo is truly invalid
+					// Don't block if we're trying to add the first member
+					console.warn("Basic info not found for FormNo:", formNoParam, "Error:", data.message);
+					// Still set FormNumber from URL and allow proceeding
+					setFormData((prev) => ({ ...prev, FormNumber: formNoParam }));
+					setLoadingFormNo(false);
+					setFamilyMembers([]);
 				}
 			} catch (err) {
 				console.error("Error loading application for edit:", err);
-				setError("Failed to load application data for editing");
+				// Don't show error - allow user to proceed with adding members
+				// Only set FormNumber from URL parameter
+				setFormData((prev) => ({ ...prev, FormNumber: formNoParam }));
+				setLoadingFormNo(false);
+				setFamilyMembers([]);
 			} finally {
 				setLoadingExistingData(false);
 			}
@@ -849,9 +884,16 @@ export default function AddBaselineApplicationPage() {
 				}
 			}
 
+			// Map MemberNo to BeneficiaryID before sending to API
+			// Frontend uses MemberNo (e.g., "PE-00001-01"), API expects BeneficiaryID
+			const mappedFamilyMembers = familyMembers.map(member => ({
+				...member,
+				BeneficiaryID: member.MemberNo, // Map MemberNo to BeneficiaryID
+			}));
+			
 			const familyMembersPayload = {
 				formNumber: formData.FormNumber,
-				familyMembers: familyMembers,
+				familyMembers: mappedFamilyMembers,
 			};
 
 			console.log("Saving family members:", {
@@ -1120,10 +1162,17 @@ export default function AddBaselineApplicationPage() {
 					}
 				}
 				
+				// Map MemberNo to BeneficiaryID before sending to API
+				// Frontend uses MemberNo (e.g., "PE-00001-01"), API expects BeneficiaryID
+				const mappedFamilyMembers = familyMembers.map(member => ({
+					...member,
+					BeneficiaryID: member.MemberNo, // Map MemberNo to BeneficiaryID
+				}));
+				
 				// Save family members data
 				const familyMembersPayload = {
 					formNumber: formData.FormNumber,
-					familyMembers: familyMembers,
+					familyMembers: mappedFamilyMembers,
 				};
 
 				const familyMembersResponse = await fetch("/api/baseline-applications/family-members-data", {

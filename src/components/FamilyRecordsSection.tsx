@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, XCircle, CreditCard, RefreshCw, Users, FileText, MapPin, Hash, Search, Filter, X, ChevronLeft, ChevronRight, Image as ImageIcon, Activity, FileBarChart } from "lucide-react";
 import Link from "next/link";
+import { reportStyles } from "@/lib/reportStyles";
 
 type FamilyRecord = {
 	FormNumber: string;
@@ -59,6 +60,41 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	
+	// Determine heading based on baseRoute
+	const getHeading = () => {
+		if (baseRoute === "/dashboard/actual-intervention") {
+			return "Family Records - Actual Intervention Section";
+		} else if (baseRoute === "/dashboard/rops") {
+			return "Family Records - ROP Section";
+		}
+		return "Family Records";
+	};
+	
+	// Helper function to build actual-intervention URLs
+	const buildActualInterventionUrl = (
+		type: 'economic' | 'food' | 'habitat' | 'health' | 'education',
+		params: { formNumber: string; beneficiaryId?: string; memberName?: string }
+	): string => {
+		const { formNumber, beneficiaryId } = params;
+		const baseUrl = `/dashboard/actual-intervention/${encodeURIComponent(formNumber)}/add`;
+		const queryParams = new URLSearchParams({
+			type: type,
+		});
+		if (beneficiaryId) {
+			queryParams.append('memberId', beneficiaryId);
+		}
+		return `${baseUrl}?${queryParams.toString()}`;
+	};
+	
+	// Helper function to build bank account URL
+	const buildBankAccountUrl = (formNumber: string, memberId: string): string => {
+		const queryParams = new URLSearchParams({
+			formNumber: formNumber,
+			memberId: memberId,
+		});
+		return `/dashboard/actual-intervention/bank-account?${queryParams.toString()}`;
+	};
+	
 	const [records, setRecords] = useState<FamilyRecord[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -102,6 +138,25 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 	const [memberInterventions, setMemberInterventions] = useState<Record<string, MemberInterventions>>({});
 	const [loadingMembers, setLoadingMembers] = useState(false);
 	const [memberError, setMemberError] = useState<string | null>(null);
+	
+	// Member actions flags (FDP Accepted records)
+	const [memberActionsFlags, setMemberActionsFlags] = useState<{
+		familyFlags: {
+			food: boolean;
+			habitat: boolean;
+			health: boolean;
+			socialEdu: boolean;
+		};
+		economicAcceptedIds: string[];
+	}>({
+		familyFlags: {
+			food: false,
+			habitat: false,
+			health: false,
+			socialEdu: false,
+		},
+		economicAcceptedIds: [],
+	});
 	
 	// In-modal action state (for showing content inside Family Members modal)
 	const [activeModalAction, setActiveModalAction] = useState<'economic' | 'education' | 'food' | 'habitat' | 'bankAccount' | 'generateROP' | null>(null);
@@ -500,6 +555,15 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 		setBankStatusMap({});
 		setBankStatusError(null);
 		setInterventionsMemberSet(new Set());
+		setMemberActionsFlags({
+			familyFlags: {
+				food: false,
+				habitat: false,
+				health: false,
+				socialEdu: false,
+			},
+			economicAcceptedIds: [],
+		});
 
 		// Fetch interventions for this form number
 		await fetchInterventionsByForm(formNumber);
@@ -522,6 +586,29 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 			setMembers(membersData);
 			const interventionsData = data.interventions || {};
 			setMemberInterventions(interventionsData);
+
+			// Fetch member actions flags (only for actual-intervention route)
+			if (baseRoute === "/dashboard/actual-intervention") {
+				try {
+					const actionsResponse = await fetch(`/api/actual-intervention/member-actions?formNumber=${encodeURIComponent(formNumber)}`);
+					const actionsData = await actionsResponse.json().catch(() => ({}));
+					
+					if (actionsResponse.ok && actionsData.success) {
+						setMemberActionsFlags({
+							familyFlags: actionsData.familyFlags || {
+								food: false,
+								habitat: false,
+								health: false,
+								socialEdu: false,
+							},
+							economicAcceptedIds: actionsData.economicAcceptedIds || [],
+						});
+					}
+				} catch (actionsErr) {
+					console.error("Error fetching member actions flags:", actionsErr);
+					// Don't block modal opening if this fails
+				}
+			}
 
 			// Fetch bank status for all members in parallel
 			if (membersData.length > 0) {
@@ -873,26 +960,9 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 	return (
 		<>
 			{loading ? (
-				<div className="space-y-6">
-					<div className="flex justify-between items-center bg-white rounded-xl shadow-md border border-gray-200 p-6">
-						<div>
-							<h1 className="text-3xl font-bold bg-gradient-to-r from-[#0b4d2b] to-[#0d5d35] bg-clip-text text-transparent">
-								Family Records
-							</h1>
-							<p className="text-gray-600 mt-2 font-medium">Manage family interventions and member details</p>
-							{guidelines && (
-								<div className="mt-4">
-									{guidelines}
-								</div>
-							)}
-						</div>
-					</div>
-					<div className="flex items-center justify-center min-h-[400px]">
-						<div className="text-center">
-							<div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#0b4d2b]"></div>
-							<p className="mt-4 text-gray-600 font-medium">Loading families...</p>
-						</div>
-					</div>
+				<div className={reportStyles.loadingContainer}>
+					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b] mx-auto"></div>
+					<p className="text-gray-600 mt-4">Loading families...</p>
 				</div>
 			) : (
 				<div className="space-y-6">
@@ -901,7 +971,7 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 				<div>
 					<div className="flex items-center gap-3 mb-2">
 						<h1 className="text-3xl font-bold bg-gradient-to-r from-[#0b4d2b] to-[#0d5d35] bg-clip-text text-transparent">
-							Family Records
+							{baseRoute === "/dashboard/actual-intervention" ? "Family Records - Actual Intervention Section" : "Family Records"}
 						</h1>
 					</div>
 					<p className="text-gray-600 mt-2 font-medium">Manage family interventions and member details</p>
@@ -931,197 +1001,181 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 				</div>
 			</div>
 
+			{/* Error Message */}
 			{error && (
-				<div className="bg-red-50 border-2 border-red-200 rounded-xl p-6 shadow-sm">
-					<div className="flex items-center gap-3">
-						<XCircle className="h-5 w-5 text-red-600" />
-						<p className="text-red-600 text-sm font-semibold">Error: {error}</p>
-					</div>
+				<div className={reportStyles.errorContainer}>
+					<p className={reportStyles.errorText}>{error}</p>
 				</div>
 			)}
 
 			{!error && (
-				<div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-					{/* Filter Bar */}
-					<div className="bg-gray-50 border-b border-gray-200 px-6 py-4">
-						<div className="space-y-4">
-							<div className="flex items-center gap-2 mb-4">
-								<Filter className="h-5 w-5 text-gray-600" />
-								<h3 className="text-lg font-semibold text-gray-900">Filters</h3>
-							</div>
-							
-							<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-								{/* Search */}
-								<div>
-									<label className="block text-sm font-medium text-gray-700 mb-2">
-										Search
-									</label>
-									<div className="relative">
-										<Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-										<input
-											type="text"
-											value={localSearch}
-											onChange={(e) => handleSearchChange(e.target.value)}
-											placeholder="FormNumber / Family Head / MemberNo"
-											className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#0b4d2b] focus:border-[#0b4d2b] outline-none"
-										/>
-									</div>
-								</div>
-
-								{/* CNIC Search */}
-								<div>
-									<label className="block text-sm font-medium text-gray-700 mb-2">
-										Search by CNIC
-									</label>
-									<div className="relative">
-										<Hash className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-										<input
-											type="text"
-											value={localCnic}
-											onChange={(e) => handleCnicChange(e.target.value)}
-											placeholder="CNIC Number"
-											className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#0b4d2b] focus:border-[#0b4d2b] outline-none"
-										/>
-									</div>
-								</div>
-
-								{/* Filter Button */}
-								<div className="flex items-end">
-									<button
-										type="button"
-										onClick={handleApplyFilters}
-										className="w-full px-4 py-2 bg-gradient-to-r from-[#0b4d2b] to-[#0d5d35] text-white rounded-md hover:from-[#0a3d22] hover:to-[#0b4d2b] transition-all font-medium flex items-center justify-center gap-2"
-									>
-										<Filter className="h-4 w-4" />
-										Filter
-									</button>
-								</div>
-
-								{/* Clear Filters Button */}
-								<div className="flex items-end">
-									<button
-										type="button"
-										onClick={handleClearFilters}
-										className="w-full px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors font-medium"
-									>
-										Clear Filters
-									</button>
-								</div>
-							</div>
-
-							{/* Active Filters Chips */}
-							{getActiveFilters().length > 0 && (
-								<div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-200">
-									<span className="text-sm font-medium text-gray-700">Active Filters:</span>
-									{getActiveFilters().map((filter) => (
-										<span
-											key={filter.key}
-											className="inline-flex items-center gap-1 px-3 py-1 bg-[#0b4d2b] text-white rounded-full text-sm"
-										>
-											{filter.label}: {filter.value}
-											<button
-												type="button"
-												onClick={() => handleRemoveFilter(filter.key)}
-												className="ml-1 hover:bg-white/20 rounded-full p-0.5"
-											>
-												<X className="h-3 w-3" />
-											</button>
-										</span>
-									))}
-								</div>
-							)}
-						</div>
-					</div>
-
-					{/* Table Header Section */}
-					<div className="bg-gradient-to-r from-[#0b4d2b] via-[#0d5d35] to-[#0b4d2b] px-6 py-4 border-b-2 border-[#0a3d22]">
-						<div className="flex items-center justify-between">
+				<>
+					{/* New Filter Row - 5 controls in one row (matching reference) */}
+					<div className={reportStyles.filterBarContainer}>
+						<div className={reportStyles.filterBarGrid}>
+							{/* 1. Created Date: From */}
 							<div>
-								<h3 className="text-lg font-bold text-white flex items-center gap-2">
-									<Users className="h-5 w-5" />
-									Family Records
-								</h3>
-								<p className="text-sm text-white/80 mt-1">
-							Total Families: {totalCount} {totalCount !== records.length && `(Showing ${records.length} of ${totalCount})`}
-						</p>
+								<label className={reportStyles.filterLabel}>Created Date: From</label>
+								<input
+									type="date"
+									value={filters.from}
+									onChange={(e) => handleFilterChange("from", e.target.value)}
+									className={reportStyles.filterControl}
+								/>
+							</div>
+
+							{/* 2. Created Date: To */}
+							<div>
+								<label className={reportStyles.filterLabel}>Created Date: To</label>
+								<input
+									type="date"
+									value={filters.to}
+									onChange={(e) => handleFilterChange("to", e.target.value)}
+									className={reportStyles.filterControl}
+								/>
+							</div>
+
+							{/* 3. Status */}
+							<div>
+								<label className={reportStyles.filterLabel}>Status</label>
+								<select
+									value={filters.status}
+									onChange={(e) => handleFilterChange("status", e.target.value)}
+									className={reportStyles.filterControl}
+								>
+									<option value="All">All</option>
+									{filterOptions?.statuses.map((status) => (
+										<option key={status} value={status}>
+											{status}
+										</option>
+									))}
+								</select>
+							</div>
+
+							{/* 4. Search */}
+							<div>
+								<label className={reportStyles.filterLabel}>Search</label>
+								<input
+									type="text"
+									value={localSearch}
+									onChange={(e) => handleSearchChange(e.target.value)}
+									placeholder="FormNumber / Family Head / MemberNo"
+									className={reportStyles.filterControl}
+								/>
+							</div>
+
+							{/* 5. Actions */}
+							<div className="flex items-end gap-2">
+								<button
+									onClick={handleApplyFilters}
+									className={reportStyles.applyButton}
+								>
+									<Filter className="h-4 w-4" />
+									<span className="hidden sm:inline">Apply Filters</span>
+									<span className="sm:hidden">Apply</span>
+								</button>
+								<button
+									onClick={handleClearFilters}
+									className={reportStyles.resetButton}
+								>
+									<X className="h-4 w-4" />
+									<span className="hidden sm:inline">Reset</span>
+								</button>
 							</div>
 						</div>
 					</div>
 
-					<div className="overflow-x-auto">
-						<table className="min-w-full divide-y divide-gray-200">
-							<thead className="bg-gradient-to-r from-gray-700 to-gray-800">
-								<tr>
-									<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
-										<div className="flex items-center gap-2">
-											<FileText className="h-4 w-4" />
-											Form #
-										</div>
-									</th>
-									<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
-										Full Name
-									</th>
-									<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
-										<div className="flex items-center gap-2">
-											<Hash className="h-4 w-4" />
-											CNIC
-										</div>
-									</th>
-									<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
-										<div className="flex items-center gap-2">
-											<MapPin className="h-4 w-4" />
-											Regional / Local
-										</div>
-									</th>
-									<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
-										FDP-PE Support
-									</th>
-									<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
-										Intervention-PE-Suppport
-									</th>
-									<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
-										Actions
-									</th>
-								</tr>
-							</thead>
-							<tbody className="bg-white divide-y divide-gray-200">
+					{/* Additional Filters */}
+					<div className={reportStyles.additionalFiltersContainer}>
+						<div className="flex items-center justify-between mb-4">
+							<h2 className={reportStyles.additionalFiltersTitle}>Additional Filters</h2>
+						</div>
+
+						<div className={reportStyles.additionalFiltersGrid}>
+							{/* CNIC Search */}
+							<div>
+								<label className={reportStyles.filterLabel}>Search by CNIC</label>
+								<div className="relative">
+									<Hash className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+									<input
+										type="text"
+										value={localCnic}
+										onChange={(e) => handleCnicChange(e.target.value)}
+										placeholder="CNIC Number"
+										className={`${reportStyles.filterControl} pl-10`}
+									/>
+								</div>
+							</div>
+
+							{/* Section Filter */}
+							<div>
+								<label className={reportStyles.filterLabel}>Section</label>
+								<select
+									value={filters.section}
+									onChange={(e) => handleFilterChange("section", e.target.value)}
+									className={reportStyles.filterControl}
+								>
+									<option value="All">All</option>
+									{filterOptions?.sections.map((section) => (
+										<option key={section} value={section}>
+											{section}
+										</option>
+									))}
+								</select>
+							</div>
+
+							{/* Category Filter */}
+							<div>
+								<label className={reportStyles.filterLabel}>Category</label>
+								<select
+									value={filters.category}
+									onChange={(e) => handleFilterChange("category", e.target.value)}
+									className={reportStyles.filterControl}
+								>
+									<option value="All">All</option>
+									{filterOptions?.categories.map((category) => (
+										<option key={category} value={category}>
+											{category}
+										</option>
+									))}
+								</select>
+							</div>
+						</div>
+					</div>
+
+					{/* Table Container */}
+					<div className={reportStyles.tableContainer}>
+
+						<div className="overflow-x-auto">
+							<table className={reportStyles.table}>
+								<thead className={reportStyles.tableHeader}>
+									<tr>
+										<th className={reportStyles.tableHeaderCell}>Form #</th>
+										<th className={reportStyles.tableHeaderCell}>Full Name</th>
+										<th className={reportStyles.tableHeaderCell}>CNIC</th>
+										<th className={reportStyles.tableHeaderCell}>Regional / Local</th>
+										<th className={reportStyles.tableHeaderCell}>FDP-PE Support</th>
+										<th className={reportStyles.tableHeaderCell}>Intervention-PE-Suppport</th>
+										<th className={reportStyles.tableHeaderCell}>Actions</th>
+									</tr>
+								</thead>
+								<tbody className={reportStyles.tableBody}>
 								{records.length === 0 ? (
 									<tr>
-										<td colSpan={7} className="px-6 py-16 text-center">
-											<div className="flex flex-col items-center justify-center">
-												<div className="p-4 bg-gray-100 rounded-full mb-4">
-													<Users className="h-8 w-8 text-gray-400" />
-												</div>
-												<p className="text-lg font-semibold text-gray-700">No families found</p>
-												<p className="text-sm text-gray-500 mt-2">No family records available for your account</p>
-											</div>
+										<td colSpan={7} className="px-6 py-12 text-center">
+											<p className="text-gray-600">No records found.</p>
 										</td>
 									</tr>
 								) : (
-									records.map((record, index) => (
-										<tr 
-											key={record.FormNumber} 
-											className={`transition-all duration-150 ${
-												index % 2 === 0 
-													? 'bg-white hover:bg-blue-50' 
-													: 'bg-gray-50 hover:bg-blue-100'
-											}`}
-										>
-											<td className="px-6 py-4 whitespace-nowrap">
-												<span className="text-sm font-semibold text-[#0b4d2b]">{record.FormNumber || "N/A"}</span>
+									records.map((record) => (
+										<tr key={record.FormNumber} className={reportStyles.tableRow}>
+											<td className={reportStyles.tableCellMedium}>{record.FormNumber || "N/A"}</td>
+											<td className={reportStyles.tableCell}>{record.Full_Name || "N/A"}</td>
+											<td className={reportStyles.tableCell}>{record.CNICNumber || "N/A"}</td>
+											<td className={reportStyles.tableCell}>
+												{formatRegionalLocal(record.RegionalCommunity, record.LocalCommunity)}
 											</td>
-											<td className="px-6 py-4">
-												<span className="text-sm font-medium text-gray-900">{record.Full_Name || "N/A"}</span>
-											</td>
-											<td className="px-6 py-4 whitespace-nowrap">
-												<span className="text-sm text-gray-700">{record.CNICNumber || "N/A"}</span>
-											</td>
-											<td className="px-6 py-4">
-												<span className="text-sm text-gray-700">
-													{formatRegionalLocal(record.RegionalCommunity, record.LocalCommunity)}
-												</span>
-											</td>
-											<td className="px-6 py-4">
+											<td className={reportStyles.tableCell}>
 												<div className="space-y-1">
 													<div className="text-sm">
 														<span className="font-medium text-gray-700">Economic | </span>
@@ -1137,7 +1191,7 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 													</div>
 												</div>
 											</td>
-											<td className="px-6 py-4">
+											<td className={reportStyles.tableCell}>
 												<div className="space-y-1">
 													<div className="text-sm">
 														<span className="font-medium text-gray-700">Economic | </span>
@@ -1153,7 +1207,7 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 													</div>
 												</div>
 											</td>
-											<td className="px-6 py-4 whitespace-nowrap">
+											<td className={reportStyles.tableCell}>
 												<button
 													type="button"
 													onClick={() => handleShowMembers(record.FormNumber)}
@@ -1170,63 +1224,34 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 						</table>
 					</div>
 
-					{/* Pagination */}
-					{totalPages > 1 && (
-						<div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex items-center justify-between">
-							<div className="text-sm text-gray-700">
-								Showing page {filters.page} of {totalPages} ({totalCount} total records)
-							</div>
-							<div className="flex items-center gap-2">
-								<button
-									type="button"
-									onClick={() => handleFilterChange("page", Math.max(1, filters.page - 1))}
-									disabled={filters.page === 1}
-									className="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-								>
-									<ChevronLeft className="h-4 w-4" />
-									Previous
-								</button>
-								<div className="flex items-center gap-1">
-									{Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-										let pageNum;
-										if (totalPages <= 5) {
-											pageNum = i + 1;
-										} else if (filters.page <= 3) {
-											pageNum = i + 1;
-										} else if (filters.page >= totalPages - 2) {
-											pageNum = totalPages - 4 + i;
-										} else {
-											pageNum = filters.page - 2 + i;
-										}
-										return (
-											<button
-												key={pageNum}
-												type="button"
-												onClick={() => handleFilterChange("page", pageNum)}
-												className={`px-3 py-2 border rounded-md text-sm font-medium ${
-													filters.page === pageNum
-														? "bg-[#0b4d2b] text-white border-[#0b4d2b]"
-														: "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-												}`}
-											>
-												{pageNum}
-											</button>
-										);
-									})}
+						{/* Pagination */}
+						{totalPages > 1 && (
+							<div className={reportStyles.paginationContainer}>
+								<div className={reportStyles.paginationText}>
+									Showing page {filters.page} of {totalPages} ({totalCount} total records)
 								</div>
-								<button
-									type="button"
-									onClick={() => handleFilterChange("page", Math.min(totalPages, filters.page + 1))}
-									disabled={filters.page === totalPages}
-									className="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-								>
-									Next
-									<ChevronRight className="h-4 w-4" />
-								</button>
+								<div className="flex items-center gap-2">
+									<button
+										type="button"
+										onClick={() => handleFilterChange("page", Math.max(1, filters.page - 1))}
+										disabled={filters.page === 1}
+										className={reportStyles.paginationButton}
+									>
+										Previous
+									</button>
+									<button
+										type="button"
+										onClick={() => handleFilterChange("page", Math.min(totalPages, filters.page + 1))}
+										disabled={filters.page === totalPages}
+										className={reportStyles.paginationButton}
+									>
+										Next
+									</button>
+								</div>
 							</div>
-						</div>
-					)}
-				</div>
+						)}
+					</div>
+				</>
 			)}
 
 			{/* Member Modal */}
@@ -1344,9 +1369,14 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 															<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
 																PE Investment Amount
 															</th>
-															<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
+															<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider border-r border-gray-600">
 																Interventions
 															</th>
+															{baseRoute === "/dashboard/actual-intervention" && (
+																<th className="px-6 py-4 text-left text-xs font-bold text-white uppercase tracking-wider">
+																	Actions
+																</th>
+															)}
 														</tr>
 													</thead>
 													<tbody className="bg-white divide-y divide-gray-200">
@@ -1358,6 +1388,10 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 																food: false,
 																habitat: false,
 															};
+															
+															// Check if member has Accepted Economic record
+															const hasEconomicAccepted = baseRoute === "/dashboard/actual-intervention" 
+																&& memberActionsFlags.economicAcceptedIds.includes(memberKey);
 
 															return (
 																<tr 
@@ -1611,6 +1645,117 @@ export default function FamilyRecordsSection({ baseRoute = "/dashboard/actual-in
 																			);
 																		})()}
 																	</td>
+																	{baseRoute === "/dashboard/actual-intervention" && (
+																		<td className="px-6 py-4 text-sm">
+																			<div className="flex flex-wrap gap-2">
+																				{/* Economic button (member-wise) - only if Accepted Economic exists for this BeneficiaryID */}
+																				{hasEconomicAccepted && (
+																					<>
+																						<button
+																							type="button"
+																							onClick={() => {
+																								if (selectedFormNumber) {
+																									router.push(buildActualInterventionUrl('economic', {
+																										formNumber: selectedFormNumber,
+																										beneficiaryId: memberKey,
+																										memberName: member.FullName || "",
+																									}));
+																								}
+																							}}
+																							className="inline-flex items-center rounded-lg px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md hover:from-blue-700 hover:to-blue-800 transition-all cursor-pointer"
+																						>
+																							Economic
+																						</button>
+																						<button
+																							type="button"
+																							onClick={() => {
+																								if (selectedFormNumber) {
+																									router.push(buildBankAccountUrl(selectedFormNumber, memberKey));
+																								}
+																							}}
+																							className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-md hover:from-indigo-700 hover:to-indigo-800 transition-all cursor-pointer"
+																						>
+																							<CreditCard className="h-3.5 w-3.5" />
+																							Bank Account
+																						</button>
+																					</>
+																				)}
+																				
+																				{/* Family-level buttons - show for ALL members if Accepted record exists */}
+																				{memberActionsFlags.familyFlags.food && (
+																					<button
+																						type="button"
+																						onClick={() => {
+																							if (selectedFormNumber) {
+																								router.push(buildActualInterventionUrl('food', {
+																									formNumber: selectedFormNumber,
+																									beneficiaryId: memberKey,
+																									memberName: member.FullName || "",
+																								}));
+																							}
+																						}}
+																						className="inline-flex items-center rounded-lg px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-amber-600 to-amber-700 text-white shadow-md hover:from-amber-700 hover:to-amber-800 transition-all cursor-pointer"
+																					>
+																						Food Support
+																					</button>
+																				)}
+																				
+																				{memberActionsFlags.familyFlags.habitat && (
+																					<button
+																						type="button"
+																						onClick={() => {
+																							if (selectedFormNumber) {
+																								router.push(buildActualInterventionUrl('habitat', {
+																									formNumber: selectedFormNumber,
+																									beneficiaryId: memberKey,
+																									memberName: member.FullName || "",
+																								}));
+																							}
+																						}}
+																						className="inline-flex items-center rounded-lg px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-purple-600 to-purple-700 text-white shadow-md hover:from-purple-700 hover:to-purple-800 transition-all cursor-pointer"
+																					>
+																						Housing Support
+																					</button>
+																				)}
+																				
+																				{memberActionsFlags.familyFlags.health && (
+																					<button
+																						type="button"
+																						onClick={() => {
+																							if (selectedFormNumber) {
+																								router.push(buildActualInterventionUrl('health', {
+																									formNumber: selectedFormNumber,
+																									beneficiaryId: memberKey,
+																									memberName: member.FullName || "",
+																								}));
+																							}
+																						}}
+																						className="inline-flex items-center rounded-lg px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-red-600 to-red-700 text-white shadow-md hover:from-red-700 hover:to-red-800 transition-all cursor-pointer"
+																					>
+																						Health Support
+																					</button>
+																				)}
+																				
+																				{memberActionsFlags.familyFlags.socialEdu && (
+																					<button
+																						type="button"
+																						onClick={() => {
+																							if (selectedFormNumber) {
+																								router.push(buildActualInterventionUrl('education', {
+																									formNumber: selectedFormNumber,
+																									beneficiaryId: memberKey,
+																									memberName: member.FullName || "",
+																								}));
+																							}
+																						}}
+																						className="inline-flex items-center rounded-lg px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-green-600 to-green-700 text-white shadow-md hover:from-green-700 hover:to-green-800 transition-all cursor-pointer"
+																					>
+																						Social Education
+																					</button>
+																				)}
+																			</div>
+																		</td>
+																	)}
 																</tr>
 															);
 														})}

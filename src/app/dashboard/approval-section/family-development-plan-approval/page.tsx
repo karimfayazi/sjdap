@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, Suspense, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Download, Search, RefreshCw, Eye, X, FileText } from "lucide-react";
+import { Download, Search, RefreshCw, Eye, X, FileText, Filter } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { reportStyles } from "@/lib/reportStyles";
 
 // Helper function to normalize user type
 const normalizeUserType = (v?: string | null): string => {
@@ -52,7 +53,7 @@ function FamilyDevelopmentPlanApprovalContent() {
 		return () => clearTimeout(timer);
 	}, [filters]);
 
-	const fetchApplications = async () => {
+	const fetchApplications = useCallback(async () => {
 		try {
 			setLoading(true);
 			setError(null);
@@ -84,7 +85,7 @@ function FamilyDevelopmentPlanApprovalContent() {
 		} finally {
 			setLoading(false);
 		}
-	};
+	}, [currentPage, debouncedFilters, itemsPerPage]);
 
 	useEffect(() => {
 		fetchApplications();
@@ -193,45 +194,11 @@ function FamilyDevelopmentPlanApprovalContent() {
 	}, [authLoading, userProfile, router]);
 
 	// Show loading while checking auth
-	if (authLoading || loading) {
+	if (authLoading) {
 		return (
-			<div className="space-y-6">
-				<div className="flex justify-between items-center">
-					<div>
-					<div className="flex items-center gap-3 mb-2">
-						<h1 className="text-3xl font-bold text-gray-900">Family Development Plan Approval</h1>
-					</div>
-					<p className="text-gray-600 mt-2">Family Development Plan Management</p>
-					</div>
-				</div>
-				<div className="flex items-center justify-center py-12">
-					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b]"></div>
-					<span className="ml-3 text-gray-600">Loading family development plan data...</span>
-				</div>
-			</div>
-		);
-	}
-
-	if (error) {
-		return (
-			<div className="space-y-6">
-				<div className="flex justify-between items-center">
-					<div>
-					<div className="flex items-center gap-3 mb-2">
-						<h1 className="text-3xl font-bold text-gray-900">Family Development Plan Approval</h1>
-					</div>
-					<p className="text-gray-600 mt-2">Family Development Plan Management</p>
-					</div>
-				</div>
-				<div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-					<p className="text-red-600 mb-4">{error}</p>
-					<button
-						onClick={fetchApplications}
-						className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
-					>
-						Try Again
-					</button>
-				</div>
+			<div className={reportStyles.loadingContainer}>
+				<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b] mx-auto"></div>
+				<p className="text-gray-600 mt-4">Loading...</p>
 			</div>
 		);
 	}
@@ -266,244 +233,234 @@ function FamilyDevelopmentPlanApprovalContent() {
 				</div>
 			</div>
 
-			{/* Filters */}
-			<div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 shadow-md p-6">
-				<div className="mb-4">
-					<h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-						<Search className="h-5 w-5 text-[#0b4d2b]" />
-						Filter Options
-					</h3>
-					<p className="text-sm text-gray-600 mt-1">Use the filters below to search for specific applications</p>
+			{/* Error Message */}
+			{error && (
+				<div className={reportStyles.errorContainer}>
+					<p className={reportStyles.errorText}>{error}</p>
 				</div>
-				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+			)}
+
+			{/* New Filter Row - 5 controls in one row (matching reference) */}
+			<div className={reportStyles.filterBarContainer}>
+				<div className={reportStyles.filterBarGrid}>
+					{/* 1. Created Date: From */}
 					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-1">Form Number</label>
+						<label className={reportStyles.filterLabel}>Created Date: From</label>
 						<input
-							type="text"
-							placeholder="Enter Form Number"
-							value={filters.formNumber}
-							onChange={(e) => handleFilterChange("formNumber", e.target.value)}
-							className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-30 focus:outline-none transition-all shadow-sm hover:shadow-md"
+							type="date"
+							value=""
+							onChange={() => {}}
+							className={reportStyles.filterControl}
+							disabled
 						/>
 					</div>
+
+					{/* 2. Created Date: To */}
 					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+						<label className={reportStyles.filterLabel}>Created Date: To</label>
 						<input
-							type="text"
-							placeholder="Enter Full Name"
-							value={filters.fullName}
-							onChange={(e) => handleFilterChange("fullName", e.target.value)}
-							className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-30 focus:outline-none transition-all shadow-sm hover:shadow-md"
+							type="date"
+							value=""
+							onChange={() => {}}
+							className={reportStyles.filterControl}
+							disabled
 						/>
 					</div>
+
+					{/* 3. Approval Status */}
 					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-1">CNIC Number</label>
+						<label className={reportStyles.filterLabel}>Approval Status</label>
+						<select
+							value=""
+							onChange={() => {}}
+							className={reportStyles.filterControl}
+							disabled
+						>
+							<option value="">All</option>
+						</select>
+					</div>
+
+					{/* 4. Search */}
+					<div>
+						<label className={reportStyles.filterLabel}>Search</label>
 						<input
 							type="text"
-							placeholder="Enter CNIC Number"
-							value={filters.cnicNumber}
-							onChange={(e) => handleFilterChange("cnicNumber", e.target.value)}
-							className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-30 focus:outline-none transition-all shadow-sm hover:shadow-md"
+							value={searchTerm}
+							onChange={(e) => setSearchTerm(e.target.value)}
+							placeholder="Form Number, Full Name, CNIC..."
+							className={reportStyles.filterControl}
 						/>
 					</div>
+
+					{/* 5. Actions */}
+					<div className="flex items-end gap-2">
+						<button
+							onClick={fetchApplications}
+							className={reportStyles.applyButton}
+						>
+							<Filter className="h-4 w-4" />
+							<span className="hidden sm:inline">Apply Filters</span>
+							<span className="sm:hidden">Apply</span>
+						</button>
+						<button
+							onClick={clearFilters}
+							className={reportStyles.resetButton}
+						>
+							<X className="h-4 w-4" />
+							<span className="hidden sm:inline">Reset</span>
+						</button>
+					</div>
+				</div>
+			</div>
+
+			{/* Additional Filters */}
+			<div className={reportStyles.additionalFiltersContainer}>
+				<div className="flex items-center justify-between mb-4">
+					<h2 className={reportStyles.additionalFiltersTitle}>Additional Filters</h2>
+				</div>
+
+				<div className={reportStyles.additionalFiltersGrid}>
 					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-1">Regional Community</label>
+						<label className={reportStyles.filterLabel}>Regional Community</label>
 						<input
 							type="text"
-							placeholder="Enter Regional Community"
 							value={filters.regionalCommunity}
 							onChange={(e) => handleFilterChange("regionalCommunity", e.target.value)}
-							className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-30 focus:outline-none transition-all shadow-sm hover:shadow-md"
+							placeholder="Enter Regional Community"
+							className={reportStyles.filterControl}
 						/>
 					</div>
+
 					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-1">Local Community</label>
+						<label className={reportStyles.filterLabel}>Local Community</label>
 						<input
 							type="text"
-							placeholder="Enter Local Community"
 							value={filters.localCommunity}
 							onChange={(e) => handleFilterChange("localCommunity", e.target.value)}
-							className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-30 focus:outline-none transition-all shadow-sm hover:shadow-md"
+							placeholder="Enter Local Community"
+							className={reportStyles.filterControl}
+						/>
+					</div>
+
+					<div>
+						<label className={reportStyles.filterLabel}>Form Number</label>
+						<input
+							type="text"
+							value={filters.formNumber}
+							onChange={(e) => handleFilterChange("formNumber", e.target.value)}
+							placeholder="e.g., PE-00006"
+							className={reportStyles.filterControl}
+						/>
+					</div>
+
+					<div>
+						<label className={reportStyles.filterLabel}>Full Name</label>
+						<input
+							type="text"
+							value={filters.fullName}
+							onChange={(e) => handleFilterChange("fullName", e.target.value)}
+							placeholder="Search by full name..."
+							className={reportStyles.filterControl}
+						/>
+					</div>
+
+					<div>
+						<label className={reportStyles.filterLabel}>CNIC Number</label>
+						<input
+							type="text"
+							value={filters.cnicNumber}
+							onChange={(e) => handleFilterChange("cnicNumber", e.target.value)}
+							placeholder="Search by CNIC..."
+							className={reportStyles.filterControl}
 						/>
 					</div>
 				</div>
-				<div className="mt-6 flex justify-end gap-3">
-					<button
-						onClick={clearFilters}
-						className="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-all shadow-sm hover:shadow-md flex items-center gap-2"
-					>
-						<X className="h-4 w-4" />
-						Clear Filters
-					</button>
-				</div>
 			</div>
 
-			{/* Table */}
-			<div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-				{/* Table Header Section */}
-				<div className="bg-gradient-to-r from-[#0b4d2b] via-[#0d5d35] to-[#0b4d2b] px-6 py-4 border-b-2 border-[#0a3d22]">
-					<h3 className="text-lg font-bold text-white flex items-center gap-2">
-						<FileText className="h-5 w-5" />
-						Family Development Plan Records
-					</h3>
-					<p className="text-sm text-white/80 mt-1">Total Records: {totalRecords}</p>
+			{/* Data Table */}
+			{loading ? (
+				<div className={reportStyles.loadingContainer}>
+					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0b4d2b] mx-auto"></div>
+					<p className="text-gray-600 mt-4">Loading family development plan data...</p>
 				</div>
-
-				<div className="overflow-x-auto">
-					<table className="w-full divide-y divide-gray-200" style={{ tableLayout: 'fixed' }}>
-						<colgroup>
-							<col style={{ width: '8%' }} />
-							<col style={{ width: '12%' }} />
-							<col style={{ width: '10%' }} />
-							<col style={{ width: '14%' }} />
-							<col style={{ width: '6%' }} />
-							<col style={{ width: '8%' }} />
-							<col style={{ width: '8%' }} />
-							<col style={{ width: '10%' }} />
-							<col style={{ width: '24%' }} />
-						</colgroup>
-						<thead className="bg-white">
-							<tr>
-								<th className="px-4 py-4 text-left text-xs font-bold text-gray-900 uppercase tracking-wider border-r border-gray-300">
-									Form #
-								</th>
-								<th className="px-4 py-4 text-left text-xs font-bold text-gray-900 uppercase tracking-wider border-r border-gray-300">
-									Full Name
-								</th>
-								<th className="px-4 py-4 text-left text-xs font-bold text-gray-900 uppercase tracking-wider border-r border-gray-300">
-									CNIC
-								</th>
-								<th className="px-4 py-4 text-left text-xs font-bold text-gray-900 uppercase tracking-wider border-r border-gray-300">
-									Regional / Local
-								</th>
-								<th className="px-4 py-4 text-center text-xs font-bold text-gray-900 uppercase tracking-wider border-r border-gray-300">
-									Members
-								</th>
-								<th className="px-4 py-4 text-left text-xs font-bold text-gray-900 uppercase tracking-wider border-r border-gray-300">
-									Area
-								</th>
-								<th className="px-4 py-4 text-left text-xs font-bold text-gray-900 uppercase tracking-wider border-r border-gray-300">
-									Income
-								</th>
-								<th className="px-4 py-4 text-left text-xs font-bold text-gray-900 uppercase tracking-wider border-r border-gray-300">
-									Max Support
-								</th>
-								<th className="px-4 py-4 text-left text-xs font-bold text-gray-900 uppercase tracking-wider">
-									Actions
-								</th>
-							</tr>
-						</thead>
-						<tbody className="bg-white divide-y divide-gray-200">
-							{filteredApplications.length === 0 ? (
+			) : filteredApplications.length === 0 ? (
+				<div className={reportStyles.emptyContainer}>
+					<p className="text-gray-600">No records found.</p>
+				</div>
+			) : (
+				<div className={reportStyles.tableContainer}>
+					<div className="overflow-x-auto">
+						<table className={reportStyles.table}>
+							<thead className={reportStyles.tableHeader}>
 								<tr>
-									<td colSpan={9} className="px-6 py-16 text-center">
-										<div className="flex flex-col items-center justify-center">
-											<div className="p-4 bg-gray-100 rounded-full mb-4">
-												<FileText className="h-8 w-8 text-gray-400" />
-											</div>
-											<p className="text-lg font-semibold text-gray-700">No records found</p>
-											<p className="text-sm text-gray-500 mt-2">Try adjusting your search or filter criteria</p>
-										</div>
-									</td>
+									<th className={reportStyles.tableHeaderCell}>Form #</th>
+									<th className={reportStyles.tableHeaderCell}>Full Name</th>
+									<th className={reportStyles.tableHeaderCell}>CNIC</th>
+									<th className={reportStyles.tableHeaderCell}>Regional / Local</th>
+									<th className={reportStyles.tableHeaderCell}>Members</th>
+									<th className={reportStyles.tableHeaderCell}>Area</th>
+									<th className={reportStyles.tableHeaderCell}>Income</th>
+									<th className={reportStyles.tableHeaderCell}>Max Support</th>
+									<th className={reportStyles.tableHeaderCell}>Actions</th>
 								</tr>
-							) : (
-								filteredApplications.map((app, index) => (
-									<tr 
-										key={index} 
-										className={`transition-all duration-150 ${
-											index % 2 === 0 
-												? 'bg-white hover:bg-blue-50' 
-												: 'bg-gray-50 hover:bg-blue-100'
-										}`}
-									>
-										<td className="px-4 py-3 text-sm font-semibold text-[#0b4d2b] truncate border-r border-gray-200" 
-											title={app.FormNumber || "-"}
-										>
-											{app.FormNumber || "-"}
+							</thead>
+							<tbody className={reportStyles.tableBody}>
+								{filteredApplications.map((app) => (
+									<tr key={app.FormNumber} className={reportStyles.tableRow}>
+										<td className={reportStyles.tableCellMedium}>{app.FormNumber || "N/A"}</td>
+										<td className={reportStyles.tableCell}>{app.Full_Name || "N/A"}</td>
+										<td className={reportStyles.tableCell}>{app.CNICNumber || "N/A"}</td>
+										<td className={reportStyles.tableCell}>
+											{app.RegionalCommunity || "N/A"} / {app.LocalCommunity || "N/A"}
 										</td>
-										<td className="px-4 py-3 text-sm font-medium text-gray-900 truncate border-r border-gray-200" title={app.Full_Name || "-"}>
-											{app.Full_Name || "-"}
+										<td className={reportStyles.tableCell}>{app.TotalFamilyMembers !== null ? app.TotalFamilyMembers : 0}</td>
+										<td className={reportStyles.tableCell}>{app.Area_Type || "N/A"}</td>
+										<td className={reportStyles.tableCell}>{app.IncomeLevel || "N/A"}</td>
+										<td className={reportStyles.tableCell}>
+											{app.MaxSocialSupport && app.MaxSocialSupport > 0 ? `PKR ${app.MaxSocialSupport.toLocaleString()}` : "N/A"}
 										</td>
-										<td className="px-4 py-3 text-sm text-gray-700 truncate border-r border-gray-200" title={app.CNICNumber || "-"}>
-											{app.CNICNumber || "-"}
-										</td>
-										<td className="px-4 py-3 text-sm text-gray-700 truncate border-r border-gray-200" title={`${app.RegionalCommunity || "-"} / ${app.LocalCommunity || "-"}`}>
-											<span className="font-medium text-gray-800">{app.RegionalCommunity || "-"}</span>
-											<span className="text-gray-400 mx-1">/</span>
-											<span className="text-gray-600">{app.LocalCommunity || "-"}</span>
-										</td>
-										<td className="px-4 py-3 text-sm font-bold text-center border-r border-gray-200">
-											<span className="inline-flex items-center justify-center w-8 h-8 bg-[#0b4d2b]/10 text-[#0b4d2b] rounded-full font-bold">
-												{app.TotalFamilyMembers !== null ? app.TotalFamilyMembers : 0}
-											</span>
-										</td>
-										<td className="px-4 py-3 text-sm text-gray-700 truncate border-r border-gray-200" title={app.Area_Type || "-"}>
-											<span className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-xs font-medium">
-												{app.Area_Type || "-"}
-											</span>
-										</td>
-										<td className="px-4 py-3 text-sm font-semibold text-gray-900 truncate border-r border-gray-200" title={app.IncomeLevel || "-"}>
-											<span className="inline-flex items-center px-2 py-1 bg-purple-100 text-purple-800 rounded-md text-xs font-medium">
-												{app.IncomeLevel || "-"}
-											</span>
-										</td>
-										<td className="px-4 py-3 text-sm font-bold text-gray-900 truncate border-r border-gray-200" title={app.MaxSocialSupport && app.MaxSocialSupport > 0 ? `PKR ${app.MaxSocialSupport.toLocaleString()}` : "-"}>
-											{app.MaxSocialSupport && app.MaxSocialSupport > 0 ? (
-												<span className="inline-flex items-center px-2 py-1 bg-green-100 text-green-800 rounded-md text-xs font-bold">
-													PKR {app.MaxSocialSupport.toLocaleString()}
-												</span>
-											) : (
-												<span className="text-gray-400">-</span>
-											)}
-										</td>
-										<td className="px-4 py-3 text-sm">
-											<div className="flex items-center gap-2 flex-wrap">
-												<button
-													onClick={() => app.FormNumber && router.push(`/dashboard/family-development-plan/view-fdp?formNumber=${encodeURIComponent(app.FormNumber)}`)}
-													disabled={!app.FormNumber}
-													className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white rounded-md text-xs font-semibold hover:bg-purple-700 transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-													title="View FDP"
-												>
-													<Eye className="h-3.5 w-3.5" />
-													<span>View FDP</span>
-												</button>
-											</div>
+										<td className={reportStyles.tableCell}>
+											<button
+												onClick={() => app.FormNumber && router.push(`/dashboard/family-development-plan/view-fdp?formNumber=${encodeURIComponent(app.FormNumber)}`)}
+												disabled={!app.FormNumber}
+												className="text-purple-600 hover:text-purple-800 inline-flex items-center gap-1"
+												title="View FDP"
+											>
+												<Eye className="h-4 w-4" />
+											</button>
 										</td>
 									</tr>
-								))
-							)}
-						</tbody>
-					</table>
-				</div>
-
-				{/* Pagination */}
-				{totalPages > 1 && (
-					<div className="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 border-t-2 border-gray-300 flex items-center justify-between">
-						<div className="text-sm font-medium text-gray-700">
-							Showing <span className="font-bold text-[#0b4d2b]">{((currentPage - 1) * itemsPerPage) + 1}</span> to <span className="font-bold text-[#0b4d2b]">{Math.min(currentPage * itemsPerPage, totalRecords)}</span> of <span className="font-bold text-[#0b4d2b]">{totalRecords}</span> results
-						</div>
-						<div className="flex items-center gap-3">
-							<button
-								onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-								disabled={currentPage === 1}
-								className="px-4 py-2 bg-white border-2 border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-[#0b4d2b] hover:text-white hover:border-[#0b4d2b] transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-gray-700"
-							>
-								Previous
-							</button>
-							<span className="px-4 py-2 bg-[#0b4d2b] text-white rounded-lg text-sm font-bold shadow-md">
-								Page {currentPage} of {totalPages}
-							</span>
-							<button
-								onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-								disabled={currentPage === totalPages}
-								className="px-4 py-2 bg-white border-2 border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-[#0b4d2b] hover:text-white hover:border-[#0b4d2b] transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-gray-700"
-							>
-								Next
-							</button>
-						</div>
+								))}
+							</tbody>
+						</table>
 					</div>
-				)}
-			</div>
+
+					{/* Pagination */}
+					{totalPages > 1 && (
+						<div className={reportStyles.paginationContainer}>
+							<div className={reportStyles.paginationText}>
+								Showing page {currentPage} of {totalPages} ({totalRecords} total records)
+							</div>
+							<div className="flex items-center gap-2">
+								<button
+									onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+									disabled={currentPage === 1}
+									className={reportStyles.paginationButton}
+								>
+									Previous
+								</button>
+								<button
+									onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+									disabled={currentPage === totalPages}
+									className={reportStyles.paginationButton}
+								>
+									Next
+								</button>
+							</div>
+						</div>
+					)}
+				</div>
+			)}
 		</div>
 	);
 }

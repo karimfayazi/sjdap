@@ -257,6 +257,30 @@ export async function GET(request: NextRequest) {
 		const result = await request_query.query(query);
 
 		if (result.recordset.length === 0) {
+			// FormNo not found in PE_Application_BasicInfo, check PE_FamilyMember table
+			const familyMemberCheck = pool.request();
+			familyMemberCheck.input("FormNo", formNumber);
+			const familyMemberQuery = `
+				SELECT TOP 1 [FormNo]
+				FROM [SJDA_Users].[dbo].[PE_FamilyMember]
+				WHERE [FormNo] = @FormNo
+			`;
+			const familyMemberResult = await familyMemberCheck.query(familyMemberQuery);
+			
+			if (familyMemberResult.recordset.length > 0) {
+				// FormNo exists in PE_FamilyMember, return success with empty/null data
+				// This allows adding members even if basic info doesn't exist yet
+				return NextResponse.json({
+					success: true,
+					data: {
+						FormNumber: formNumber,
+						// All other fields will be null/empty, which is fine for adding members
+					},
+				});
+			}
+			
+			// FormNo not found in either table
+			// Only return error if FormNo is explicitly invalid (null/empty already checked above)
 			return NextResponse.json(
 				{ success: false, message: "Application not found" },
 				{ status: 404 }
@@ -268,11 +292,11 @@ export async function GET(request: NextRequest) {
 			data: result.recordset[0],
 		});
 	} catch (error: any) {
-		console.error("Error fetching basic info:", error);
+		console.error("[PE_Application_BasicInfo] Error fetching basic info (FormNumber:", formNumber, "):", error);
 		return NextResponse.json(
 			{
 				success: false,
-				message: error.message || "Failed to fetch application basic info",
+				message: `[PE_Application_BasicInfo] Failed to fetch application basic info (FormNumber: ${formNumber}): ${error.message || "Unknown error"}`,
 			},
 			{ status: 500 }
 		);
@@ -535,7 +559,7 @@ export async function POST(request: NextRequest) {
 			message: "Application basic info created successfully",
 		});
 	} catch (error: any) {
-		console.error("Error creating basic info:", error);
+		console.error("[PE_Application_BasicInfo] Error creating basic info (FormNumber:", body.FormNumber, "):", error);
 		const errorMessage = error.message || "Failed to create application basic info";
 		
 		// Check if it's a table not found error
@@ -543,7 +567,7 @@ export async function POST(request: NextRequest) {
 			return NextResponse.json(
 				{
 					success: false,
-					message: `Database table not found. Please verify that the table 'PE_Application_BasicInfo' exists in the SJDA_Users database. Error: ${errorMessage}`,
+					message: `[PE_Application_BasicInfo] Database table not found. Please verify that the table 'PE_Application_BasicInfo' exists in the SJDA_Users database. FormNumber: ${body.FormNumber}. Error: ${errorMessage}`,
 				},
 				{ status: 500 }
 			);
@@ -552,7 +576,7 @@ export async function POST(request: NextRequest) {
 		return NextResponse.json(
 			{
 				success: false,
-				message: errorMessage,
+				message: `[PE_Application_BasicInfo] Failed to create application basic info (FormNumber: ${body.FormNumber}): ${errorMessage}`,
 			},
 			{ status: 500 }
 		);
@@ -719,11 +743,11 @@ export async function PUT(request: NextRequest) {
 			rowsAffected: updateResult.rowsAffected?.[0] || 0,
 		});
 	} catch (error: any) {
-		console.error("Error updating basic info:", error);
+		console.error("[PE_Application_BasicInfo] Error updating basic info (FormNumber:", body.FormNumber, "):", error);
 		return NextResponse.json(
 			{
 				success: false,
-				message: error.message || "Failed to update application basic info",
+				message: `[PE_Application_BasicInfo] Failed to update application basic info (FormNumber: ${body.FormNumber}): ${error.message || "Unknown error"}`,
 			},
 			{ status: 500 }
 		);

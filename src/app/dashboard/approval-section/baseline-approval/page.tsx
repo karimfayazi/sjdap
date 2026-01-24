@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Eye, RefreshCw } from "lucide-react";
+import { ArrowLeft, Eye, RefreshCw, Edit2, X } from "lucide-react";
 import PageGuard from "@/components/PageGuard";
 
 type BaselineQOLRecord = {
@@ -28,6 +28,14 @@ function BaselineApprovalContent() {
 	const [approvalStatusFilter, setApprovalStatusFilter] = useState("");
 	const [appliedFormNumberFilter, setAppliedFormNumberFilter] = useState("");
 	const [appliedApprovalStatusFilter, setAppliedApprovalStatusFilter] = useState("");
+
+	// Edit modal state
+	const [showEditModal, setShowEditModal] = useState(false);
+	const [selectedRecord, setSelectedRecord] = useState<BaselineQOLRecord | null>(null);
+	const [approvalStatus, setApprovalStatus] = useState<string>("");
+	const [remarks, setRemarks] = useState<string>("");
+	const [saving, setSaving] = useState(false);
+	const [saveError, setSaveError] = useState<string | null>(null);
 
 	const fetchBaselineQOL = async () => {
 		try {
@@ -116,6 +124,72 @@ function BaselineApprovalContent() {
 					{status}
 				</span>
 			);
+		}
+	};
+
+	const isPending = (status: string | null): boolean => {
+		if (!status) return true;
+		const statusLower = status.trim().toLowerCase();
+		return statusLower === "pending" || statusLower === "";
+	};
+
+	const handleEdit = (record: BaselineQOLRecord) => {
+		setSelectedRecord(record);
+		setApprovalStatus("");
+		setRemarks("");
+		setSaveError(null);
+		setShowEditModal(true);
+	};
+
+	const handleCloseModal = () => {
+		setShowEditModal(false);
+		setSelectedRecord(null);
+		setApprovalStatus("");
+		setRemarks("");
+		setSaveError(null);
+	};
+
+	const handleSaveApproval = async () => {
+		if (!selectedRecord || !selectedRecord.FormNumber) {
+			setSaveError("Invalid record selected");
+			return;
+		}
+
+		if (!approvalStatus || (approvalStatus !== "Approved" && approvalStatus !== "Rejected")) {
+			setSaveError("Please select either 'Approved' or 'Rejected'");
+			return;
+		}
+
+		try {
+			setSaving(true);
+			setSaveError(null);
+
+			const response = await fetch("/api/baseline-approval", {
+				method: "PATCH",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					formNumber: selectedRecord.FormNumber,
+					approvalStatus: approvalStatus,
+					remarks: remarks.trim() || null,
+				}),
+			});
+
+			const data = await response.json();
+
+			if (!response.ok || !data.success) {
+				throw new Error(data?.message || "Failed to update approval status");
+			}
+
+			// Refresh the records list
+			await fetchBaselineQOL();
+			
+			// Close modal
+			handleCloseModal();
+		} catch (err) {
+			console.error("Error updating approval status:", err);
+			setSaveError(err instanceof Error ? err.message : "Failed to update approval status");
+		} finally {
+			setSaving(false);
 		}
 	};
 
@@ -280,7 +354,7 @@ function BaselineApprovalContent() {
 															</div>
 														</div>
 													</div>
-													<div className="ml-4">
+													<div className="ml-4 flex items-center gap-2">
 														<button
 															type="button"
 															onClick={() => router.push(`/dashboard/baseline-qol/view?formNumber=${encodeURIComponent(record.FormNumber || "")}`)}
@@ -289,6 +363,16 @@ function BaselineApprovalContent() {
 															<Eye className="h-4 w-4" />
 															View
 														</button>
+														{isPending(record.ApprovalStatus) && (
+															<button
+																type="button"
+																onClick={() => handleEdit(record)}
+																className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium"
+															>
+																<Edit2 className="h-4 w-4" />
+																Edit
+															</button>
+														)}
 													</div>
 												</div>
 											</div>
@@ -299,6 +383,94 @@ function BaselineApprovalContent() {
 						</div>
 					</div>
 				</>
+			)}
+
+			{/* Edit Approval Modal */}
+			{showEditModal && selectedRecord && (
+				<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+					<div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+						<div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+							<h3 className="text-lg font-semibold text-gray-900">
+								Update Approval Status
+							</h3>
+							<button
+								type="button"
+								onClick={handleCloseModal}
+								className="text-gray-400 hover:text-gray-600 transition-colors"
+							>
+								<X className="h-5 w-5" />
+							</button>
+						</div>
+						
+						<div className="px-6 py-4 space-y-4">
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1">
+									Form Number
+								</label>
+								<input
+									type="text"
+									value={selectedRecord.FormNumber || ""}
+									disabled
+									className="w-full rounded-md border border-gray-300 px-3 py-2 bg-gray-50 text-gray-600"
+								/>
+							</div>
+
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1">
+									Approval Status <span className="text-red-500">*</span>
+								</label>
+								<select
+									value={approvalStatus}
+									onChange={(e) => setApprovalStatus(e.target.value)}
+									className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+									required
+								>
+									<option value="">Select Status</option>
+									<option value="Approved">Approved</option>
+									<option value="Rejected">Rejected</option>
+								</select>
+							</div>
+
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1">
+									Remarks (Optional)
+								</label>
+								<textarea
+									value={remarks}
+									onChange={(e) => setRemarks(e.target.value)}
+									rows={3}
+									className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+									placeholder="Enter remarks..."
+								/>
+							</div>
+
+							{saveError && (
+								<div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-700">
+									{saveError}
+								</div>
+							)}
+						</div>
+
+						<div className="px-6 py-4 border-t border-gray-200 flex items-center justify-end gap-3">
+							<button
+								type="button"
+								onClick={handleCloseModal}
+								disabled={saving}
+								className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors disabled:opacity-50"
+							>
+								Cancel
+							</button>
+							<button
+								type="button"
+								onClick={handleSaveApproval}
+								disabled={saving || !approvalStatus}
+								className="px-4 py-2 text-sm font-medium text-white bg-[#0b4d2b] rounded-md hover:bg-[#0a3d22] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+							>
+								{saving ? "Saving..." : "Save"}
+							</button>
+						</div>
+					</div>
+				</div>
 			)}
 		</div>
 	);

@@ -349,122 +349,137 @@ export default function SWBFamiliesPage() {
 			</div>
 
 			{/* Search and Filters */}
-			<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 space-y-4">
-				<div className="relative">
-					<Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-					<input
-						type="text"
-						placeholder="Search across all columns..."
-						value={searchTerm}
-						onChange={(e) => {
-							setSearchTerm(e.target.value);
-							setCurrentPage(1);
-						}}
-						className="w-full pl-10 rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
-					/>
+			<FilterBar columns={4} withSpacing>
+				<div className="lg:col-span-4">
+					<FilterField label="Search">
+						<input
+							type="text"
+							placeholder="Search across all columns..."
+							value={searchTerm}
+							onChange={(e) => {
+								setSearchTerm(e.target.value);
+								setCurrentPage(1);
+							}}
+							className={reportStyles.filterControl}
+						/>
+					</FilterField>
 				</div>
-				
-				<div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+				<FilterField label="CNIC">
 					<input
 						type="text"
 						placeholder="CNIC"
 						value={filters.cnic}
 						onChange={(e) => handleFilterChange("cnic", e.target.value)}
-						className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+						className={reportStyles.filterControl}
 					/>
+				</FilterField>
+				<FilterField label="Family ID">
 					<input
 						type="text"
 						placeholder="Family ID"
 						value={filters.familyId}
 						onChange={(e) => handleFilterChange("familyId", e.target.value)}
-						className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+						className={reportStyles.filterControl}
 					/>
+				</FilterField>
+				<FilterField label="BTS Number">
 					<input
 						type="text"
 						placeholder="BTS Number"
 						value={filters.btsNumber}
 						onChange={(e) => handleFilterChange("btsNumber", e.target.value)}
-						className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+						className={reportStyles.filterControl}
 					/>
+				</FilterField>
+				<FilterField label="Regional Council">
 					<input
 						type="text"
 						placeholder="Regional Council"
 						value={filters.regionalCouncil}
 						onChange={(e) => handleFilterChange("regionalCouncil", e.target.value)}
-						className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+						className={reportStyles.filterControl}
 					/>
+				</FilterField>
+				<FilterField label="Local Council">
 					<input
 						type="text"
 						placeholder="Local Council"
 						value={filters.localCouncil}
 						onChange={(e) => handleFilterChange("localCouncil", e.target.value)}
-						className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+						className={reportStyles.filterControl}
 					/>
+				</FilterField>
+				<FilterField label="Programme">
 					<input
 						type="text"
 						placeholder="Programme"
 						value={filters.programme}
 						onChange={(e) => handleFilterChange("programme", e.target.value)}
-						className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+						className={reportStyles.filterControl}
 					/>
+				</FilterField>
+				<FilterField label="Beneficiary Name">
 					<input
 						type="text"
 						placeholder="Beneficiary Name"
 						value={filters.beneficiaryName}
 						onChange={(e) => handleFilterChange("beneficiaryName", e.target.value)}
-						className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+						className={reportStyles.filterControl}
 					/>
+				</FilterField>
+				<FilterField label="Mentor Name">
 					<input
 						type="text"
 						placeholder="Mentor Name"
 						value={filters.mentorName}
 						onChange={(e) => handleFilterChange("mentorName", e.target.value)}
-						className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+						className={reportStyles.filterControl}
 					/>
+				</FilterField>
+				<FilterField label="FDP Status">
 					<input
 						type="text"
 						placeholder="FDP Status"
 						value={filters.fdpStatus}
 						onChange={(e) => handleFilterChange("fdpStatus", e.target.value)}
-						className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#0b4d2b] focus:ring-2 focus:ring-[#0b4d2b] focus:ring-opacity-20 focus:outline-none"
+						className={reportStyles.filterControl}
 					/>
-				</div>
-				
-				<div className="flex gap-2">
+				</FilterField>
+				<div className="flex items-end gap-2">
 					<button
 						onClick={handleApplyFilters}
-						className="px-4 py-2 bg-[#0b4d2b] text-white rounded-md hover:bg-[#0a3d22] transition-colors"
+						className={reportStyles.filterButtonPrimary}
 					>
 						Apply Filters
 					</button>
 					<button
 						onClick={handleClearFilters}
-						className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition-colors"
+						className={reportStyles.filterButtonSecondary}
 					>
-						Clear Filters
+						<X className="h-4 w-4" />
+						<span className="hidden sm:inline">Reset</span>
 					</button>
 				</div>
-			</div>
+			</FilterBar>
 
 			{/* Table */}
-			<div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-				<div className="overflow-x-auto">
-					<table className="min-w-full divide-y divide-gray-200">
-						<thead className="bg-gray-50">
-							<tr>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CNIC</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">BTS Number</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Family ID</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Beneficiary Name</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Programme</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Regional Council</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Local Council</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">FDP Status</th>
-								<th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mentor Name</th>
-							</tr>
-						</thead>
-						<tbody className="bg-white divide-y divide-gray-200">
+			<DataCardTable>
+				<table className={reportStyles.table}>
+					<thead className={reportStyles.tableHeader}>
+						<tr>
+							<th className={reportStyles.tableHeaderCell}>Actions</th>
+							<th className={reportStyles.tableHeaderCell}>CNIC</th>
+							<th className={reportStyles.tableHeaderCell}>BTS Number</th>
+							<th className={reportStyles.tableHeaderCell}>Family ID</th>
+							<th className={reportStyles.tableHeaderCell}>Beneficiary Name</th>
+							<th className={reportStyles.tableHeaderCell}>Programme</th>
+							<th className={reportStyles.tableHeaderCell}>Regional Council</th>
+							<th className={reportStyles.tableHeaderCell}>Local Council</th>
+							<th className={reportStyles.tableHeaderCell}>FDP Status</th>
+							<th className={reportStyles.tableHeaderCell}>Mentor Name</th>
+						</tr>
+					</thead>
+					<tbody className={reportStyles.tableBody}>
 							{paginatedFamilies.length === 0 ? (
 								<tr>
 									<td colSpan={10} className="px-4 py-8 text-center text-gray-500">
@@ -499,21 +514,20 @@ export default function SWBFamiliesPage() {
 												</button>
 											</div>
 										</td>
-										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{family.CNIC || "N/A"}</td>
-										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{family.BTS_Number || "N/A"}</td>
-										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{family.FAMILY_ID || "N/A"}</td>
-										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{family.Beneficiary_Name || "N/A"}</td>
-										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{family.Programme || "N/A"}</td>
-										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{family.Regional_Council || "N/A"}</td>
-										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{family.Local_Council || "N/A"}</td>
-										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{family.FDP_Status || "N/A"}</td>
-										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{family.Mentor_Name || "N/A"}</td>
+										<td className={reportStyles.tableCell}>{family.CNIC || "N/A"}</td>
+										<td className={reportStyles.tableCell}>{family.BTS_Number || "N/A"}</td>
+										<td className={reportStyles.tableCell}>{family.FAMILY_ID || "N/A"}</td>
+										<td className={reportStyles.tableCell}>{family.Beneficiary_Name || "N/A"}</td>
+										<td className={reportStyles.tableCell}>{family.Programme || "N/A"}</td>
+										<td className={reportStyles.tableCell}>{family.Regional_Council || "N/A"}</td>
+										<td className={reportStyles.tableCell}>{family.Local_Council || "N/A"}</td>
+										<td className={reportStyles.tableCell}>{family.FDP_Status || "N/A"}</td>
+										<td className={reportStyles.tableCell}>{family.Mentor_Name || "N/A"}</td>
 									</tr>
 								))
 							)}
 						</tbody>
 					</table>
-				</div>
 
 				{/* Pagination */}
 				{totalPages > 1 && (
@@ -546,7 +560,7 @@ export default function SWBFamiliesPage() {
 						</div>
 					</div>
 				)}
-			</div>
+			</DataCardTable>
 
 			{/* Delete Confirmation Modal */}
 			{deleteConfirm.show && (

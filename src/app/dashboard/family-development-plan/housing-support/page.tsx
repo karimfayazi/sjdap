@@ -332,15 +332,18 @@ function HousingSupportContent() {
 			
 			const method = isEditMode ? "PUT" : "POST";
 
+			// Remove CreatedBy, UpdatedBy, and ApprovalStatus from payload
+			// Server will set these values
+			const { CreatedBy, UpdatedBy, ApprovalStatus, ...payloadData } = formData as any;
+			
 			const response = await fetch(url, {
 				method,
 				headers: {
 					"Content-Type": "application/json",
 				},
 				body: JSON.stringify({
-					...formData,
-					CreatedBy: userProfile?.username || userProfile?.email || "System",
-					UpdatedBy: userProfile?.username || userProfile?.email || "System",
+					...payloadData,
+					FormNumber: formData.FamilyID, // Map FamilyID to FormNumber for API
 				}),
 			});
 

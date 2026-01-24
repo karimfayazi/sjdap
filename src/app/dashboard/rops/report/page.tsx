@@ -58,6 +58,10 @@ type Filters = {
 	monthOfPayment: string;
 	section: string;
 	mentor: string;
+	fromDate: string;
+	toDate: string;
+	paymentDone: string;
+	searchQuery: string;
 };
 
 function ROPsReportContent() {
@@ -84,6 +88,10 @@ function ROPsReportContent() {
 		monthOfPayment: "",
 		section: "",
 		mentor: isEditor ? userFullName : "", // For Editor, default to their own name
+		fromDate: "",
+		toDate: "",
+		paymentDone: "all",
+		searchQuery: "",
 	});
 	const [pagination, setPagination] = useState({
 		page: 1,
@@ -102,11 +110,11 @@ function ROPsReportContent() {
 		const normalizedUserType = (userType ?? '').trim().toUpperCase();
 		
 		// Allowed user types for Reports
-		const allowedUserTypes = ["EDITOR", "FINANCE AND ADMINISTRATION", "MANAGMENT", "REGIONAL AM"];
+		const allowedUserTypes = ["EDITOR", "FINANCE AND ADMINISTRATION", "MANAGMENT", "REGIONAL AM", "SUPER ADMIN"];
 		const isAllowed = allowedUserTypes.includes(normalizedUserType);
 		
 		if (!isAllowed) {
-			// Redirect unauthorized users (including Super Admin)
+			// Redirect unauthorized users
 			router.push('/dashboard');
 			return;
 		}
@@ -137,6 +145,10 @@ function ROPsReportContent() {
 			if (filters.mentor && !isEditor) {
 				params.append("mentor", filters.mentor);
 			}
+			if (filters.fromDate) params.append("fromDate", filters.fromDate);
+			if (filters.toDate) params.append("toDate", filters.toDate);
+			if (filters.paymentDone && filters.paymentDone !== "all") params.append("paymentDone", filters.paymentDone);
+			if (filters.searchQuery) params.append("q", filters.searchQuery);
 			params.append("page", pagination.page.toString());
 			params.append("pageSize", pagination.pageSize.toString());
 
@@ -176,7 +188,11 @@ function ROPsReportContent() {
 			headName: "",
 			monthOfPayment: "",
 			section: "",
-			mentor: "",
+			mentor: isEditor ? userFullName : "",
+			fromDate: "",
+			toDate: "",
+			paymentDone: "all",
+			searchQuery: "",
 		});
 		setPagination(prev => ({ ...prev, page: 1 }));
 	};
@@ -245,6 +261,10 @@ function ROPsReportContent() {
 			if (filters.monthOfPayment) params.append("monthOfPayment", filters.monthOfPayment);
 			if (filters.section) params.append("section", filters.section);
 			if (filters.mentor) params.append("mentor", filters.mentor);
+			if (filters.fromDate) params.append("fromDate", filters.fromDate);
+			if (filters.toDate) params.append("toDate", filters.toDate);
+			if (filters.paymentDone && filters.paymentDone !== "all") params.append("paymentDone", filters.paymentDone);
+			if (filters.searchQuery) params.append("q", filters.searchQuery);
 			params.append("pageSize", "10000"); // Get all rows
 
 			const response = await fetch(`/api/rops/report?${params.toString()}`);
@@ -463,17 +483,82 @@ function ROPsReportContent() {
 				</div>
 			)}
 
-			{/* Filters */}
+			{/* New Filter Row - 5 controls in one row */}
+			<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+					{/* 1. ROP Generated Date: From */}
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-1">ROP Generated Date: From</label>
+						<input
+							type="date"
+							value={filters.fromDate}
+							onChange={(e) => handleFilterChange("fromDate", e.target.value)}
+							className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent"
+						/>
+					</div>
+
+					{/* 2. ROP Generated Date: To */}
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-1">ROP Generated Date: To</label>
+						<input
+							type="date"
+							value={filters.toDate}
+							onChange={(e) => handleFilterChange("toDate", e.target.value)}
+							className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent"
+						/>
+					</div>
+
+					{/* 3. Payment Done */}
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-1">Payment Done</label>
+						<select
+							value={filters.paymentDone}
+							onChange={(e) => handleFilterChange("paymentDone", e.target.value)}
+							className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent"
+						>
+							<option value="all">All</option>
+							<option value="yes">Yes</option>
+							<option value="no">No</option>
+						</select>
+					</div>
+
+					{/* 4. Search */}
+					<div>
+						<label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+						<input
+							type="text"
+							value={filters.searchQuery}
+							onChange={(e) => handleFilterChange("searchQuery", e.target.value)}
+							placeholder="Form Number, Beneficiary, Mentor..."
+							className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent"
+						/>
+					</div>
+
+					{/* 5. Actions */}
+					<div className="flex items-end gap-2">
+						<button
+							onClick={fetchReport}
+							className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 bg-[#0b4d2b] text-white rounded-md hover:bg-[#0a3d22] transition-colors"
+						>
+							<Filter className="h-4 w-4" />
+							<span className="hidden sm:inline">Apply Filters</span>
+							<span className="sm:hidden">Apply</span>
+						</button>
+						<button
+							onClick={clearFilters}
+							className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
+						>
+							<X className="h-4 w-4" />
+							<span className="hidden sm:inline">Reset</span>
+						</button>
+					</div>
+				</div>
+			</div>
+
+			{/* Existing Filters */}
 			<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6 space-y-4">
 				<div className="flex items-center justify-between mb-4">
-					<h2 className="text-lg font-semibold text-gray-900">Filters</h2>
-					<button
-						onClick={clearFilters}
-						className="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
-					>
-						<X className="h-4 w-4" />
-						Clear All
-					</button>
+					<h2 className="text-lg font-semibold text-gray-900">Additional Filters</h2>
 				</div>
 
 				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -580,16 +665,6 @@ function ROPsReportContent() {
 							</select>
 						</div>
 					)}
-
-					<div className="flex items-end">
-						<button
-							onClick={fetchReport}
-							className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 bg-[#0b4d2b] text-white rounded-md hover:bg-[#0a3d22] transition-colors"
-						>
-							<Filter className="h-4 w-4" />
-							Apply Filters
-						</button>
-					</div>
 				</div>
 			</div>
 

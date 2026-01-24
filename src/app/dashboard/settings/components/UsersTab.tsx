@@ -512,16 +512,13 @@ export default function UsersTab() {
 			{/* Filters */}
 			<div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
 				<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-					<div className="relative">
-						<Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-						<input
-							type="text"
-							placeholder="Search by email or name..."
-							value={searchTerm}
-							onChange={(e) => setSearchTerm(e.target.value)}
-							className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent text-sm"
-						/>
-					</div>
+					<input
+						type="text"
+						placeholder="Search by email or name..."
+						value={searchTerm}
+						onChange={(e) => setSearchTerm(e.target.value)}
+						className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent text-sm"
+					/>
 
 					<div className="relative">
 						<Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />

@@ -135,6 +135,7 @@ const getAllNavigationGroups = (): NavGroup[] => {
 
 /**
  * Filters navigation groups based on user type.
+ * - Super Admin: ALL menu items (full access / no hidden items)
  * - Managment: Dashboard + Logout only
  * - JPO: Logout only
  * - Finance and Administration: Dashboard + Finance group + Bank Information + Approval Section (Bank Account Approval only) + Logout
@@ -146,6 +147,12 @@ const getAllNavigationGroups = (): NavGroup[] => {
 const getVisibleNavGroups = (allGroups: NavGroup[], userType: string | null | undefined): NavGroup[] => {
 	// Normalize userType for comparison (handle casing/whitespace safely)
 	const normalizedUserType = (userType ?? '').trim().toUpperCase();
+	
+	// Super Admin override: Show ALL menu items (full access / no hidden items)
+	// This check must be FIRST before any other user type filtering
+	if (normalizedUserType === "SUPER ADMIN") {
+		return allGroups;
+	}
 	
 	// Helper function to find Dashboard group
 	const findDashboardGroup = () => {

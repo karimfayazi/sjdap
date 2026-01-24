@@ -1403,7 +1403,7 @@ function ApplicationDetailsContent() {
 							</thead>
 							<tbody className="bg-white divide-y divide-gray-200">
 								{details.familyMembers.map((member, index) => (
-									<tr key={member.MemberNo} className="hover:bg-gray-50">
+									<tr key={`member-${member.ApplicationId}-${member.MemberNo}-${index}`} className="hover:bg-gray-50">
 										<td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 sticky left-0 bg-white z-10">{member.MemberNo || "N/A"}</td>
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{member.FullName || "N/A"}</td>
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{member.BFormOrCNIC || "N/A"}</td>
@@ -1473,7 +1473,7 @@ function ApplicationDetailsContent() {
 							</thead>
 							<tbody className="bg-white divide-y divide-gray-200">
 								{approvalLogs.map((log, idx) => (
-									<tr key={log.LogID || idx} className="hover:bg-gray-50">
+									<tr key={`log-${log.LogID || idx}-${idx}`} className="hover:bg-gray-50">
 										<td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{log.LogID || "N/A"}</td>
 										<td className="px-4 py-3 whitespace-nowrap text-sm">
 											{log.ActionLevel ? (
@@ -1703,7 +1703,7 @@ function ApplicationDetailsContent() {
 									{details.familyMembers && details.familyMembers.length > 0 ? (
 										<>
 											{details.familyMembers.map((member, index) => (
-												<div key={member.MemberNo} className="flex justify-between items-center py-2 border-b border-gray-100">
+												<div key={`member-${member.ApplicationId}-${member.MemberNo}-${index}`} className="flex justify-between items-center py-2 border-b border-gray-100">
 													<span className="text-sm text-gray-700">
 														{member.FullName || `Member ${index + 1}`} - Monthly Income
 													</span>

@@ -4,6 +4,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Download, Search, RefreshCw, Eye } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import FilterBar from "@/components/common/FilterBar";
+import FilterField from "@/components/common/FilterField";
+import DataCardTable from "@/components/common/DataCardTable";
+import { reportStyles } from "@/lib/ui/reportStyles";
 
 type FamilyStatusLog = {
 	FormNumber: string | null;
@@ -310,94 +314,63 @@ export default function FamilyStatusPage() {
 			</div>
 
 			{/* Search and Filters */}
-			<div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-					{/* Search */}
-					<div className="lg:col-span-3">
-						<div className="relative">
-							<Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-							<input
-								type="text"
-								placeholder="Search by Form Number, Full Name, Regional/Local Community, Status, or Remarks..."
-								value={searchTerm}
-								onChange={(e) => setSearchTerm(e.target.value)}
-								className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#0b4d2b] focus:border-[#0b4d2b] outline-none"
-							/>
-						</div>
-					</div>
-
-					{/* Form Number Filter */}
-					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-1">
-							Form Number
-						</label>
+			<FilterBar columns={4} withSpacing>
+				<div className="lg:col-span-4">
+					<FilterField label="Search">
 						<input
 							type="text"
-							value={filters.formNumber}
-							onChange={(e) => handleFilterChange("formNumber", e.target.value)}
-							placeholder="Filter by Form Number"
-							className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#0b4d2b] focus:border-[#0b4d2b] outline-none"
+							placeholder="Search by Form Number, Full Name, Regional/Local Community, Status, or Remarks..."
+							value={searchTerm}
+							onChange={(e) => setSearchTerm(e.target.value)}
+							className={reportStyles.filterControl}
 						/>
-					</div>
-
-					{/* Application Status Filter */}
-					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-1">
-							Application Status
-						</label>
-						<input
-							type="text"
-							value={filters.applicationStatus}
-							onChange={(e) => handleFilterChange("applicationStatus", e.target.value)}
-							placeholder="Filter by Application Status"
-							className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#0b4d2b] focus:border-[#0b4d2b] outline-none"
-						/>
-					</div>
-
-					{/* FDP Development Status Filter */}
-					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-1">
-							FDP Development Status
-						</label>
-						<input
-							type="text"
-							value={filters.fdpDevelopmentStatus}
-							onChange={(e) => handleFilterChange("fdpDevelopmentStatus", e.target.value)}
-							placeholder="Filter by FDP Development Status"
-							className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#0b4d2b] focus:border-[#0b4d2b] outline-none"
-						/>
-					</div>
-
-					{/* CRC Approval Status Filter */}
-					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-1">
-							CRC Approval Status
-						</label>
-						<input
-							type="text"
-							value={filters.crcApprovalStatus}
-							onChange={(e) => handleFilterChange("crcApprovalStatus", e.target.value)}
-							placeholder="Filter by CRC Approval Status"
-							className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#0b4d2b] focus:border-[#0b4d2b] outline-none"
-						/>
-					</div>
-
-					{/* Intervention Status Filter */}
-					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-1">
-							Intervention Status
-						</label>
-						<input
-							type="text"
-							value={filters.interventionStatus}
-							onChange={(e) => handleFilterChange("interventionStatus", e.target.value)}
-							placeholder="Filter by Intervention Status"
-							className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#0b4d2b] focus:border-[#0b4d2b] outline-none"
-						/>
-					</div>
+					</FilterField>
 				</div>
-
-				{/* Clear Filters Button */}
+				<FilterField label="Form Number">
+					<input
+						type="text"
+						value={filters.formNumber}
+						onChange={(e) => handleFilterChange("formNumber", e.target.value)}
+						placeholder="Filter by Form Number"
+						className={reportStyles.filterControl}
+					/>
+				</FilterField>
+				<FilterField label="Application Status">
+					<input
+						type="text"
+						value={filters.applicationStatus}
+						onChange={(e) => handleFilterChange("applicationStatus", e.target.value)}
+						placeholder="Filter by Application Status"
+						className={reportStyles.filterControl}
+					/>
+				</FilterField>
+				<FilterField label="FDP Development Status">
+					<input
+						type="text"
+						value={filters.fdpDevelopmentStatus}
+						onChange={(e) => handleFilterChange("fdpDevelopmentStatus", e.target.value)}
+						placeholder="Filter by FDP Development Status"
+						className={reportStyles.filterControl}
+					/>
+				</FilterField>
+				<FilterField label="CRC Approval Status">
+					<input
+						type="text"
+						value={filters.crcApprovalStatus}
+						onChange={(e) => handleFilterChange("crcApprovalStatus", e.target.value)}
+						placeholder="Filter by CRC Approval Status"
+						className={reportStyles.filterControl}
+					/>
+				</FilterField>
+				<FilterField label="Intervention Status">
+					<input
+						type="text"
+						value={filters.interventionStatus}
+						onChange={(e) => handleFilterChange("interventionStatus", e.target.value)}
+						placeholder="Filter by Intervention Status"
+						className={reportStyles.filterControl}
+					/>
+				</FilterField>
 				<div className="flex justify-end">
 					<button
 						onClick={clearFilters}
@@ -406,56 +379,29 @@ export default function FamilyStatusPage() {
 						Clear Filters
 					</button>
 				</div>
-			</div>
+			</FilterBar>
 
 			{/* Table */}
-			<div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-				<div className="overflow-x-auto">
-					<table className="min-w-full divide-y divide-gray-200">
-						<thead className="bg-gray-50">
-							<tr>
-								<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									Form Number
-								</th>
-								<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									Full Name
-								</th>
-								<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									Application Date
-								</th>
-								<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									Regional Community
-								</th>
-								<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									Local Community
-								</th>
-								<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									Application Status
-								</th>
-								<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									FDP Development Status
-								</th>
-								<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									FDP Development Date
-								</th>
-								<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									CRC Approval Status
-								</th>
-								<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									CRC Approval Date
-								</th>
-								<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									Intervention Status
-								</th>
-								<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									Intervention Start Date
-								</th>
-								<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-									Remarks
-								</th>
-							</tr>
-						</thead>
-						<tbody className="bg-white divide-y divide-gray-200">
+			<DataCardTable>
+				<table className={reportStyles.table}>
+					<thead className={reportStyles.tableHeader}>
+						<tr>
+							<th className={reportStyles.tableHeaderCell}>Form Number</th>
+							<th className={reportStyles.tableHeaderCell}>Full Name</th>
+							<th className={reportStyles.tableHeaderCell}>Application Date</th>
+							<th className={reportStyles.tableHeaderCell}>Regional Community</th>
+							<th className={reportStyles.tableHeaderCell}>Local Community</th>
+							<th className={reportStyles.tableHeaderCell}>Application Status</th>
+							<th className={reportStyles.tableHeaderCell}>FDP Development Status</th>
+							<th className={reportStyles.tableHeaderCell}>FDP Development Date</th>
+							<th className={reportStyles.tableHeaderCell}>CRC Approval Status</th>
+							<th className={reportStyles.tableHeaderCell}>CRC Approval Date</th>
+							<th className={reportStyles.tableHeaderCell}>Intervention Status</th>
+							<th className={reportStyles.tableHeaderCell}>Intervention Start Date</th>
+							<th className={reportStyles.tableHeaderCell}>Remarks</th>
+						</tr>
+					</thead>
+					<tbody className={reportStyles.tableBody}>
 							{filteredStatusLogs.length === 0 ? (
 								<tr>
 									<td colSpan={13} className="px-6 py-12 text-center text-gray-500">

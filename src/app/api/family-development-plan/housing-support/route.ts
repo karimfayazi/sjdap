@@ -1,16 +1,58 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPeDb } from "@/lib/db";
+import { getPeDb, getDb } from "@/lib/db";
 import sql from "mssql";
 
 export const maxDuration = 120;
 
+// Helper function to get current user's full name
+async function getCurrentUserFullName(request: NextRequest): Promise<string> {
+	try {
+		const authCookie = request.cookies.get("auth");
+		
+		if (!authCookie || !authCookie.value) {
+			return "System";
+		}
+
+		const userId = authCookie.value.split(":")[1];
+		if (!userId) {
+			return "System";
+		}
+
+		const userPool = await getDb();
+		const userResult = await userPool
+			.request()
+			.input("user_id", userId)
+			.input("email_address", userId)
+			.query(
+				"SELECT TOP(1) [UserFullName], [UserId], [email_address] FROM [SJDA_Users].[dbo].[PE_User] WHERE [UserId] = @user_id OR [email_address] = @email_address"
+			);
+
+		const user = userResult.recordset?.[0];
+		// Return UserFullName if available, otherwise fallback to UserId or email_address
+		const userName = user?.UserFullName || user?.UserId || user?.email_address || userId;
+		
+		// Ensure it's a valid non-empty string
+		const trimmedName = typeof userName === "string" ? userName.trim() : String(userName).trim();
+		return trimmedName.length > 0 ? trimmedName : "System";
+	} catch (error) {
+		console.error("Error fetching user full name:", error);
+		return "System";
+	}
+}
+
 export async function POST(request: NextRequest) {
 	try {
 		const body = await request.json();
+		
+		// Get current user's full name (server-side)
+		const createdBy = await getCurrentUserFullName(request);
+		
 		const pool = await getPeDb();
 		const sqlRequest = pool.request();
 
-		// Input parameters
+		// Input parameters - ignore CreatedBy/UpdatedBy/ApprovalStatus from client
+		// Note: HabitatTotalCost, HabitatTotalFamilyContribution, HabitatTotalPEContribution are computed columns
+		// and should not be included in INSERT/UPDATE statements
 		sqlRequest.input("FormNumber", sql.VarChar, body.FormNumber);
 		sqlRequest.input("HeadName", sql.NVarChar, body.HeadName || null);
 		sqlRequest.input("AreaType", sql.VarChar, body.AreaType || null);
@@ -18,7 +60,7 @@ export async function POST(request: NextRequest) {
 		sqlRequest.input("HabitatMonthlyFamilyContribution", sql.Decimal(18, 2), body.HabitatMonthlyFamilyContribution || 0);
 		sqlRequest.input("HabitatMonthlyPEContribution", sql.Decimal(18, 2), body.HabitatMonthlyPEContribution || 0);
 		sqlRequest.input("HabitatNumberOfMonths", sql.Int, body.HabitatNumberOfMonths || 0);
-		sqlRequest.input("CreatedBy", sql.VarChar, body.CreatedBy || "System");
+		sqlRequest.input("CreatedBy", sql.VarChar, createdBy); // Server-side only
 
 		const insertQuery = `
 			INSERT INTO [SJDA_Users].[dbo].[PE_FDP_HabitatSupport]
@@ -26,14 +68,14 @@ export async function POST(request: NextRequest) {
 				[FormNumber], [HeadName], [AreaType],
 				[HabitatMonthlyTotalCost], [HabitatMonthlyFamilyContribution],
 				[HabitatMonthlyPEContribution], [HabitatNumberOfMonths],
-				[CreatedBy], [CreatedAt], [IsActive]
+				[CreatedBy], [CreatedAt], [IsActive], [ApprovalStatus]
 			)
 			VALUES
 			(
 				@FormNumber, @HeadName, @AreaType,
 				@HabitatMonthlyTotalCost, @HabitatMonthlyFamilyContribution,
 				@HabitatMonthlyPEContribution, @HabitatNumberOfMonths,
-				@CreatedBy, GETDATE(), 1
+				@CreatedBy, GETDATE(), 1, 'Pending'
 			)
 		`;
 
@@ -131,9 +173,15 @@ export async function PUT(request: NextRequest) {
 		}
 
 		const body = await request.json();
+		
+		// Get current user's full name (server-side)
+		const updatedBy = await getCurrentUserFullName(request);
+		
 		const pool = await getPeDb();
 		const sqlRequest = pool.request();
 
+		// Note: HabitatTotalCost, HabitatTotalFamilyContribution, HabitatTotalPEContribution are computed columns
+		// and should not be included in UPDATE statements
 		sqlRequest.input("FDP_HabitatSupportID", sql.Int, parseInt(fdpHabitatSupportId));
 		sqlRequest.input("HeadName", sql.NVarChar, body.HeadName || null);
 		sqlRequest.input("AreaType", sql.VarChar, body.AreaType || null);
@@ -141,7 +189,7 @@ export async function PUT(request: NextRequest) {
 		sqlRequest.input("HabitatMonthlyFamilyContribution", sql.Decimal(18, 2), body.HabitatMonthlyFamilyContribution || 0);
 		sqlRequest.input("HabitatMonthlyPEContribution", sql.Decimal(18, 2), body.HabitatMonthlyPEContribution || 0);
 		sqlRequest.input("HabitatNumberOfMonths", sql.Int, body.HabitatNumberOfMonths || 0);
-		sqlRequest.input("UpdatedBy", sql.VarChar, body.UpdatedBy || "System");
+		sqlRequest.input("UpdatedBy", sql.VarChar, updatedBy); // Server-side only
 
 		const updateQuery = `
 			UPDATE [SJDA_Users].[dbo].[PE_FDP_HabitatSupport]

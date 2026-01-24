@@ -171,21 +171,18 @@ export default function InterventionApprovalPage() {
 
 				{/* Search and Filters */}
 				<div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 space-y-4">
-					<div className="relative">
-						<Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-						<input
-							type="text"
-							placeholder="Search by Form Number or Family Name..."
-							value={searchTerm}
-							onChange={(e) => setSearchTerm(e.target.value)}
-							onKeyDown={(e) => {
-								if (e.key === "Enter") {
-									fetchInterventions();
-								}
-							}}
-							className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent"
-						/>
-					</div>
+					<input
+						type="text"
+						placeholder="Search by Form Number or Family Name..."
+						value={searchTerm}
+						onChange={(e) => setSearchTerm(e.target.value)}
+						onKeyDown={(e) => {
+							if (e.key === "Enter") {
+								fetchInterventions();
+							}
+						}}
+						className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#0b4d2b] focus:border-transparent"
+					/>
 
 					<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 						<div>

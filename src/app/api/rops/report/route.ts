@@ -93,12 +93,12 @@ export async function GET(request: NextRequest) {
 		const normalizedUserType = (userType ?? '').trim().toUpperCase();
 		
 		// Allowed user types for Reports
-		const allowedUserTypes = ["EDITOR", "FINANCE AND ADMINISTRATION", "MANAGMENT", "REGIONAL AM"];
+		const allowedUserTypes = ["EDITOR", "FINANCE AND ADMINISTRATION", "MANAGMENT", "REGIONAL AM", "SUPER ADMIN"];
 		const isAllowed = allowedUserTypes.includes(normalizedUserType);
 		
 		if (!isAllowed) {
 			return NextResponse.json(
-				{ ok: false, message: "Access denied. This report is only available to Editor, Finance and Administration, Managment, or Regional AM users.", summary: null, rows: [], filterOptions: null },
+				{ ok: false, message: "Access denied. This report is only available to Editor, Finance and Administration, Managment, Regional AM, or Super Admin users.", summary: null, rows: [], filterOptions: null },
 				{ status: 403 }
 			);
 		}
@@ -114,6 +114,10 @@ export async function GET(request: NextRequest) {
 		const monthOfPayment = searchParams.get("monthOfPayment") || "";
 		const section = searchParams.get("section") || "";
 		const mentor = searchParams.get("mentor") || "";
+		const fromDate = searchParams.get("fromDate") || "";
+		const toDate = searchParams.get("toDate") || "";
+		const paymentDone = searchParams.get("paymentDone") || "all";
+		const searchQuery = searchParams.get("q") || "";
 		const page = parseInt(searchParams.get("page") || "1", 10);
 		const pageSize = parseInt(searchParams.get("pageSize") || "50", 10);
 		const sort = searchParams.get("sort") || "ROPId DESC";
@@ -169,6 +173,48 @@ export async function GET(request: NextRequest) {
 		if (mentor && !isEditor) {
 			whereConditions.push(`r.[SubmittedBy] LIKE @mentor`);
 			sqlRequest.input("mentor", sql.NVarChar, `%${mentor.trim()}%`);
+		}
+
+		// Date range filter: ROP Generated Date (SubmittedAt)
+		if (fromDate) {
+			whereConditions.push(`CAST(r.[SubmittedAt] AS DATE) >= @fromDate`);
+			sqlRequest.input("fromDate", sql.Date, fromDate);
+		}
+		if (toDate) {
+			// Inclusive end date: add 1 day and use < comparison
+			whereConditions.push(`CAST(r.[SubmittedAt] AS DATE) < DATEADD(day, 1, @toDate)`);
+			sqlRequest.input("toDate", sql.Date, toDate);
+		}
+
+		// Payment Done filter
+		if (paymentDone && paymentDone !== "all") {
+			if (paymentDone === "yes") {
+				// Check for "Yes", "yes", "1", or any truthy value
+				whereConditions.push(`(
+					UPPER(LTRIM(RTRIM(CAST(ISNULL(r.[Payment_Done], '') AS NVARCHAR(50))))) = 'YES' 
+					OR UPPER(LTRIM(RTRIM(CAST(ISNULL(r.[Payment_Done], '') AS NVARCHAR(50))))) = '1'
+					OR CAST(ISNULL(r.[Payment_Done], 0) AS BIT) = 1
+				)`);
+			} else if (paymentDone === "no") {
+				// Check for "No", "no", "0", NULL, or any falsy value
+				whereConditions.push(`(
+					UPPER(LTRIM(RTRIM(CAST(ISNULL(r.[Payment_Done], '') AS NVARCHAR(50))))) = 'NO' 
+					OR UPPER(LTRIM(RTRIM(CAST(ISNULL(r.[Payment_Done], '') AS NVARCHAR(50))))) = '0'
+					OR CAST(ISNULL(r.[Payment_Done], 0) AS BIT) = 0
+					OR r.[Payment_Done] IS NULL
+					OR LTRIM(RTRIM(CAST(ISNULL(r.[Payment_Done], '') AS NVARCHAR(50)))) = ''
+				)`);
+			}
+		}
+
+		// Search query filter (FormNumber, BeneficiaryName, Mentor/SubmittedBy)
+		if (searchQuery) {
+			whereConditions.push(`(
+				r.[FormNumber] LIKE @searchQuery 
+				OR fm.[FullName] LIKE @searchQuery 
+				OR r.[SubmittedBy] LIKE @searchQuery
+			)`);
+			sqlRequest.input("searchQuery", sql.NVarChar, `%${searchQuery.trim()}%`);
 		}
 
 		const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(" AND ")}` : "";
@@ -304,6 +350,12 @@ export async function GET(request: NextRequest) {
 		if (mentor && !isEditor) {
 			countRequest.input("mentor", sql.NVarChar, `%${mentor.trim()}%`);
 		}
+		if (fromDate) countRequest.input("fromDate", sql.Date, fromDate);
+		if (toDate) countRequest.input("toDate", sql.Date, toDate);
+		if (paymentDone && paymentDone !== "all") {
+			// Payment Done filter is handled in WHERE clause with OR conditions, no parameter needed
+		}
+		if (searchQuery) countRequest.input("searchQuery", sql.NVarChar, `%${searchQuery.trim()}%`);
 
 		const countQuery = `
 			SELECT COUNT(*) as total
@@ -337,6 +389,41 @@ export async function GET(request: NextRequest) {
 			const normalizedUserFullName = userFullName.trim();
 			optionsWhereConditions.push(`UPPER(LTRIM(RTRIM(b.[SubmittedBy]))) = UPPER(LTRIM(RTRIM(@editorMentorNameOptions)))`);
 			optionsRequest.input("editorMentorNameOptions", sql.NVarChar, normalizedUserFullName);
+		}
+		
+		// Apply date range and payment filters to options query as well
+		if (fromDate) {
+			optionsWhereConditions.push(`CAST(r.[SubmittedAt] AS DATE) >= @fromDateOptions`);
+			optionsRequest.input("fromDateOptions", sql.Date, fromDate);
+		}
+		if (toDate) {
+			optionsWhereConditions.push(`CAST(r.[SubmittedAt] AS DATE) < DATEADD(day, 1, @toDateOptions)`);
+			optionsRequest.input("toDateOptions", sql.Date, toDate);
+		}
+		if (paymentDone && paymentDone !== "all") {
+			if (paymentDone === "yes") {
+				optionsWhereConditions.push(`(
+					UPPER(LTRIM(RTRIM(CAST(ISNULL(r.[Payment_Done], '') AS NVARCHAR(50))))) = 'YES' 
+					OR UPPER(LTRIM(RTRIM(CAST(ISNULL(r.[Payment_Done], '') AS NVARCHAR(50))))) = '1'
+					OR CAST(ISNULL(r.[Payment_Done], 0) AS BIT) = 1
+				)`);
+			} else if (paymentDone === "no") {
+				optionsWhereConditions.push(`(
+					UPPER(LTRIM(RTRIM(CAST(ISNULL(r.[Payment_Done], '') AS NVARCHAR(50))))) = 'NO' 
+					OR UPPER(LTRIM(RTRIM(CAST(ISNULL(r.[Payment_Done], '') AS NVARCHAR(50))))) = '0'
+					OR CAST(ISNULL(r.[Payment_Done], 0) AS BIT) = 0
+					OR r.[Payment_Done] IS NULL
+					OR LTRIM(RTRIM(CAST(ISNULL(r.[Payment_Done], '') AS NVARCHAR(50)))) = ''
+				)`);
+			}
+		}
+		if (searchQuery) {
+			optionsWhereConditions.push(`(
+				r.[FormNumber] LIKE @searchQueryOptions 
+				OR fm.[FullName] LIKE @searchQueryOptions 
+				OR r.[SubmittedBy] LIKE @searchQueryOptions
+			)`);
+			optionsRequest.input("searchQueryOptions", sql.NVarChar, `%${searchQuery.trim()}%`);
 		}
 		
 		const optionsWhereClause = optionsWhereConditions.length > 0 ? `WHERE ${optionsWhereConditions.join(" AND ")}` : "";
